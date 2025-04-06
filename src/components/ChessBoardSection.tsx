@@ -1,0 +1,122 @@
+import React, { useEffect, useRef, useState } from 'react'
+import { Chessboard } from 'react-chessboard'
+import { useGameState } from '../contexts/GameStateContext'
+import { Arrow, Square } from 'react-chessboard/dist/chessboard/types'
+
+const PADDING_PX = 16
+const MAX_BOARD_SIZE = 700
+
+const WhiteCapturesMap: Record<string, string> = {
+  p: '♙',
+  n: '♘',
+  b: '♗',
+  r: '♖',
+  q: '♕',
+  k: '♔',
+}
+
+const BlackCapturesMap: Record<string, string> = {
+  p: '♟',
+  n: '♞',
+  b: '♝',
+  r: '♜',
+  q: '♛',
+  k: '♚',
+}
+
+const ChessBoardSection = ({
+  hoveredArrow,
+}: {
+  hoveredArrow: string | null
+}) => {
+  const { gameState } = useGameState()
+  const { moves, currentMoveIndex } = gameState
+  const [boardWidth, setBoardWidth] = useState<number>(0)
+
+  const parentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (parentRef.current) {
+        const width = Math.min(
+          parentRef.current.clientWidth - 2 * PADDING_PX,
+          MAX_BOARD_SIZE
+        )
+        setBoardWidth(width)
+      }
+    }
+
+    // Initial calculation
+    handleResize()
+
+    // Debounced resize observer
+    const observer = new ResizeObserver(() => {
+      setTimeout(handleResize, 50) // Debounce the resize observer
+    })
+    observer.observe(parentRef.current?.parentElement as Element)
+
+    return () => observer.disconnect()
+  }, [])
+
+  const fen = moves[currentMoveIndex].position
+  const headers = gameState.game.getHeaders()
+  const whiteCaptures = moves[currentMoveIndex].capturedByWhite
+  const blackCaptures = moves[currentMoveIndex].capturedByBlack
+
+  const whiteCapturesString = Object.entries(whiteCaptures).map(
+    ([piece, count]) => {
+      return `${WhiteCapturesMap[piece]} `.repeat(count)
+    }
+  )
+
+  const blackCapturesString = Object.entries(blackCaptures).map(
+    ([piece, count]) => {
+      return `${BlackCapturesMap[piece]} `.repeat(count)
+    }
+  )
+  const arrows = hoveredArrow
+  ? ([
+    [
+      hoveredArrow.slice(0, 2) as Square,
+      hoveredArrow.slice(2, 4) as Square,
+    ],
+  ] as Arrow[])
+  : []
+
+  return (
+    <div
+      ref={parentRef}
+      className="flex flex-col w-full items-center p-4 border-r"
+    >
+      {gameState.isLoaded && (
+        <div className="text-center mb-2">
+          <h3 className="text-lg font-semibold">{headers['White']}</h3>
+          <h3 className="text-md">{headers['WhiteElo']}</h3>
+          <p className="text-sm text-gray-600">
+            Captured: {whiteCapturesString}
+          </p>
+        </div>
+      )}
+      {boardWidth > 0 && (
+        <Chessboard
+          position={fen}
+          boardWidth={boardWidth}
+          customDarkSquareStyle={{ backgroundColor: '#666666' }}
+          customLightSquareStyle={{ backgroundColor: '#eaeaea' }}
+          customArrows={arrows}
+        />
+      )}
+      {gameState.isLoaded && (
+        <div className="text-center mt-2">
+          <h3 className="text-lg font-semibold">{headers['Black']}</h3>
+          <h3 className="text-md">{headers['BlackElo']}</h3>
+          <p className="text-sm text-gray-600">
+            Captured: {blackCapturesString}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default ChessBoardSection
