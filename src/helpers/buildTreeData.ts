@@ -1,12 +1,39 @@
 import { MoveAnalysisNode } from '@/types/AnalysisResult'
 import { MoveTreeConfig } from '@/types/MoveTreeConfig'
 
+interface TreeNode {
+  name: string
+  value: number | null
+  layout: string
+  label: {
+    color: string
+    fontWeight: number
+    fontFamily: string
+    position: string
+    formatter: string | ((params: unknown) => string)
+    verticalAlign: string
+    align: string
+  }
+  itemStyle: {
+    color: string
+  }
+  children: (TreeNode | null)[]
+  analysisNode: MoveAnalysisNode
+  leaves: {
+    label: {
+      position: string
+      verticalAlign: string
+      align: string
+    }
+  }
+}
+
 export function buildTreeData(
   node: MoveAnalysisNode,
   moveTree: Record<number, MoveAnalysisNode>,
   maxDepth: number,
   config: MoveTreeConfig
-): any {
+): TreeNode | null {
   if (!node || node.depth > maxDepth) return null
 
   let color = config.nodeColors.white
@@ -17,7 +44,7 @@ export function buildTreeData(
   else color = config.nodeColors.black
 
   // Order children: white to move (odd depth) = descending, black to move (even depth) = ascending
-  let children = Object.values(moveTree)
+  const children = Object.values(moveTree)
     .filter((n) => n.parent === node.id && n.context !== 'alternative')
     .sort((a, b) =>
       node.depth % 2 === 1
@@ -36,9 +63,10 @@ export function buildTreeData(
       fontWeight: node.context === 'mainline' ? 700 : 500,
       fontFamily: config.fontFamily,
       position: 'inside',
-      formatter: node.deep_score != null
-        ? `${node.move}\n${node.deep_score}`
-        : node.move,
+      formatter:
+        node.deep_score != null
+          ? `${node.move}\n${node.deep_score}`
+          : node.move,
       verticalAlign: 'middle',
       align: 'center',
     },
