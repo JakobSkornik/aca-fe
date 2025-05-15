@@ -1,55 +1,30 @@
 import React, { createContext, useContext, useState } from 'react'
 import { Chess } from 'chess.js'
+import { CaptureCount } from '../types/AnalysisResult'
+import { GameState } from '../types/GameState'
+import { GameStateContextType } from '../types/GameStateContextType'
 
-type Move = {
-  move: string
-  comment: string
-  position: string
-  score: number
-  bestContinuations: string[]
-  capturedByWhite: Record<string, number>
-  capturedByBlack: Record<string, number>
-}
-
-type MoveAnalysisNode = {
-  id: number
-  depth: number
-  parent: number
-  move: string
-  fen: string
-  shallow_score: number
-  deep_score: number
-  trace: Record<string, Record<string, number>>
-}
-
-type GameState = {
-  isLoaded: boolean
-  isAnnotated: boolean
-  game: Chess
-  moves: Move[]
-  currentMoveIndex: number
-  // Add moveTree attribute to hold our move graph.
-  moveTree: Record<number, MoveAnalysisNode> | null
-}
-
-type GameStateContextType = {
-  gameState: GameState
-  setGameState: React.Dispatch<React.SetStateAction<GameState>>
+const defaultCaptureCount: CaptureCount = {
+  p: 0,
+  n: 0,
+  b: 0,
+  r: 0,
+  q: 0,
+  k: 0,
 }
 
 const initialGameState: GameState = {
   game: new Chess(),
   isLoaded: false,
-  isAnnotated: false,
   moves: [
     {
       move: '',
       position: 'start',
-      comment: '',
-      score: 0,
+      shallow_score: 0,
+      deep_score: 0,
       bestContinuations: [],
-      capturedByWhite: {},
-      capturedByBlack: {},
+      capturedByWhite: defaultCaptureCount,
+      capturedByBlack: defaultCaptureCount,
     },
   ],
   currentMoveIndex: 0,
