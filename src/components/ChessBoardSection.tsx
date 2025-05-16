@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { useGameState } from '../contexts/GameStateContext'
 import { Arrow, Square } from 'react-chessboard/dist/chessboard/types'
+import Comments from './Comments'
 
 const PADDING_PX = 16
 const MAX_BOARD_SIZE = 700
@@ -30,7 +31,7 @@ const ChessBoardSection = ({
   hoveredArrow: string | null
 }) => {
   const { gameState } = useGameState()
-  const { moves, currentMoveIndex } = gameState
+  const { moves, moveTree, currentMoveIndex } = gameState
   const [boardWidth, setBoardWidth] = useState<number>(0)
 
   const parentRef = useRef<HTMLDivElement>(null)
@@ -75,13 +76,13 @@ const ChessBoardSection = ({
     }
   )
   const arrows = hoveredArrow
-  ? ([
-    [
-      hoveredArrow.slice(0, 2) as Square,
-      hoveredArrow.slice(2, 4) as Square,
-    ],
-  ] as Arrow[])
-  : []
+    ? ([
+        [
+          hoveredArrow.slice(0, 2) as Square,
+          hoveredArrow.slice(2, 4) as Square,
+        ],
+      ] as Arrow[])
+    : []
 
   return (
     <div
@@ -114,6 +115,9 @@ const ChessBoardSection = ({
             Captured: {blackCapturesString}
           </p>
         </div>
+      )}
+      {moveTree != null && (
+        <Comments moveTree={moveTree} currentMoveIndex={currentMoveIndex} />
       )}
     </div>
   )

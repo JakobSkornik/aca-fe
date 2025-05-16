@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import React, { useEffect, useRef, useState } from 'react'
 import MoveTree from './MoveTree'
 import { useGameState } from '../contexts/GameStateContext'
@@ -11,7 +12,6 @@ const GameViewer = ({
   const { gameState, setGameState } = useGameState()
   const { moves, currentMoveIndex, game, moveTree } = gameState
   const { Result, Opening } = game?.header() || { Result: '', Opening: '' }
-  const [hoveredMove, setHoveredMove] = useState<string | null>(null)
   const [animatedScore, setAnimatedScore] = useState(50) // Default to even position
   const [showMoveTree, setShowMoveTree] = useState(false)
 
@@ -104,7 +104,6 @@ const GameViewer = ({
 
   const handleHoverMove = (arrow: string | null) => {
     onArrowHover(arrow)
-    setHoveredMove(arrow)
   }
 
   return (
@@ -122,9 +121,9 @@ const GameViewer = ({
           </div>
           <button
             onClick={() => setShowMoveTree(true)}
-            className="px-2 py-3 bg-dark-gray text-white rounded-md text-sm hover:bg-gray-600"
+            className="px-2 py-2 bg-dark-gray text-white rounded-md text-sm hvr-shadow"
           >
-            Show Tree
+            <Image src="/icons/tree.svg" alt="Tree" height={24} width={24} />
           </button>
         </div>
       </div>
@@ -173,12 +172,10 @@ const GameViewer = ({
             return (
               <button
                 key={index}
-                className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-dark-gray"
+                className="px-3 py-1 bg-gray-200 rounded-md text-sm hvr-shadow"
                 style={{
                   backgroundColor: isWhiteMove ? '#666666' : '#eaeaea',
                   color: isWhiteMove ? 'white' : 'black',
-                  boxShadow:
-                    hoveredMove === moveText ? '0 0 1px 4px #999999aa' : '',
                 }}
                 onMouseEnter={() => handleHoverMove(moveText)}
                 onMouseLeave={() => handleHoverMove(null)}
@@ -196,28 +193,28 @@ const GameViewer = ({
       {/* Navigation */}
       <div className="p-4 border-b bg-white z-10 sticky flex justify-evenly">
         <button
-          className="bg-dark-gray light-gray py-2 px-4 rounded-md"
+          className="bg-dark-gray light-gray py-2 px-4 rounded-md hvr-shadow"
           onClick={() => handleMoveNavigation('first')}
         >
-          ⏮
+          <Image src="/icons/fast_back.svg" alt="⏮" height={24} width={24} />
         </button>
         <button
-          className="bg-dark-gray light-gray py-2 px-4 rounded-md"
+          className="bg-dark-gray light-gray py-2 px-4 rounded-md hvr-shadow"
           onClick={() => handleMoveNavigation('prev')}
         >
-          ◀
+          <Image src="/icons/back.svg" alt="◀" height={24} width={24} />
         </button>
         <button
-          className="bg-dark-gray light-gray py-2 px-4 rounded-md"
+          className="bg-dark-gray light-gray py-2 px-4 rounded-md hvr-shadow"
           onClick={() => handleMoveNavigation('next')}
         >
-          ▶
+          <Image src="/icons/forward.svg" alt="▶" height={24} width={24} />
         </button>
         <button
-          className="bg-dark-gray light-gray py-2 px-4 rounded-md"
+          className="bg-dark-gray light-gray py-2 px-4 rounded-md hvr-shadow"
           onClick={() => handleMoveNavigation('last')}
         >
-          ⏭
+          <Image src="/icons/fast_forward.svg" alt="⏭" height={24} width={24} />
         </button>
       </div>
 

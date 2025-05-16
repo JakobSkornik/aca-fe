@@ -57,6 +57,13 @@ body {
   background-color: #eaeaea;
 }
 
+.hvr-shadow {
+  transition: box-shadow 0.2s ease;
+}
+.hvr-shadow:hover {
+  box-shadow: 0px 0px 8px 10px rgba(0, 0, 0, 0.2);
+}
+
 .mainline-link {
   stroke: #ff7700;
   stroke-width: 3.5px;
