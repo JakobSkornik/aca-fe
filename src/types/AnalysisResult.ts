@@ -22,6 +22,11 @@ export interface Move {
   capturedByBlack: CaptureCount
 }
 
+interface TraceFeature {
+  eg: number
+  mg: number
+}
+
 export interface MoveAnalysisNode {
   id: number
   depth: number
@@ -30,7 +35,7 @@ export interface MoveAnalysisNode {
   fen: string
   shallow_score: number
   deep_score: number
-  trace: Record<string, number | string>
+  trace: Record<string, number | string | TraceFeature>
   context: string
   phase: string
   capturedByWhite: CaptureCount

@@ -115,7 +115,12 @@ const PosInfo: React.FC<PosInfoProps> = ({ node }) => {
                 <tr key={key}>
                   <td style={{ padding: '4px 8px' }}>{key}</td>
                   <td style={{ padding: '4px 8px', textAlign: 'right' }}>
-                    {value.mg != null ? value.mg.toFixed(2) : 'N/A'}
+                    {typeof value === 'object' &&
+                    value !== null &&
+                    'mg' in value &&
+                    value.mg != null
+                      ? (value.mg as number).toFixed(2)
+                      : 'N/A'}
                   </td>
                 </tr>
               ))}

@@ -31,9 +31,10 @@ const initialGameState: GameState = {
   moveTree: null, // initially no move tree is loaded
 }
 
-const GameStateContext = createContext<GameStateContextType | undefined>(
-  undefined
-)
+const GameStateContext = createContext<GameStateContextType>({
+  gameState: initialGameState,
+  setGameState: () => {},
+})
 
 export const GameStateProvider = ({
   children,
