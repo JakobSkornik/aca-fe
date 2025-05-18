@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import Chart from './Chart'
 import PosInfo from './PosInfo'
 import DepthControls from './DepthControls'
@@ -7,7 +7,30 @@ import { MoveAnalysisNode } from '@/types/AnalysisResult'
 
 const MoveTree: React.FC<MoveTreeProps> = ({ moveTree, onClose }) => {
   const [maxDepth, setMaxDepth] = useState(10)
-  const [hoveredNode, setHoveredNode] = useState<MoveAnalysisNode | null>(null)
+  const [mainNode, setMainNode] = useState<MoveAnalysisNode | null>(null)
+  const [compareNode, setCompareNode] = useState<MoveAnalysisNode | null>(null)
+
+  const handleClickNode = (node: MoveAnalysisNode | null) => {
+    if (!node) {
+      return
+    } else if (!mainNode) {
+      setMainNode(node)
+    } else if (node.id === mainNode.id) {
+      setMainNode(null)
+      setCompareNode(null)
+    } else if (!compareNode) {
+      setCompareNode(node)
+    } else if (node.id === compareNode.id) {
+      setCompareNode(null)
+    } else {
+      setCompareNode(node)
+    }
+  }
+
+  const handleClose = useCallback(() => {
+    setMainNode(null)
+    setCompareNode(null)
+  }, [])
 
   return (
     <div
@@ -44,9 +67,10 @@ const MoveTree: React.FC<MoveTreeProps> = ({ moveTree, onClose }) => {
           }}
         >
           <button
+            className="hvr-shadow"
             onClick={onClose}
             style={{
-              backgroundColor: '#e5e7eb',
+              backgroundColor: 'var(--dark-gray)',
               border: 'none',
               borderRadius: '4px',
               padding: '4px 12px',
@@ -61,7 +85,6 @@ const MoveTree: React.FC<MoveTreeProps> = ({ moveTree, onClose }) => {
               fontSize: '20px',
               fontWeight: 600,
               margin: '0 auto',
-              fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
             }}
           >
             Move Tree
@@ -80,10 +103,13 @@ const MoveTree: React.FC<MoveTreeProps> = ({ moveTree, onClose }) => {
             <Chart
               moveTree={moveTree}
               maxDepth={maxDepth}
-              onHoverNode={setHoveredNode}
+              onClickNode={handleClickNode}
+              mainNode={mainNode}
+              compareNode={compareNode}
             />
             <DepthControls maxDepth={maxDepth} setMaxDepth={setMaxDepth} />
           </div>
+
           {/* PosInfo (30%) */}
           <div
             style={{
@@ -91,14 +117,22 @@ const MoveTree: React.FC<MoveTreeProps> = ({ moveTree, onClose }) => {
               height: '100%',
               background: 'white',
               display: 'flex',
-              flexDirection: 'column',
+              flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'flex-start',
-              padding: '32px 16px 16px 16px',
+              padding: '0',
               boxSizing: 'border-box',
             }}
           >
-            <PosInfo node={hoveredNode} />
+            {mainNode && (
+              <PosInfo
+                node={mainNode}
+                tree={moveTree}
+                compareNode={compareNode}
+                onClose={handleClose}
+                highlight
+              />
+            )}
           </div>
         </div>
       </div>

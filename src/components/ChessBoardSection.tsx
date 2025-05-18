@@ -5,7 +5,7 @@ import { Arrow, Square } from 'react-chessboard/dist/chessboard/types'
 import Comments from './Comments'
 
 const PADDING_PX = 16
-const MAX_BOARD_SIZE = 700
+const MIN_BOARD_SIZE = 500
 
 const WhiteCapturesMap: Record<string, string> = {
   p: '♙',
@@ -39,9 +39,9 @@ const ChessBoardSection = ({
   useEffect(() => {
     const handleResize = () => {
       if (parentRef.current) {
-        const width = Math.min(
+        const width = Math.max(
           parentRef.current.clientWidth - 2 * PADDING_PX,
-          MAX_BOARD_SIZE
+          MIN_BOARD_SIZE
         )
         setBoardWidth(width)
       }
@@ -80,6 +80,7 @@ const ChessBoardSection = ({
         [
           hoveredArrow.slice(0, 2) as Square,
           hoveredArrow.slice(2, 4) as Square,
+          'var(--orange)'
         ],
       ] as Arrow[])
     : []
@@ -90,29 +91,29 @@ const ChessBoardSection = ({
       className="flex flex-col w-full items-center p-4 border-r"
     >
       {gameState.isLoaded && (
-        <div className="text-center mb-2">
-          <h3 className="text-lg font-semibold">{headers['White']}</h3>
-          <h3 className="text-md">{headers['WhiteElo']}</h3>
-          <p className="text-sm text-gray-600">
-            Captured: {whiteCapturesString}
-          </p>
-        </div>
-      )}
-      {boardWidth > 0 && (
-        <Chessboard
-          position={fen}
-          boardWidth={boardWidth}
-          customDarkSquareStyle={{ backgroundColor: '#666666' }}
-          customLightSquareStyle={{ backgroundColor: '#eaeaea' }}
-          customArrows={arrows}
-        />
-      )}
-      {gameState.isLoaded && (
         <div className="text-center mt-2">
           <h3 className="text-lg font-semibold">{headers['Black']}</h3>
           <h3 className="text-md">{headers['BlackElo']}</h3>
           <p className="text-sm text-gray-600">
             Captured: {blackCapturesString}
+          </p>
+        </div>
+      )}
+      {boardWidth > 0 && (
+        <Chessboard
+        position={fen}
+        boardWidth={boardWidth}
+        customDarkSquareStyle={{ backgroundColor: 'var(--dark-gray)' }}
+        customLightSquareStyle={{ backgroundColor: 'var(--lightest-gray)' }}
+        customArrows={arrows}
+        />
+      )}
+      {gameState.isLoaded && (
+        <div className="text-center mb-2">
+          <h3 className="text-lg font-semibold">{headers['White']}</h3>
+          <h3 className="text-md">{headers['WhiteElo']}</h3>
+          <p className="text-sm text-gray-600">
+            Captured: {whiteCapturesString}
           </p>
         </div>
       )}

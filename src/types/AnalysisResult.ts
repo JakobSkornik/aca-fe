@@ -17,12 +17,15 @@ export interface Move {
   move: string
   shallow_score: number
   deep_score: number
+  phase: string
   bestContinuations: BestContinuation[]
   capturedByWhite: CaptureCount
   capturedByBlack: CaptureCount
+  piece: string | null
+  trace: Record<string, string | TraceFeature>
 }
 
-interface TraceFeature {
+export interface TraceFeature {
   eg: number
   mg: number
 }
@@ -35,11 +38,12 @@ export interface MoveAnalysisNode {
   fen: string
   shallow_score: number
   deep_score: number
-  trace: Record<string, number | string | TraceFeature>
+  trace: Record<string, string | TraceFeature>
   context: string
   phase: string
   capturedByWhite: CaptureCount
   capturedByBlack: CaptureCount
+  piece: string | null
 }
 
 export interface AnalysisResult {

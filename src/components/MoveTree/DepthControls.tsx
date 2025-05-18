@@ -17,6 +17,7 @@ const DepthControls: React.FC<DepthControlsProps> = ({
       }}
     >
       <button
+        className="hvr-shadow"
         onClick={() => setMaxDepth((prev) => Math.max(1, prev - 1))}
         disabled={maxDepth <= 1}
         style={{
@@ -32,8 +33,9 @@ const DepthControls: React.FC<DepthControlsProps> = ({
       >
         -
       </button>
-      <span style={{ fontSize: '14px' }}>Depth: {maxDepth}</span>
+      <span style={{ fontSize: '14px' }}>Nr. of moves: {maxDepth}</span>
       <button
+        className="hvr-shadow"
         onClick={() => setMaxDepth((prev) => prev + 1)}
         style={{
           width: '30px',

@@ -3,7 +3,17 @@ import PgnLoader from './PgnLoader'
 import GameViewer from './GameViewer'
 import { useGameState } from '../contexts/GameStateContext'
 
-const ControlPanel = ({ onArrowHover }: { onArrowHover: (arrow: string | null) => void }) => {
+type ControlPanelProps = {
+  onArrowHover: (arrow: string | null) => void
+  showFeatures: boolean
+  setShowFeatures: (show: boolean) => void
+}
+
+const ControlPanel = ({
+  onArrowHover,
+  showFeatures,
+  setShowFeatures,
+}: ControlPanelProps) => {
   const { gameState } = useGameState()
 
   return (
@@ -11,7 +21,11 @@ const ControlPanel = ({ onArrowHover }: { onArrowHover: (arrow: string | null) =
       {!gameState.moves.length || gameState.moves.length === 1 ? (
         <PgnLoader />
       ) : (
-        <GameViewer onArrowHover={onArrowHover} />
+        <GameViewer
+          onArrowHover={onArrowHover}
+          showFeatures={showFeatures}
+          setShowFeatures={setShowFeatures}
+        />
       )}
     </div>
   )

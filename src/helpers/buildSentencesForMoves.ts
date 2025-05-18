@@ -1,30 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import openingBook from '@/helpers/openingBook'
+import { getSiblings } from '@/helpers/tree'
 import { MoveAnalysisNode } from '@/types/AnalysisResult'
-
-// --- Helper functions ---
-function getChildren(
-  tree: Record<number, MoveAnalysisNode>,
-  node: MoveAnalysisNode
-): MoveAnalysisNode[] {
-  return Object.values(tree).filter((n) => n.parent === node.id)
-}
-
-function getParent(
-  tree: Record<number, MoveAnalysisNode>,
-  node: MoveAnalysisNode
-): MoveAnalysisNode | undefined {
-  return tree[node.parent]
-}
-
-function getSiblings(
-  tree: Record<number, MoveAnalysisNode>,
-  node: MoveAnalysisNode
-): MoveAnalysisNode[] {
-  if (node.parent === -1) return []
-  const parent = getParent(tree, node)!
-  return getChildren(tree, parent).filter((n) => n.id !== node.id)
-}
+import { parseTrace } from './traceParser'
 
 function getScore(node: MoveAnalysisNode): number {
   return typeof node.deep_score === 'number' ? node.deep_score : 0
@@ -53,7 +31,11 @@ function hasPawnBreak(node: MoveAnalysisNode): boolean {
 
 function isQueenlessEndgame(node: MoveAnalysisNode): boolean {
   // crude: no queens and phase is end
-  return node.phase === 'end' && (node as any).material && (node as any).material.Q === 0
+  return (
+    node.phase === 'end' &&
+    (node as any).material &&
+    (node as any).material.Q === 0
+  )
 }
 
 function isOnlyDrawSaving(node: MoveAnalysisNode, prevScore: number): boolean {
@@ -164,20 +146,14 @@ export function buildSentencesForMoves(
     current = next
   }
 
-  function getAllFeatureDiffs(node: MoveAnalysisNode, compareNode: MoveAnalysisNode): string {
-    // List all numeric features and their differences
-    const nodeFeats = Object.entries(node.trace)
-      .filter(([, v]) => typeof v === 'number')
-      .map(([k, v]) => [k, v as number] as const)
-    const compareFeats = Object.fromEntries(
-      Object.entries(compareNode.trace)
-        .filter(([, v]) => typeof v === 'number')
-        .map(([k, v]) => [k, v as number])
-    )
-    if (nodeFeats.length === 0) return ''
-    return nodeFeats
+  function getAllFeatureDiffs(
+    node: MoveAnalysisNode,
+    compareNode: MoveAnalysisNode
+  ): string {
+    const nodeFeats = parseTrace(node)
+    return Object.entries(nodeFeats)
       .map(([k, v]) => {
-        const other = compareFeats[k]
+        const other = (compareNode.trace as any)[k]
         if (typeof other === 'number' && other !== v) {
           return `${k}: ${formatCp(v)} vs ${formatCp(other)}`
         }
@@ -187,24 +163,37 @@ export function buildSentencesForMoves(
       .join(', ')
   }
 
-  function getBestSibling(node: MoveAnalysisNode, siblings: MoveAnalysisNode[]): MoveAnalysisNode | undefined {
+  function getBestSibling(
+    node: MoveAnalysisNode,
+    siblings: MoveAnalysisNode[]
+  ): MoveAnalysisNode | undefined {
     if (siblings.length === 0) return undefined
-    return siblings.reduce((best, n) =>
-      isWhiteMove(node)
-        ? getScore(n) > getScore(best) ? n : best
-        : getScore(n) < getScore(best) ? n : best
-    , siblings[0])
+    return siblings.reduce(
+      (best, n) =>
+        isWhiteMove(node)
+          ? getScore(n) > getScore(best)
+            ? n
+            : best
+          : getScore(n) < getScore(best)
+          ? n
+          : best,
+      siblings[0]
+    )
   }
 
-  function getBestPV(idx: number, mainline: MoveAnalysisNode[], moveTree: Record<number, MoveAnalysisNode>): MoveAnalysisNode | undefined {
+  function getBestPV(
+    idx: number,
+    mainline: MoveAnalysisNode[],
+    moveTree: Record<number, MoveAnalysisNode>
+  ): MoveAnalysisNode | undefined {
     // Find a PV node at this ply with a much better score than the mainline
     const curr = mainline[idx]
     const pvCandidates = Object.values(moveTree).filter(
-      n => n.parent === curr.parent && n.context === 'pv'
+      (n) => n.parent === curr.parent && n.context === 'pv'
     )
     if (pvCandidates.length === 0) return undefined
     const currScore = getScore(curr)
-    return pvCandidates.find(n =>
+    return pvCandidates.find((n) =>
       isWhiteMove(curr)
         ? getScore(n) - currScore > 100
         : currScore - getScore(n) > 100
@@ -237,11 +226,13 @@ export function buildSentencesForMoves(
     const bestSibling = getBestSibling(node, siblings)
 
     // Always say a better move was available, when there was
-    if (bestSibling && bestSibling.id !== node.id && (
-      isWhiteMove(node)
+    if (
+      bestSibling &&
+      bestSibling.id !== node.id &&
+      (isWhiteMove(node)
         ? getScore(bestSibling) > currScore
-        : getScore(bestSibling) < currScore
-    )) {
+        : getScore(bestSibling) < currScore)
+    ) {
       const featureDiffs = getAllFeatureDiffs(node, bestSibling)
       let msg = `A better move was available: ${bestSibling.move}.`
       if (featureDiffs) {

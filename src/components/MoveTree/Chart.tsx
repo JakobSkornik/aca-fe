@@ -1,40 +1,57 @@
-import React, { useMemo, useRef } from 'react'
+import React, { useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
-import { buildTreeData } from '@/helpers/buildTreeData'
-import { MoveTreeProps } from '@/types/props/MoveTreeProps'
-import { MoveAnalysisNode } from '@/types/AnalysisResult'
 
-const config = {
-  nodeColors: {
-    white: '#f0f0f0',
-    black: '#999',
-    mainlineWhite: '#FFECAC',
-    mainlineBlack: '#C5BDAC',
-    pv: '#3b82f6',
-    alternative: '#999999',
-  },
-  fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
-  bandColors: {
-    white: '',
-    black: '',
-  },
-}
+import { buildTreeData } from '@/helpers/buildTreeData'
+import { getNodeById } from '@/helpers/tree'
+import { MoveAnalysisNode } from '@/types/AnalysisResult'
+import { MoveTreeProps } from '@/types/props/MoveTreeProps'
 
 type ChartProps = {
   moveTree: MoveTreeProps['moveTree']
   maxDepth: number
-  onHoverNode: (node: MoveAnalysisNode | null) => void
+  onClickNode: (node: MoveAnalysisNode | null) => void
+  mainNode?: MoveAnalysisNode | null
+  compareNode?: MoveAnalysisNode | null
 }
 
-const Chart: React.FC<ChartProps> = ({ moveTree, maxDepth, onHoverNode }) => {
-  const lastHoveredId = useRef<string | number | null>(null)
-  const rootNode = useMemo(
-    () => Object.values(moveTree).find((node) => node.parent === -1),
-    [moveTree]
-  )
+const Chart: React.FC<ChartProps> = ({
+  moveTree,
+  maxDepth,
+  onClickNode,
+  mainNode,
+  compareNode,
+}) => {
+  const rootNode = useMemo(() => {
+    if (mainNode) return mainNode
+    return Object.values(moveTree).find((node) => node.parent === -1)
+  }, [moveTree, mainNode])
+
+  // Find path between mainNode and compareNode
+  const pathNodeIds = useMemo(() => {
+    if (!mainNode || !compareNode) return []
+    const path: number[] = []
+    let current: MoveAnalysisNode | undefined = compareNode
+    while (current) {
+      path.push(current.id)
+      if (current.id === mainNode.id) break
+      current = getNodeById(moveTree, current.parent)
+    }
+    if (!path.includes(mainNode.id)) return []
+    return path
+  }, [mainNode, compareNode, moveTree])
+
+  // Pass highlight info to buildTreeData
   const treeData = useMemo(() => {
-    return rootNode ? [buildTreeData(rootNode, moveTree, maxDepth, config)] : []
-  }, [rootNode, moveTree, maxDepth])
+    return rootNode
+      ? [
+          buildTreeData(rootNode, moveTree, maxDepth, {
+            mainNodeId: mainNode?.id,
+            compareNodeId: compareNode?.id,
+            pathNodeIds,
+          }),
+        ]
+      : []
+  }, [rootNode, moveTree, maxDepth, mainNode, compareNode, pathNodeIds])
 
   const option = useMemo(
     () => ({
@@ -42,16 +59,17 @@ const Chart: React.FC<ChartProps> = ({ moveTree, maxDepth, onHoverNode }) => {
       series: [
         {
           type: 'tree',
+          layout: 'orthogonal',
+          nodeGap: 40,
           data: treeData,
           symbol: 'circle',
-          symbolSize: 10,
+          symbolSize: 60,
           roam: true,
           initialTreeDepth: maxDepth,
           label: {
             position: 'inside',
             verticalAlign: 'middle',
             align: 'center',
-            fontFamily: config.fontFamily,
           },
           leaves: {
             label: {
@@ -59,7 +77,6 @@ const Chart: React.FC<ChartProps> = ({ moveTree, maxDepth, onHoverNode }) => {
               verticalAlign: 'middle',
               align: 'center',
             },
-
           },
           lineStyle: {
             color: '#bbb',
@@ -69,9 +86,14 @@ const Chart: React.FC<ChartProps> = ({ moveTree, maxDepth, onHoverNode }) => {
           emphasis: {
             focus: 'ancestor',
           },
-          expandAndCollapse: true,
+          expandAndCollapse: false,
           animationDuration: 0,
           animationDurationUpdate: 0,
+          scaleLimit: {
+            min: 0.3,
+            max: 5,
+          },
+          center: ['50%', '50%'], // Center the tree in the chart area
         },
       ],
       tooltip: {
@@ -80,6 +102,9 @@ const Chart: React.FC<ChartProps> = ({ moveTree, maxDepth, onHoverNode }) => {
     }),
     [treeData, maxDepth]
   )
+
+  const minHeight = `${Math.max(800, maxDepth * 3 * 50)}px`
+  const minWidth = `${Math.max(800, maxDepth * 3 * 50 + 5 * 50)}px`
 
   type EChartsTreeNodeParams = {
     componentType: string
@@ -91,33 +116,27 @@ const Chart: React.FC<ChartProps> = ({ moveTree, maxDepth, onHoverNode }) => {
   }
 
   const onEvents = {
-    mouseover: (params: EChartsTreeNodeParams) => {
+    click: (params: EChartsTreeNodeParams) => {
       const node = params.data?.analysisNode as MoveAnalysisNode | undefined
-      if (
-        params.componentType === 'series' &&
-        node &&
-        node.id !== lastHoveredId.current
-      ) {
-        onHoverNode(node)
-        lastHoveredId.current = node.id
-      }
-    },
-    mouseout: () => {
-      onHoverNode(null)
-      lastHoveredId.current = null
+      if (node) onClickNode(node)
     },
   }
 
   if (!rootNode) return null
 
   return (
-    <ReactECharts
-      option={option}
-      style={{ width: '100%', height: '100%' }}
-      notMerge={false}
-      lazyUpdate
-      onEvents={onEvents}
-    />
+    <div
+      className="w-full h-full overflow-auto"
+      style={{ minHeight, minWidth }}
+    >
+      <ReactECharts
+        option={option}
+        style={{ width: '100%', height: '100%' }}
+        notMerge={false}
+        lazyUpdate
+        onEvents={onEvents}
+      />
+    </div>
   )
 }
 

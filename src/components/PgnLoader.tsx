@@ -10,6 +10,7 @@ const PgnLoader = () => {
   const [loading, setLoading] = useState<boolean>(false)
 
   const staticPgns = [
+    { label: 'Example 1', file: '/data/example1.pgn' },
     { label: '2759 elo', file: '/data/2759.pgn' },
     { label: '2000 elo', file: '/data/2759.pgn' },
     { label: 'Test', file: '/data/short.pgn' },
@@ -127,11 +128,6 @@ const PgnLoader = () => {
         moves: analysisResult.moves,
         currentMoveIndex: 0,
       })
-
-      console.log('Game loaded with analysis:', {
-        moveCount: analysisResult.moves.length,
-        nodeCount: Object.keys(analysisResult.move_tree || {}).length,
-      })
     } catch (err) {
       console.error('Error loading game:', err)
       setError((err as Error).message)
@@ -177,7 +173,7 @@ const PgnLoader = () => {
       <button
         disabled={loading || !tempPgn.trim()}
         onClick={loadGame}
-        className={`bg-gray-500 text-white py-2 px-4 rounded-md ${
+        className={`bg-darkest-gray text-white py-2 px-4 rounded-md ${
           loading || !tempPgn.trim() ? 'opacity-50 cursor-not-allowed' : ''
         }`}
       >
