@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { useGameState } from '../contexts/GameStateContext'
 import { parseTrace } from '@/helpers/traceParser'
+import { PosFeature } from '@/types/Trace'
 
 const availableFeatures = [
   'Bishops',
@@ -16,12 +17,12 @@ const availableFeatures = [
   'Space',
   'Threats',
   'Winnable',
-]
+] as PosFeature[]
 
 const FeatureCharts: React.FC = () => {
   const { gameState } = useGameState()
   const { moves, currentMoveIndex } = gameState
-  const [selected, setSelected] = useState<string[]>(availableFeatures)
+  const [selected] = useState<PosFeature[]>(availableFeatures)
 
   // Only show moves up to and including the current move
   const shownMoves = useMemo(
@@ -30,7 +31,7 @@ const FeatureCharts: React.FC = () => {
   )
 
   // Prepare feature data for each chart using traceParser
-  const getFeatureSeries = (feature: string) => {
+  const getFeatureSeries = (feature: PosFeature) => {
     const values: number[] = []
     let lastValue = 0
     for (const move of shownMoves) {
@@ -54,27 +55,9 @@ const FeatureCharts: React.FC = () => {
         minWidth: 300,
       }}
     >
-      {/* Dropdown */}
-      {/* <div style={{ marginBottom: 8 }}>
-        <label>
-          <strong>Show features:</strong>
-        </label>
-        <select
-          multiple
-          value={selected}
-          onChange={handleDropdownChange}
-          style={{ marginLeft: 8, minWidth: 150, height: 80 }}
-        >
-          {availableFeatures.map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
-      </div> */}
       {/* Charts */}
       <div className="h-fill overflow-y-auto">
-        {selected.map((feature) => (
+        {selected.map((feature: PosFeature) => (
           <div key={feature} className="h-[120px] mb-1">
             <ReactECharts
               style={{ height: 80, width: '100%' }}
@@ -93,6 +76,8 @@ const FeatureCharts: React.FC = () => {
                 yAxis: {
                   show: false,
                   type: 'value',
+                  min: -2,
+                  max: 2,
                 },
                 series: [
                   {

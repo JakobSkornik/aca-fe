@@ -13,7 +13,7 @@ const defaultCaptureCount: CaptureCount = {
   k: 0,
 }
 
-const initialGameState: GameState = {
+export const initialGameState: GameState = {
   game: new Chess(),
   isLoaded: false,
   moves: [
@@ -23,6 +23,9 @@ const initialGameState: GameState = {
       shallow_score: 0,
       deep_score: 0,
       bestContinuations: [],
+      trace: {},
+      phase: '',
+      piece: '',
       capturedByWhite: defaultCaptureCount,
       capturedByBlack: defaultCaptureCount,
     },

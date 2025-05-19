@@ -1,69 +1,62 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState } from 'react'
 import { CommentsProps } from '@/types/props/CommentsProps'
-import { buildSentencesForMoves } from '@/helpers/buildSentencesForMoves'
+import { buildComments } from '@/helpers/commentator'
 
 const transitionDuration = 500 // ms
+const revealInterval = 2300 // ms between each comment reveal
 
-const Comments: React.FC<CommentsProps> = ({ moveTree, currentMoveIndex }) => {
-  // Precompute all sentences for all moves
-  const allSentences = useMemo(
-    () => buildSentencesForMoves(moveTree),
-    [moveTree]
-  )
-
-  // Pick the correct set of sentences for the current move index
-  const sentences = useMemo(
-    () =>
+const Comments: React.FC<CommentsProps> = ({moveTree, currentMoveIndex }) => {
+  // Prepare sentences
+  const allSentences = React.useMemo(() => buildComments(moveTree), [moveTree])
+  const sentences: string[] = React.useMemo(() => {
+    return (
       allSentences[currentMoveIndex] ||
-      allSentences[allSentences.length - 1] || [
-        'No move selected.',
-        'No move selected.',
-        'No move selected.',
-      ],
-    [allSentences, currentMoveIndex]
-  )
+      allSentences[allSentences.length - 1] || ['No move selected.']
+    )
+  }, [allSentences, currentMoveIndex])
 
-  const [index, setIndex] = useState(0)
-  const [fade, setFade] = useState(true)
-  const [shown, setShown] = useState<string[]>([])
-  const [done, setDone] = useState(false)
+  // Animation state for each sentence
+  const [shown, setShown] = useState<boolean[]>([])
 
+  // Reset on move change
   useEffect(() => {
-    setIndex(0)
-    setFade(true)
     setShown([])
-    setDone(false)
   }, [sentences])
 
+  // Sequentially reveal each comment
   useEffect(() => {
-    if (done) return
-    if (index >= sentences.length) {
-      setDone(true)
-      return
-    }
-    const interval = setInterval(() => {
-      setFade(false)
-      setTimeout(() => {
-        setIndex((prev) => {
-          if (prev + 1 < sentences.length) {
-            setFade(true)
-            return prev + 1
-          } else {
-            setDone(true)
-            return prev
-          }
-        })
-      }, transitionDuration)
-    }, 3500)
-    return () => clearInterval(interval)
-  }, [sentences, index, done])
+    if (sentences.length === 0) return
+    let curr = 1 // Start at 1, because first is revealed immediately
+    const timeouts: number[] = []
 
-  // Track which sentences have been shown
-  useEffect(() => {
-    if (fade && sentences[index] && !shown.includes(sentences[index])) {
-      setShown((prev) => [...prev, sentences[index]])
+    // Show the first sentence instantly
+    setShown(
+      Array(sentences.length)
+        .fill(false)
+        .map((_, i) => i === 0)
+    )
+
+    const showNext = () => {
+      setShown((prev) => {
+        const copy = prev.slice()
+        copy[curr] = true
+        return copy
+      })
+      curr++
+      if (curr < sentences.length) {
+        timeouts.push(window.setTimeout(showNext, revealInterval))
+      }
     }
-  }, [fade, index, sentences, shown])
+
+    if (sentences.length > 1) {
+      // Only set timeout if more than one sentence
+      timeouts.push(window.setTimeout(showNext, revealInterval))
+    }
+
+    return () => {
+      timeouts.forEach(clearTimeout)
+    }
+  }, [sentences])
 
   return (
     <div
@@ -76,7 +69,7 @@ const Comments: React.FC<CommentsProps> = ({ moveTree, currentMoveIndex }) => {
         alignItems: 'center',
       }}
     >
-      {/* Animated/stacked sentences */}
+      {/* Container for stacking sentences */}
       <div
         style={{
           display: 'flex',
@@ -84,25 +77,32 @@ const Comments: React.FC<CommentsProps> = ({ moveTree, currentMoveIndex }) => {
           alignItems: 'center',
           position: 'relative',
           minHeight: 60,
+          width: '100%',
+          overflow: 'visible',
         }}
       >
         {sentences.map((sentence, i) => {
-          // only render up to (and including) the current index
-          if (i > index) return null
-
+          const isVisible = shown[i]
+          const aboveCount = sentences.length - 1 - i
           return (
             <span
               key={i}
               style={{
-                opacity: 1,
-                transition: `opacity ${transitionDuration}ms, transform 400ms`,
-                transform: `translateY(${(index - i) * 20}px)`,
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                opacity: isVisible ? 1 : 0,
+                transform: isVisible
+                  ? `translateY(${aboveCount * 32}px)`
+                  : `translateY(0px)`,
+                transition: `opacity ${transitionDuration}ms, transform ${transitionDuration}ms`,
                 fontSize: 18,
-                color: i === index ? '#333' : '#666',
+                color: '#333',
                 textAlign: 'center',
                 marginBottom: 2,
-                position: 'relative',
-                zIndex: i === index ? 2 : 1,
+                zIndex: 10 - i,
+                pointerEvents: 'none',
+                // Stack sentences downward
               }}
             >
               {sentence}

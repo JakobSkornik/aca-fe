@@ -105,6 +105,7 @@ const ChessBoardSection = ({
         boardWidth={boardWidth}
         customDarkSquareStyle={{ backgroundColor: 'var(--dark-gray)' }}
         customLightSquareStyle={{ backgroundColor: 'var(--lightest-gray)' }}
+        customNotationStyle={{ color: 'var(--darkest-gray)' }}
         customArrows={arrows}
         />
       )}

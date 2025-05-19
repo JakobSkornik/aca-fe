@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import MoveTree from './MoveTree'
-import { useGameState } from '../contexts/GameStateContext'
+import { initialGameState, useGameState } from '../contexts/GameStateContext'
 
 type GameViewerProps = {
   onArrowHover: (arrow: string | null) => void
@@ -9,7 +9,11 @@ type GameViewerProps = {
   setShowFeatures: (show: boolean) => void
 }
 
-const GameViewer = ({ onArrowHover, showFeatures, setShowFeatures }: GameViewerProps) => {
+const GameViewer = ({
+  onArrowHover,
+  showFeatures,
+  setShowFeatures,
+}: GameViewerProps) => {
   const listRef = useRef<HTMLDivElement>(null)
   const { gameState, setGameState } = useGameState()
   const { moves, currentMoveIndex, game, moveTree } = gameState
@@ -93,7 +97,7 @@ const GameViewer = ({ onArrowHover, showFeatures, setShowFeatures }: GameViewerP
   const currentMove = moves?.[currentMoveIndex || 0]
   const deep_score = currentMove?.deep_score || 0
   const bestContinuations = currentMove?.bestContinuations || []
-  const sideToMove = (currentMoveIndex || 0) % 2 === 0 ? 'White' : 'Black'
+  const stm = (currentMoveIndex || 0) % 2 === 0
 
   const normalizeScore = (score: number) => {
     // sigmoid function: 1 / (1 + e^(-k*x))
@@ -113,6 +117,10 @@ const GameViewer = ({ onArrowHover, showFeatures, setShowFeatures }: GameViewerP
     onArrowHover(arrow)
   }
 
+  const clearContext = () => {
+    setGameState(initialGameState)
+  }
+
   return (
     <div className="relative flex flex-col w-[400px] h-screen rounded-md">
       {/* Top Section: Game Information */}
@@ -127,6 +135,12 @@ const GameViewer = ({ onArrowHover, showFeatures, setShowFeatures }: GameViewerP
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={clearContext}
+              className="px-2 py-2 bg-darkest-gray text-white rounded-md text-sm hvr-shadow"
+            >
+              <Image src="/icons/close.svg" alt="Tree" height={24} width={24} />
+            </button>
             <button
               onClick={() => setShowMoveTree(true)}
               className="px-2 py-2 bg-darkest-gray text-white rounded-md text-sm hvr-shadow"
@@ -172,17 +186,15 @@ const GameViewer = ({ onArrowHover, showFeatures, setShowFeatures }: GameViewerP
             <div
               className="w-4 h-4 rounded-full"
               style={{
-                backgroundColor:
-                  sideToMove === 'White'
-                    ? 'var(--dark-gray)'
-                    : 'var(--darkest-gray)',
+                backgroundColor: stm
+                  ? 'var(--dark-gray)'
+                  : 'var(--darkest-gray)',
               }}
             />
           </div>
         </div>
         <div className="flex flex-wrap gap-2 mt-2">
           {bestContinuations.map((move, index) => {
-            const isWhiteMove = (currentMoveIndex || 0) % 2 === 1
             const moveText = typeof move === 'string' ? move : move.move
             const moveScore = typeof move === 'string' ? null : move.score
 
@@ -191,12 +203,10 @@ const GameViewer = ({ onArrowHover, showFeatures, setShowFeatures }: GameViewerP
                 key={index}
                 className="px-3 py-1 bg-gray-200 rounded-md text-sm hvr-shadow"
                 style={{
-                  backgroundColor: isWhiteMove
+                  backgroundColor: stm
                     ? 'var(--dark-gray)'
                     : 'var(--darkest-gray)',
-                  color: isWhiteMove
-                    ? 'var(--darkest-gray)'
-                    : 'var(--lightest-gray)',
+                  color: stm ? 'var(--darkest-gray)' : 'var(--lightest-gray)',
                 }}
                 onMouseEnter={() => handleHoverMove(moveText)}
                 onMouseLeave={() => handleHoverMove(null)}
@@ -250,14 +260,14 @@ const GameViewer = ({ onArrowHover, showFeatures, setShowFeatures }: GameViewerP
           {/* Add bottom padding to ensure last items are scrollable */}
           {moves?.map((moveData, index) => {
             const moveNumber = Math.floor((index + 1) / 2)
-            const isWhiteMove = index % 2 === 1
+            const isWhiteMove = index % 2 === 0
             const scoreDisplay = (moveData.deep_score / 100).toFixed(2)
 
             // Define the selected style with orange shadow
             const selectedStyle =
               index === currentMoveIndex
                 ? {
-                    boxShadow: '0 0 10px 3px var(--transparent-orange)',
+                    boxShadow: '0 0 10px 3px var(--dark-gray)',
                     position: 'relative' as const,
                     zIndex: 1,
                   }
