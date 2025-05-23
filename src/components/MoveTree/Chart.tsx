@@ -3,7 +3,7 @@ import ReactECharts from 'echarts-for-react'
 
 import { buildTreeData } from '@/helpers/buildTreeData'
 import { getNodeById } from '@/helpers/tree'
-import { MoveAnalysisNode } from '@/types/AnalysisResult'
+import { MoveAnalysisNode } from '@/types/ws'
 import { MoveTreeProps } from '@/types/props/MoveTreeProps'
 
 type ChartProps = {
@@ -93,7 +93,7 @@ const Chart: React.FC<ChartProps> = ({
             min: 0.3,
             max: 5,
           },
-          center: ['50%', '50%'], // Center the tree in the chart area
+          // center: ['40%', '50%'], // Center the tree in the chart area
         },
       ],
       tooltip: {
@@ -103,8 +103,6 @@ const Chart: React.FC<ChartProps> = ({
     [treeData, maxDepth]
   )
 
-  const minHeight = `${Math.max(800, maxDepth * 3 * 50)}px`
-  const minWidth = `${Math.max(800, maxDepth * 3 * 50 + 5 * 50)}px`
 
   type EChartsTreeNodeParams = {
     componentType: string
@@ -126,13 +124,12 @@ const Chart: React.FC<ChartProps> = ({
 
   return (
     <div
-      className="w-full h-full overflow-auto"
-      style={{ minHeight, minWidth }}
+      className="w-full h-full overflow-hidden"
     >
       <ReactECharts
         option={option}
         style={{ width: '100%', height: '100%' }}
-        notMerge={false}
+        notMerge={true}
         lazyUpdate
         onEvents={onEvents}
       />

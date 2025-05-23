@@ -18,9 +18,8 @@ const ControlPanel = ({
 
   return (
     <div className="p-4 overflow-y-hidden h-full w-full">
-      {!gameState.moves.length || gameState.moves.length === 1 ? (
-        <PgnLoader />
-      ) : (
+      {!gameState.isLoaded && !gameState.previewMode && <PgnLoader />}
+      {(gameState.isLoaded || gameState.previewMode) && (
         <GameViewer
           onArrowHover={onArrowHover}
           showFeatures={showFeatures}

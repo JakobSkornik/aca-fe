@@ -1,4 +1,4 @@
-import { MoveAnalysisNode } from '@/types/AnalysisResult'
+import { MoveAnalysisNode } from '@/types/ws'
 
 export function getChildren(
   tree: Record<number, MoveAnalysisNode>,
@@ -40,7 +40,7 @@ export function getPVLine(
     const children = getChildren(tree, current)
     if (children.length !== 1) break
     current = children[0]
-    pvMoves.push(current.move)
+    pvMoves.push(current.move.move)
   }
   return pvMoves
 }

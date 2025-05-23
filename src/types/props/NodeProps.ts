@@ -1,4 +1,4 @@
-import { MoveAnalysisNode } from '../AnalysisResult'
+import { MoveAnalysisNode } from '../ws'
 
 export interface NodeProps {
   node: MoveAnalysisNode

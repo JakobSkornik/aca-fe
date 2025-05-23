@@ -3,7 +3,7 @@ import Chart from './Chart'
 import PosInfo from './PosInfo'
 import DepthControls from './DepthControls'
 import { MoveTreeProps } from '@/types/props/MoveTreeProps'
-import { MoveAnalysisNode } from '@/types/AnalysisResult'
+import { MoveAnalysisNode } from '@/types/ws'
 
 const MoveTree: React.FC<MoveTreeProps> = ({ moveTree, onClose }) => {
   const [maxDepth, setMaxDepth] = useState(10)
@@ -90,16 +90,9 @@ const MoveTree: React.FC<MoveTreeProps> = ({ moveTree, onClose }) => {
             Move Tree
           </h2>
         </div>
-        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          {/* Chart (70%) */}
-          <div
-            style={{
-              width: '70%',
-              height: '100%',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
+        <div className="flex flex-row gap-2 min-h-0 h-full">
+          {/* Chart (80%) */}
+          <div className="w-3/4 h-fill overflow-hidden hvr-shadow">
             <Chart
               moveTree={moveTree}
               maxDepth={maxDepth}
@@ -110,20 +103,8 @@ const MoveTree: React.FC<MoveTreeProps> = ({ moveTree, onClose }) => {
             <DepthControls maxDepth={maxDepth} setMaxDepth={setMaxDepth} />
           </div>
 
-          {/* PosInfo (30%) */}
-          <div
-            style={{
-              width: '40%',
-              height: '100%',
-              background: 'white',
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              padding: '0',
-              boxSizing: 'border-box',
-            }}
-          >
+          {/* PosInfo (20%) */}
+          <div className="w-1/4 h-full">
             {mainNode && (
               <PosInfo
                 node={mainNode}

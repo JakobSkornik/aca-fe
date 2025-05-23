@@ -1,4 +1,3 @@
-import { getSiblings } from '../tree'
 import { getKeyMomentType, isGoodMove, isGreatMove } from './keyMoments'
 import { getOpeningComment } from './openings'
 import {
@@ -8,7 +7,7 @@ import {
   formatCp,
   getMainlineMoves,
 } from './utils'
-import { MoveAnalysisNode } from '@/types/AnalysisResult'
+import { MoveAnalysisNode } from '@/types/ws'
 
 export function buildComments(
   tree: Record<number, MoveAnalysisNode>
@@ -46,9 +45,8 @@ export function buildComments(
       const bestSibling = Object.values(tree)
         .filter((n) => n.parent === node.parent && n.move !== node.move)
         .sort((a, b) => getScoreDelta(a, node) - getScoreDelta(b, node))[0]
-        console.log(node.move, bestSibling.move, bestSibling.deep_score, getSiblings(tree, node).map(n => [n.move, n.deep_score]))
       if (bestSibling) {
-        comments.push(`Better move available: ${bestSibling.move}`)
+        comments.push(`Better move available: ${bestSibling.move.move}`)
       }
     }
 
@@ -59,7 +57,6 @@ export function buildComments(
         )}.`
       )
     }
-    // console.log(comments)-
     return comments
   })
 }

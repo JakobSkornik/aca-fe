@@ -1,4 +1,4 @@
-import { MoveAnalysisNode } from "@/types/AnalysisResult"
+import { MoveAnalysisNode } from "@/types/ws"
 import { getNthBestSibling, getScore } from "./utils"
 
 export const BLUNDER_CP = 100
@@ -20,7 +20,7 @@ export function isGreatMove(
 ): boolean {
   const best = getNthBestSibling(tree, node, 1)
   const secondBest = getNthBestSibling(tree, node, 2)
-  if (!best || !secondBest || node.phase !== 'mid') return false
+  if (!best || !secondBest || node.move.phase !== 'mid') return false
   return (
     node.id === best.id &&
     Math.abs(getScore(best) - getScore(secondBest)) >= GREAT_MOVE_MARGIN_CP
@@ -33,7 +33,7 @@ export function isGoodMove(
 ): boolean {
   const best = getNthBestSibling(tree, node, 1)
   const secondBest = getNthBestSibling(tree, node, 2)
-  if (!best || !secondBest || node.phase !== 'mid') return false
+  if (!best || !secondBest || node.move.phase !== 'mid') return false
   return (
     node.id === best.id &&
     Math.abs(getScore(best) - getScore(secondBest)) >= GOOD_MOVE_MARGIN_CP

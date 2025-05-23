@@ -1,7 +1,11 @@
 import Image from 'next/image'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Chess } from 'chess.js'
+
 import MoveTree from './MoveTree'
-import { initialGameState, useGameState } from '../contexts/GameStateContext'
+import { useGameState } from '../contexts/GameStateContext'
+import { Move } from '@/types/ws'
+import Tooltip from './ui/Tooltip'
 
 type GameViewerProps = {
   onArrowHover: (arrow: string | null) => void
@@ -15,14 +19,53 @@ const GameViewer = ({
   setShowFeatures,
 }: GameViewerProps) => {
   const listRef = useRef<HTMLDivElement>(null)
-  const { gameState, setGameState } = useGameState()
-  const { moves, currentMoveIndex, game, moveTree } = gameState
-  const { Result, Opening } = game?.header() || { Result: '', Opening: '' }
+  const {
+    gameState,
+    resetGameState,
+    setCurrentMoveIndex,
+    requestMoveAnalysis,
+    requestTraceTree,
+    setPreviewMode,
+    setPreviewMoves,
+    setPreviewMoveIndex,
+    addPreviewMove,
+  } = useGameState()
+  const {
+    moves,
+    currentMoveIndex,
+    moveTree,
+    previewMode,
+    previewMoves,
+    previewMoveIndex,
+  } = gameState
+  const { result, opening } = gameState?.pgnHeaders || {
+    result: '',
+    opening: '',
+  }
   const [animatedScore, setAnimatedScore] = useState(50) // Default to even position
   const [showMoveTree, setShowMoveTree] = useState(false)
+  const [currentMove, setCurrentMove] = useState<Move | null>(null)
+
+  const displayedMoves = previewMode ? previewMoves : moves
+
+  const handleMoveChange = useCallback(
+    (newMoveIndex: number) => {
+      if (!displayedMoves[newMoveIndex]) {
+        return
+      }
+
+      if (!displayedMoves[newMoveIndex].isAnalyzed) {
+        requestMoveAnalysis(displayedMoves[newMoveIndex])
+      }
+
+      setCurrentMove(displayedMoves[newMoveIndex])
+      setCurrentMoveIndex(newMoveIndex)
+    },
+    [displayedMoves, requestMoveAnalysis, setCurrentMoveIndex]
+  )
 
   const handleMoveNavigation = useCallback(
-    (action: 'first' | 'prev' | 'next' | 'last') => {
+    (action: 'first' | 'prev' | 'next' | 'last' | 'click') => {
       let newIndex = currentMoveIndex || 0
       switch (action) {
         case 'first':
@@ -32,24 +75,28 @@ const GameViewer = ({
           newIndex = Math.max(0, newIndex - 1)
           break
         case 'next':
-          newIndex = Math.min((moves?.length || 1) - 1, newIndex + 1)
+          newIndex = Math.min((displayedMoves?.length || 1) - 1, newIndex + 1)
           break
         case 'last':
-          newIndex = (moves?.length || 1) - 1
+          newIndex = (displayedMoves?.length || 1) - 1
           break
       }
-      setGameState((prev) => ({ ...prev, currentMoveIndex: newIndex }))
+      handleMoveChange(newIndex)
     },
-    [currentMoveIndex, moves?.length, setGameState]
+    [currentMoveIndex, handleMoveChange, displayedMoves?.length]
   )
 
   const handleRowClick = (index: number) => {
-    setGameState((prev) => ({ ...prev, currentMoveIndex: index }))
+    handleMoveChange(index)
   }
 
   useEffect(() => {
+    setCurrentMove(displayedMoves?.[currentMoveIndex || 0] || null)
+  }, [gameState, currentMoveIndex, displayedMoves])
+
+  useEffect(() => {
     // Scroll to the active move item when the currentMoveIndex changes
-    if (listRef.current && moves?.length) {
+    if (listRef.current && displayedMoves?.length) {
       const activeItem = listRef.current.querySelector(
         `.move-item-${currentMoveIndex}`
       )
@@ -76,7 +123,7 @@ const GameViewer = ({
         }
       }
     }
-  }, [currentMoveIndex, moves?.length])
+  }, [currentMoveIndex, displayedMoves?.length])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -92,12 +139,62 @@ const GameViewer = ({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentMoveIndex, handleMoveNavigation, moves.length])
+  }, [currentMoveIndex, handleMoveNavigation, displayedMoves.length])
 
-  const currentMove = moves?.[currentMoveIndex || 0]
-  const deep_score = currentMove?.deep_score || 0
-  const bestContinuations = currentMove?.bestContinuations || []
+  const handlePvHover = (pvMoves: string[], pvIdx: number) => {
+    onArrowHover(pvMoves[pvIdx] || null)
+  }
+
+  const handlePvClick = (pvIdx: number, pvMoveIdx: number) => {
+    const currentMoves = displayedMoves.slice(0, currentMoveIndex + 1)
+    setPreviewMoves([...currentMoves])
+
+    if (!previewMode) {
+      setPreviewMoveIndex(currentMoveIndex)
+    }
+
+    const chess = new Chess(currentMove?.position || '')
+    for (let i = 0; i <= pvMoveIdx; i++) {
+      chess.move(displayedPvs[pvIdx].moves[i])
+      const previewMove = {
+        move: displayedPvs[pvIdx].moves[i],
+        position: chess.fen(),
+        isAnalyzed: false,
+        context: 'preview',
+      } as Move
+      addPreviewMove(previewMove)
+      requestMoveAnalysis(previewMove)
+    }
+
+    setPreviewMode(true)
+    handleMoveChange(currentMoveIndex + 1 + pvMoveIdx)
+  }
+
+  const exitPreviewMode = () => {
+    setPreviewMode(false)
+    handleMoveChange(previewMoveIndex)
+  }
+
+  const handleShowMoveTree = () => {
+    if (moves && moves.length > 0 && Object.keys(moveTree).length == 0) {
+      requestTraceTree(moves)
+    }
+    setShowMoveTree(true)
+  }
+
   const stm = (currentMoveIndex || 0) % 2 === 0
+  const score = currentMove?.score ? currentMove.score : 0
+  const pvs = currentMove?.pvs || []
+
+  const displayedPvs = (() => {
+    const validPvs = Array.isArray(pvs)
+      ? pvs.filter((pv) => pv && typeof pv.score === 'number')
+      : []
+    const sortedPvs = [...validPvs].sort((a, b) =>
+      stm ? b.score - a.score : a.score - b.score
+    )
+    return sortedPvs.slice(0, 3)
+  })()
 
   const normalizeScore = (score: number) => {
     // sigmoid function: 1 / (1 + e^(-k*x))
@@ -109,16 +206,16 @@ const GameViewer = ({
   }
 
   useEffect(() => {
-    const normalizedScore = normalizeScore(deep_score)
+    const normalizedScore = normalizeScore(score)
     setAnimatedScore(normalizedScore)
-  }, [deep_score])
+  }, [score])
 
-  const handleHoverMove = (arrow: string | null) => {
-    onArrowHover(arrow)
-  }
+  // const handleHoverMove = (arrow: string | null) => {
+  //   onArrowHover(arrow)
+  // }
 
   const clearContext = () => {
-    setGameState(initialGameState)
+    resetGameState()
   }
 
   return (
@@ -126,33 +223,63 @@ const GameViewer = ({
       {/* Top Section: Game Information */}
       <div className="p-4 border-b z-10 sticky top-0">
         <div className="flex justify-between items-center">
-          <div>
-            <p>
-              <strong>Result:</strong> {Result || 'N/A'}
-            </p>
-            <p>
-              <strong>Opening:</strong> {Opening || 'Unknown'}
-            </p>
-          </div>
+          {!previewMode && (
+            <div>
+              <p>
+                <strong>Result:</strong> {result || 'N/A'}
+              </p>
+              <p className="text-sm">
+                <strong>Opening:</strong> {opening || 'Unknown'}
+              </p>
+            </div>
+          )}
+          {previewMode && (
+            <div>
+              <p>
+                <strong>Previewing:</strong> {currentMove?.move || 'N/A'}
+              </p>
+            </div>
+          )}
           <div className="flex items-center gap-2">
-            <button
-              onClick={clearContext}
-              className="px-2 py-2 bg-darkest-gray text-white rounded-md text-sm hvr-shadow"
-            >
-              <Image src="/icons/close.svg" alt="Tree" height={24} width={24} />
-            </button>
-            <button
-              onClick={() => setShowMoveTree(true)}
-              className="px-2 py-2 bg-darkest-gray text-white rounded-md text-sm hvr-shadow"
-            >
-              <Image src="/icons/tree.svg" alt="Tree" height={24} width={24} />
-            </button>
-            <button
-              onClick={() => setShowFeatures(!showFeatures)}
-              className="px-2 py-2 bg-darkest-gray text-white rounded-md text-sm hvr-shadow"
-            >
-              <Image src="/icons/chart.svg" alt="Tree" height={24} width={24} />
-            </button>
+            <Tooltip content="Close analysis session">
+              <button
+                onClick={clearContext}
+                className="px-2 py-2 bg-darkest-gray text-white rounded-md text-sm hvr-shadow"
+              >
+                <Image
+                  src="/icons/close.svg"
+                  alt="Close"
+                  height={24}
+                  width={24}
+                />
+              </button>
+            </Tooltip>
+            <Tooltip content="Show move tree">
+              <button
+                onClick={handleShowMoveTree}
+                className="px-2 py-2 bg-darkest-gray text-white rounded-md text-sm hvr-shadow"
+              >
+                <Image
+                  src="/icons/tree.svg"
+                  alt="Tree"
+                  height={24}
+                  width={24}
+                />
+              </button>
+            </Tooltip>
+            <Tooltip content="Show feature charts">
+              <button
+                onClick={() => setShowFeatures(!showFeatures)}
+                className="px-2 py-2 bg-darkest-gray text-white rounded-md text-sm hvr-shadow"
+              >
+                <Image
+                  src="/icons/chart.svg"
+                  alt="Chart"
+                  height={24}
+                  width={24}
+                />
+              </button>
+            </Tooltip>
           </div>
         </div>
       </div>
@@ -165,20 +292,25 @@ const GameViewer = ({
         </div>
         <div className="relative h-4 bg-darkest-gray rounded-full">
           <div
-            className="absolute h-full bg-light-gray transition-[width] duration-500"
+            className="absolute h-full bg-light-gray transition-[width] duration-500 rounded-full"
             style={{
               width: `${animatedScore}%`,
               left: 0,
             }}
           />
-          <div className="absolute inset-0 flex items-center justify-center text-sm font-bold">
-            {(deep_score / 100).toFixed(2)}
+          <div
+            className="absolute inset-0 flex items-center justify-center text-sm font-bold"
+            style={{
+              color: score > 0 ? 'var(--darkest-gray)' : 'var(--lightest-gray)',
+            }}
+          >
+            {(score / 100).toFixed(2)}
           </div>
         </div>
       </div>
 
       {/* Best Continuations */}
-      <div className="p-4 border-b z-10 sticky">
+      <div className="p-4 border-b z-10 sticky overflow-x-auto">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Best Continuations</h3>
           <div className="flex items-center gap-2">
@@ -193,29 +325,57 @@ const GameViewer = ({
             />
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 mt-2">
-          {bestContinuations.map((move, index) => {
-            const moveText = typeof move === 'string' ? move : move.move
-            const moveScore = typeof move === 'string' ? null : move.score
+        <div className="flex flex-col gap-2 mt-2">
+          {[0, 1, 2].map((rowIdx) => {
+            const pv = displayedPvs[rowIdx]
+
+            if (!pv) {
+              // Return an empty placeholder row with consistent height
+              return (
+                <div
+                  key={`empty-${rowIdx}`}
+                  className="flex items-center gap-1 no-wrap"
+                  style={{ minHeight: '30px' }}
+                />
+              )
+            }
 
             return (
-              <button
-                key={index}
-                className="px-3 py-1 bg-gray-200 rounded-md text-sm hvr-shadow"
-                style={{
-                  backgroundColor: stm
-                    ? 'var(--dark-gray)'
-                    : 'var(--darkest-gray)',
-                  color: stm ? 'var(--darkest-gray)' : 'var(--lightest-gray)',
-                }}
-                onMouseEnter={() => handleHoverMove(moveText)}
-                onMouseLeave={() => handleHoverMove(null)}
-              >
-                <p className="text-sm font-semibold">{moveText}</p>
-                {moveScore !== null && (
-                  <p className="text-xs">{(moveScore / 100).toFixed(2)}</p>
-                )}
-              </button>
+              <div key={rowIdx} className="flex items-center gap-1 no-wrap">
+                <span className="text-sm font-semibold mr-1">
+                  {(pv.score / 100).toFixed(2)}:
+                </span>
+                {pv.moves.map((pvMoveText, moveInPvIdx) => {
+                  const isWhiteMoveInThisPvStep = stm
+                    ? moveInPvIdx % 2 === 0
+                    : moveInPvIdx % 2 !== 0
+
+                  return (
+                    <div
+                      key={`${rowIdx}-${moveInPvIdx}`}
+                      className="px-2 py-0.5 rounded text-sm cursor-pointer hvr-shadow"
+                      style={{
+                        backgroundColor: isWhiteMoveInThisPvStep
+                          ? 'var(--light-gray)'
+                          : 'var(--darkest-gray)',
+                        color: isWhiteMoveInThisPvStep
+                          ? 'var(--darkest-gray)'
+                          : 'var(--lightest-gray)',
+                      }}
+                      onMouseEnter={() =>
+                        handlePvHover(
+                          pv.moves.slice(0, moveInPvIdx + 1),
+                          moveInPvIdx
+                        )
+                      }
+                      onMouseLeave={() => handlePvHover([], 0)}
+                      onClick={() => handlePvClick(rowIdx, moveInPvIdx)}
+                    >
+                      {pvMoveText}
+                    </div>
+                  )
+                })}
+              </div>
             )
           })}
         </div>
@@ -223,30 +383,58 @@ const GameViewer = ({
 
       {/* Navigation */}
       <div className="p-4 border-b z-10 sticky flex justify-evenly">
-        <button
-          className="bg-darkest-gray light-gray py-2 px-4 rounded-md hvr-shadow"
-          onClick={() => handleMoveNavigation('first')}
-        >
-          <Image src="/icons/fast_back.svg" alt="⏮" height={24} width={24} />
-        </button>
-        <button
-          className="bg-darkest-gray light-gray py-2 px-4 rounded-md hvr-shadow"
-          onClick={() => handleMoveNavigation('prev')}
-        >
-          <Image src="/icons/back.svg" alt="◀" height={24} width={24} />
-        </button>
-        <button
-          className="bg-darkest-gray light-gray py-2 px-4 rounded-md hvr-shadow"
-          onClick={() => handleMoveNavigation('next')}
-        >
-          <Image src="/icons/forward.svg" alt="▶" height={24} width={24} />
-        </button>
-        <button
-          className="bg-darkest-gray light-gray py-2 px-4 rounded-md hvr-shadow"
-          onClick={() => handleMoveNavigation('last')}
-        >
-          <Image src="/icons/fast_forward.svg" alt="⏭" height={24} width={24} />
-        </button>
+        <Tooltip content="First move">
+          <button
+            className="bg-darkest-gray light-gray py-2 px-4 rounded-md hvr-shadow"
+            onClick={() => handleMoveNavigation('first')}
+          >
+            <Image src="/icons/fast_back.svg" alt="⏮" height={24} width={24} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Previous move">
+          <button
+            className="bg-darkest-gray light-gray py-2 px-4 rounded-md hvr-shadow"
+            onClick={() => handleMoveNavigation('prev')}
+          >
+            <Image src="/icons/back.svg" alt="◀" height={24} width={24} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Next move">
+          <button
+            className="bg-darkest-gray light-gray py-2 px-4 rounded-md hvr-shadow"
+            onClick={() => handleMoveNavigation('next')}
+          >
+            <Image src="/icons/forward.svg" alt="▶" height={24} width={24} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Last move">
+          <button
+            className="bg-darkest-gray light-gray py-2 px-4 rounded-md hvr-shadow"
+            onClick={() => handleMoveNavigation('last')}
+          >
+            <Image
+              src="/icons/fast_forward.svg"
+              alt="⏭"
+              height={24}
+              width={24}
+            />
+          </button>
+        </Tooltip>
+        {previewMode && (
+          <Tooltip content="Exit variation preview">
+            <button
+              className="bg-orange-500 text-white py-2 px-4 rounded-md hvr-shadow"
+              onClick={exitPreviewMode}
+            >
+              <Image
+                src="/icons/close.svg"
+                alt="Exit Preview"
+                height={24}
+                width={24}
+              />
+            </button>
+          </Tooltip>
+        )}
       </div>
 
       {/* Move List Section */}
@@ -257,13 +445,13 @@ const GameViewer = ({
       >
         <ul className="pb-20">
           {' '}
-          {/* Add bottom padding to ensure last items are scrollable */}
-          {moves?.map((moveData, index) => {
+          {displayedMoves?.map((moveData, index) => {
             const moveNumber = Math.floor((index + 1) / 2)
             const isWhiteMove = index % 2 === 0
-            const scoreDisplay = (moveData.deep_score / 100).toFixed(2)
-
-            // Define the selected style with orange shadow
+            const scoreDisplay =
+              moveData.score !== undefined
+                ? (moveData.score / 100).toFixed(2)
+                : ''
             const selectedStyle =
               index === currentMoveIndex
                 ? {

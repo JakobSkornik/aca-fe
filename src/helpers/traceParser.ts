@@ -1,7 +1,7 @@
-import { Move, MoveAnalysisNode, TraceFeature } from '@/types/AnalysisResult'
+import { Move, TraceFeature } from '@/types/ws'
 import { PosFeature, Trace } from '@/types/Trace'
 
-export function parseTrace(node: MoveAnalysisNode | Move | undefined): Trace {
+export function parseTrace(node:  Move | undefined): Trace {
   const trace: Trace = {
     Bishops: 0,
     Imbalance: 0,
@@ -17,7 +17,7 @@ export function parseTrace(node: MoveAnalysisNode | Move | undefined): Trace {
     Winnable: 0,
     Total: 0,
   }
-  if (!node || node.trace['error']) {
+  if (!node || !node.trace || node.trace['error']) {
     return trace
   }
 

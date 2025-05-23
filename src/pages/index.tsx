@@ -1,10 +1,13 @@
 import { useState } from 'react'
+
 import ControlPanel from '../components/ControlPanel'
 import ChessBoardSection from '../components/ChessBoardSection'
 import FeatureCharts from '../components/FeatureCharts'
+import { useGameState } from '@/contexts/GameStateContext'
 
 
 const AnnotatePGN = () => {
+  const { gameState } = useGameState()
   const [hoveredArrow, setHoveredArrow] = useState<string | null>(null)
   const [showFeatures, setShowFeatures] = useState(false)
 
@@ -24,7 +27,7 @@ const AnnotatePGN = () => {
             setShowFeatures={setShowFeatures}
           />
         </div>
-        {showFeatures && <FeatureCharts />}
+        {showFeatures && gameState.isLoaded && <FeatureCharts />}
       </div>
     </div>
   )

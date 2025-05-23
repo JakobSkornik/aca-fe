@@ -17,23 +17,34 @@ const PosInfo: React.FC<PosInfoProps> = ({
 
   // Compute arrows for last move (if available)
   const lastMoveArrow = useMemo(() => {
-    if (node?.move && typeof node.move === 'string' && node.move.length === 4) {
-      return [[node.move.slice(0, 2), node.move.slice(2, 4), 'var(--orange)']]
+    if (
+      node?.move.move &&
+      typeof node.move.move === 'string' &&
+      node.move.move.length === 4
+    ) {
+      return [
+        [
+          node.move.move.slice(0, 2),
+          node.move.move.slice(2, 4),
+          'var(--orange)',
+        ],
+      ]
     }
     return []
   }, [node])
 
-  const compareFen = compareNode?.fen
+  const compareFen = compareNode?.move.position
   const compareArrow = useMemo(() => {
     if (
+      compareNode &&
       compareNode?.move &&
-      typeof compareNode.move === 'string' &&
-      compareNode.move.length === 4
+      typeof compareNode.move.move === 'string' &&
+      compareNode.move.move.length === 4
     ) {
       return [
         [
-          compareNode.move.slice(0, 2),
-          compareNode.move.slice(2, 4),
+          compareNode.move.move.slice(0, 2),
+          compareNode.move.move.slice(2, 4),
           'var(--orange)',
         ],
       ]
@@ -43,7 +54,7 @@ const PosInfo: React.FC<PosInfoProps> = ({
 
   useEffect(() => {
     if (node) {
-      setFen(node.fen)
+      setFen(node.move.position)
     } else {
       setFen('start')
     }
@@ -53,15 +64,16 @@ const PosInfo: React.FC<PosInfoProps> = ({
   if (!node) return null
 
   // Find parent node for feature diff
-  const trace = parseTrace(node)
+  const trace = parseTrace(node.move)
   const baseTrace = compareNode
-    ? parseTrace(compareNode)
-    : parseTrace(getParent(tree, node)!)
+    ? parseTrace(compareNode.move)
+    : parseTrace(getParent(tree, node)!.move)
 
   const isWhite = node.depth % 2 === 1 ? true : false
 
   // Helper to get diff and color
   function getDiffAndColor(key: PosFeature) {
+    console.log('key', key, baseTrace, trace)
     const prev = baseTrace[key]
     const curr = trace[key]
     let diff = prev - curr
@@ -71,8 +83,8 @@ const PosInfo: React.FC<PosInfoProps> = ({
     }
 
     let color = ''
-    if (diff > 0) color = 'green'
-    if (diff < 0) color = 'red'
+    if (diff > 0) color = 'text-green-600'
+    if (diff < 0) color = 'text-red-600'
 
     return {
       diff,
@@ -87,48 +99,20 @@ const PosInfo: React.FC<PosInfoProps> = ({
   }
 
   return (
-    <div
-      style={{
-        background: 'var(--lightest-gray)',
-        border: '1px solid #ccc',
-        borderRadius: 8,
-        boxShadow: '0 0px 12px 12px rgba(0,0,0,0.15)',
-        padding: 8,
-        minWidth: 270,
-        maxWidth: 520,
-        position: 'relative',
-      }}
-    >
+    <div className="bg-lightest-gray p-2 min-w-[270px] max-w-[520px] relative h-full w-full shadow-lg rounded-lg">
       {/* X Button */}
       {onClose && (
         <button
-          className="hvr-shadow"
+          className="hvr-shadow z-[1000] w-6 h-6 bg-dark-gray rounded-lg border-none text-base cursor-pointer"
           onClick={onClose}
-          style={{
-            zIndex: 1000,
-            width: 24,
-            height: 24,
-            background: 'var(--dark-gray)',
-            borderRadius: '8px',
-            border: 'none',
-            fontSize: 16,
-            cursor: 'pointer',
-            color: '#888',
-          }}
           aria-label="Close"
         >
           ×
         </button>
       )}
+
       {/* Chessboards */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          marginBottom: 8,
-          justifyContent: 'center',
-        }}
-      >
+      <div className="flex gap-2 mb-2 justify-center">
         <div>
           <Chessboard
             position={fen}
@@ -137,10 +121,11 @@ const PosInfo: React.FC<PosInfoProps> = ({
             customLightSquareStyle={{ backgroundColor: 'var(--lightest-gray)' }}
             customArrows={lastMoveArrow as Arrow[]}
           />
-          <div style={{ textAlign: 'center', fontSize: 11, marginTop: 2 }}>
-            Main ({node.move})
+          <div className="text-center text-xs mt-0.5">
+            Main ({String(node.move.move)})
           </div>
         </div>
+
         {compareNode && (
           <div>
             <Chessboard
@@ -152,8 +137,8 @@ const PosInfo: React.FC<PosInfoProps> = ({
               }}
               customArrows={compareArrow as Arrow[]}
             />
-            <div style={{ textAlign: 'center', fontSize: 11, marginTop: 2 }}>
-              Compare ({compareNode.move})
+            <div className="text-center text-xs mt-0.5">
+              Compare ({String(compareNode.move.move)})
             </div>
           </div>
         )}
@@ -161,22 +146,18 @@ const PosInfo: React.FC<PosInfoProps> = ({
 
       {/* Move Info */}
       <div
-        style={{
-          fontSize: 13,
-          marginBottom: 8,
-          display: compareNode ? 'flex' : 'block',
-          justifyContent: compareNode ? 'center' : 'flex-start',
-          gap: compareNode ? 24 : 0,
-        }}
+        className={`text-sm mb-2 ${
+          compareNode ? 'flex justify-center gap-6' : 'block'
+        }`}
       >
         {/* Main Node Info */}
         <div>
-          <div style={{ marginBottom: 2 }}>
-            <strong>Move:</strong> {node?.move || 'N/A'}
+          <div className="mb-0.5">
+            <strong>Move:</strong> {String(node?.move.move) || 'N/A'}
           </div>
-          <div style={{ marginBottom: 2 }}>
-            <strong>Context:</strong> {node?.context || 'N/A'}
-            {node?.context?.startsWith('pv') && (
+          <div className="mb-0.5">
+            <strong>Context:</strong> {node?.move.context || 'N/A'}
+            {node?.move.context?.startsWith('pv') && (
               <>
                 {' ('}
                 {getPVLine(tree, node).join(', ')}
@@ -184,25 +165,26 @@ const PosInfo: React.FC<PosInfoProps> = ({
               </>
             )}
           </div>
-          <div style={{ marginBottom: 2 }}>
+          <div className="mb-0.5">
             <strong>Depth:</strong> {node?.depth || 'N/A'}
           </div>
-          <div style={{ marginBottom: 2 }}>
-            <strong>Phase:</strong> {node?.phase || 'N/A'}
+          <div className="mb-0.5">
+            <strong>Phase:</strong> {node?.move.phase || 'N/A'}
           </div>
-          <div style={{ marginBottom: 2 }}>
-            <strong>Score:</strong> {node?.deep_score || 'N/A'}
+          <div className="mb-0.5">
+            <strong>Score:</strong> {node?.move.score || 'N/A'}
           </div>
         </div>
+
         {/* Compare Node Info */}
         {compareNode && (
           <div>
-            <div style={{ marginBottom: 2 }}>
-              <strong>Move:</strong> {compareNode.move || 'N/A'}
+            <div className="mb-0.5">
+              <strong>Move:</strong> {String(compareNode.move.move) || 'N/A'}
             </div>
-            <div style={{ marginBottom: 2 }}>
-              <strong>Context:</strong> {compareNode?.context || 'N/A'}
-              {compareNode?.context?.startsWith('pv') && (
+            <div className="mb-0.5">
+              <strong>Context:</strong> {compareNode?.move.context || 'N/A'}
+              {compareNode?.move.context?.startsWith('pv') && (
                 <>
                   {' ('}
                   {getPVLine(tree, compareNode).join(', ')}
@@ -210,82 +192,38 @@ const PosInfo: React.FC<PosInfoProps> = ({
                 </>
               )}
             </div>
-            <div style={{ marginBottom: 2 }}>
+            <div className="mb-0.5">
               <strong>Depth:</strong> {compareNode.depth || 'N/A'}
             </div>
-            <div style={{ marginBottom: 2 }}>
-              <strong>Phase:</strong> {compareNode.phase || 'N/A'}
+            <div className="mb-0.5">
+              <strong>Phase:</strong> {compareNode.move.phase || 'N/A'}
             </div>
-            <div style={{ marginBottom: 2 }}>
-              <strong>Score:</strong> {compareNode.deep_score || 'N/A'}
+            <div className="mb-0.5">
+              <strong>Score:</strong> {compareNode.move.score || 'N/A'}
             </div>
           </div>
         )}
       </div>
 
       {/* Features Table */}
-      {node.move !== 'start' && (
+      {node.move.move !== 'Start' && (
         <div>
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 11,
-            }}
-          >
+          <table className="w-full border-collapse text-xs">
             <thead>
               <tr>
-                <th
-                  style={{
-                    textAlign: 'left',
-                    padding: '2px 4px',
-                    fontWeight: 600,
-                  }}
-                >
-                  Feature
-                </th>
+                <th className="text-left p-1 font-semibold">Feature</th>
                 {compareNode && (
                   <>
-                    <th
-                      style={{
-                        textAlign: 'right',
-                        padding: '2px 4px',
-                        fontWeight: 600,
-                      }}
-                    >
-                      Main Value
-                    </th>
-                    <th
-                      style={{
-                        textAlign: 'right',
-                        padding: '2px 4px',
-                        fontWeight: 600,
-                      }}
-                    >
+                    <th className="text-right p-1 font-semibold">Main Value</th>
+                    <th className="text-right p-1 font-semibold">
                       Compare Value
                     </th>
                   </>
                 )}
                 {!compareNode && (
-                  <th
-                    style={{
-                      textAlign: 'right',
-                      padding: '2px 4px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Value
-                  </th>
+                  <th className="text-right p-1 font-semibold">Value</th>
                 )}
-                <th
-                  style={{
-                    textAlign: 'right',
-                    padding: '2px 4px',
-                    fontWeight: 600,
-                  }}
-                >
-                  Change
-                </th>
+                <th className="text-right p-1 font-semibold">Change</th>
               </tr>
             </thead>
             <tbody>
@@ -299,58 +237,31 @@ const PosInfo: React.FC<PosInfoProps> = ({
                     : undefined
                   return (
                     <tr key={key}>
-                      <td style={{ padding: '2px 4px' }}>{key}</td>
+                      <td className="p-1">{key}</td>
                       {compareNode ? (
                         <>
-                          <td
-                            style={{ padding: '2px 4px', textAlign: 'right' }}
-                          >
+                          <td className="p-1 text-right">
                             {typeof value === 'number' ? value.toFixed(2) : ''}
                           </td>
-                          <td
-                            style={{ padding: '2px 4px', textAlign: 'right' }}
-                          >
+                          <td className="p-1 text-right">
                             {typeof compareValue === 'number'
                               ? compareValue.toFixed(2)
                               : ''}
                           </td>
                         </>
                       ) : (
-                        <td style={{ padding: '2px 4px', textAlign: 'right' }}>
+                        <td className="p-1 text-right">
                           {typeof value === 'number' ? value.toFixed(2) : ''}
                         </td>
                       )}
-                      <td
-                        style={{
-                          padding: '2px 4px',
-                          textAlign: 'right',
-                          color,
-                          fontWeight: 600,
-                        }}
-                      >
+                      <td className={`p-1 text-right font-semibold ${color}`}>
                         {formatted}
                       </td>
                     </tr>
                   )
                 })}
             </tbody>
-            {/* {totalScore !== undefined && (
-              <tfoot>
-                <tr>
-                  <td style={{ padding: '2px 4px', fontWeight: 700 }}>Total</td>
-                  <td
-                    style={{
-                      padding: '2px 4px',
-                      textAlign: 'right',
-                      fontWeight: 700,
-                    }}
-                    colSpan={compareNode ? 3 : 2}
-                  >
-                    {totalScore}
-                  </td>
-                </tr>
-              </tfoot>
-            )} */}
+            {/* Table footer commented out in original code */}
           </table>
         </div>
       )}

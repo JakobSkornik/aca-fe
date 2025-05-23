@@ -7,22 +7,23 @@ export interface CaptureCount {
   k: number
 }
 
-export interface BestContinuation {
-  move: string
+export interface PV {
   score: number
+  moves: string[]
 }
 
 export interface Move {
   position: string
   move: string
-  shallow_score: number
-  deep_score: number
-  phase: string
-  bestContinuations: BestContinuation[]
-  capturedByWhite: CaptureCount
-  capturedByBlack: CaptureCount
-  piece: string | null
-  trace: Record<string, string | TraceFeature>
+  isAnalyzed: boolean
+  context: string
+  score?: number
+  phase?: string
+  pvs?: PV[]
+  capturedByWhite?: CaptureCount
+  capturedByBlack?: CaptureCount
+  piece?: string | null
+  trace?: Record<string, string | TraceFeature>
 }
 
 export interface TraceFeature {
@@ -32,18 +33,10 @@ export interface TraceFeature {
 
 export interface MoveAnalysisNode {
   id: number
-  depth: number
   parent: number
-  move: string
-  fen: string
-  shallow_score: number
-  deep_score: number
-  trace: Record<string, string | TraceFeature>
-  context: string
-  phase: string
-  capturedByWhite: CaptureCount
-  capturedByBlack: CaptureCount
   piece: string | null
+  depth: number
+  move: Move
 }
 
 export interface AnalysisResult {

@@ -1,4 +1,4 @@
-import { MoveAnalysisNode } from '@/types/AnalysisResult'
+import { MoveAnalysisNode } from '@/types/ws'
 
 export function getMainlineMoves(
   tree: Record<number, MoveAnalysisNode>
@@ -14,7 +14,7 @@ export function getMainlineMoves(
 
   while (true) {
     current = Object.values(tree).find(
-      (node) => node.parent === current!.id && node.context === 'mainline'
+      (node) => node.parent === current!.id && node.move.context === 'mainline'
     )
     if (!current) break
     mainline.push(current)
@@ -24,7 +24,7 @@ export function getMainlineMoves(
 }
 
 export function getScore(node: MoveAnalysisNode): number {
-  return typeof node.deep_score === 'number' ? node.deep_score : 0
+  return typeof node.move.score === 'number' ? node.move.score : 0
 }
 
 export function isWhiteMove(node: MoveAnalysisNode): boolean {

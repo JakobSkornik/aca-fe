@@ -1,19 +1,20 @@
-import React, { useState } from 'react'
-import { Chess } from 'chess.js'
+import Image from 'next/image'
+import React, { useRef, useState } from 'react'
 import { useGameState } from '../contexts/GameStateContext'
-import { AnalysisResult } from '../types/AnalysisResult'
+import Dropdown from './ui/Dropdown'
 
 const PgnLoader = () => {
-  const { setGameState } = useGameState()
+  const { connectToAnalysisSession } = useGameState()
   const [tempPgn, setTempPgn] = useState<string>('')
   const [error, setError] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const staticPgns = [
-    { label: 'Example 1', file: '/data/example1.pgn' },
-    { label: '2759 elo', file: '/data/2759.pgn' },
-    { label: '2000 elo', file: '/data/2759.pgn' },
-    { label: 'Test', file: '/data/short.pgn' },
+    { value: '/data/example1.pgn', label: 'Example 1' },
+    { value: '/data/2759.pgn', label: '2759 elo' },
+    { value: '/data/2000.pgn', label: '2000 elo' },
+    { value: '/data/short.pgn', label: 'Test' },
   ]
 
   // File upload: load PGN/JSON file and set its contents in the textarea.
@@ -48,19 +49,18 @@ const PgnLoader = () => {
     }
   }
 
-  // Load the game by sending the PGN string to the analyze endpoint.
-  const loadGame = async () => {
+  const submitPgn = async () => {
     try {
       setError('')
       setLoading(true)
 
       // Send the PGN string to your analyze endpoint.
-      const response = await fetch('/api/analyze', {
+      const response = await fetch('/api/submit_pgn', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ pgn: tempPgn }),
+        body: JSON.stringify({ tempPgn }),
       })
 
       if (!response.ok) {
@@ -68,66 +68,10 @@ const PgnLoader = () => {
           `Analyze API returned ${response.status}: ${await response.text()}`
         )
       }
-
-      const analysisResult = (await response.json()) as AnalysisResult
-
-      // Create a new chess game
-      const chessGame = new Chess()
-
-      // Reconstruct the game directly from the analysis moves
-      analysisResult.moves.forEach((moveData) => {
-        if (moveData.move) {
-          try {
-            // Try to make the move from the analysis
-            chessGame.move(moveData.move)
-          } catch (moveErr) {
-            console.error(`Failed to apply move: ${moveData.move}`, moveErr)
-
-            // If standard notation fails, try UCI format
-            try {
-              const from = moveData.move.substring(0, 2)
-              const to = moveData.move.substring(2, 4)
-              const promotion =
-                moveData.move.length > 4 ? moveData.move[4] : undefined
-
-              chessGame.move({ from, to, promotion })
-            } catch (uciErr) {
-              console.error(
-                `Failed to apply UCI move: ${moveData.move}`,
-                uciErr
-              )
-            }
-          }
-        }
-      })
-
-      if (analysisResult.metadata) {
-        chessGame.header(
-          'White',
-          analysisResult.metadata.white_name || '',
-          'Black',
-          analysisResult.metadata.black_name || '',
-          'WhiteElo',
-          analysisResult.metadata.white_elo?.toString() || '',
-          'BlackElo',
-          analysisResult.metadata.black_elo?.toString() || '',
-          'Event',
-          analysisResult.metadata.event || '',
-          'Opening',
-          analysisResult.metadata.opening || '',
-          'Result',
-          analysisResult.metadata.result || ''
-        )
+      const data = await response.json()
+      if (data.session_id) {
+        connectToAnalysisSession(data.session_id)
       }
-
-      // Update game state with the enriched analysis
-      setGameState({
-        isLoaded: true,
-        game: chessGame,
-        moveTree: analysisResult.move_tree,
-        moves: analysisResult.moves,
-        currentMoveIndex: 0,
-      })
     } catch (err) {
       console.error('Error loading game:', err)
       setError((err as Error).message)
@@ -136,30 +80,40 @@ const PgnLoader = () => {
     }
   }
 
+  const handleCustomButtonClick = () => {
+    fileInputRef.current?.click()
+  }
+
   return (
     <div className="w-[400px]">
       <h2 className="text-xl font-semibold mb-4">Load PGN / Analysis</h2>
 
-      {/* Dropdown for static PGN files */}
-      <select
-        onChange={(e) => handleDropdownSelection(e.target.value)}
-        className="block w-full text-sm border border-gray-300 rounded-md p-2 mb-4"
-      >
-        <option value="">Select a PGN file</option>
-        {staticPgns.map((pgn) => (
-          <option key={pgn.file} value={pgn.file}>
-            {pgn.label}
-          </option>
-        ))}
-      </select>
+      {/* Custom Dropdown */}
+      <div className="mb-4">
+        <Dropdown
+          options={[{ value: '', label: 'Select a PGN file' }, ...staticPgns]}
+          onChange={handleDropdownSelection}
+          placeholder="Select a PGN file"
+        />
+      </div>
 
       {/* File Upload */}
-      <input
-        type="file"
-        accept=".json,.pgn"
-        onChange={handleFileUpload}
-        className="block w-full text-sm border border-gray-300 rounded-md p-2 mb-4"
-      />
+      <div className="mb-4">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,.pgn"
+          onChange={handleFileUpload}
+          className="hidden" // Hide the native input
+        />
+        <button
+          onClick={handleCustomButtonClick}
+          className="flex items-center gap-2 bg-lightest-gray text-lightest-gray px-4 py-2 rounded-md hvr-shadow w-full"
+        >
+          <Image src="/icons/upload.svg" alt="Upload" width={20} height={20} />
+          <span>Upload PGN/JSON File</span>
+        </button>
+      </div>
 
       {/* Textarea for PGN/JSON input */}
       <textarea
@@ -172,7 +126,7 @@ const PgnLoader = () => {
 
       <button
         disabled={loading || !tempPgn.trim()}
-        onClick={loadGame}
+        onClick={submitPgn}
         className={`bg-darkest-gray text-white py-2 px-4 rounded-md ${
           loading || !tempPgn.trim() ? 'opacity-50 cursor-not-allowed' : ''
         }`}

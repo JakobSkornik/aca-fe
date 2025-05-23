@@ -1,4 +1,4 @@
-import { MoveAnalysisNode } from '@/types/AnalysisResult'
+import { MoveAnalysisNode } from '@/types/ws'
 
 interface TreeNode {
   name: string
@@ -8,13 +8,16 @@ interface TreeNode {
     color: string
     fontWeight: number
     position: string
-    formatter: string | ((params: unknown) => string)
-    verticalAlign: string
-    align: string
+    fontSize: number
+    formatter: string | ((params: MoveAnalysisNode) => string)
+    verticalAlign?: string
+    align?: string
   }
   itemStyle: {
     borderColor?: string
     borderWidth?: number
+    shadowBlur: number
+    shadowColor: string
     color: string
   }
   lineStyle: {
@@ -46,6 +49,11 @@ export function buildTreeData(
 ): TreeNode | null {
   if (!node || node.depth > maxDepth) return null
 
+  // Determine if this is a main or compare node
+  const isMainNode = node.id === highlight?.mainNodeId
+  const isCompareNode = node.id === highlight?.compareNodeId
+  const isHighlightedPath = highlight?.pathNodeIds?.includes(node.id) || false
+
   // Order children: white to move (odd depth) = descending, black to move (even depth) = ascending
   let edgeColor = '#bbb'
   let edgeWidth = 1
@@ -57,70 +65,111 @@ export function buildTreeData(
   ) {
     edgeColor = '#c7711a'
     edgeWidth = 2
-  } else if (node.context === 'mainline') {
+  } else if (node.move.context === 'mainline') {
     edgeColor = '#b8e38c'
     edgeWidth = 2
   }
 
   const children = Object.values(moveTree)
-    .filter((n) => n.parent === node.id && n.context !== 'alternative')
+    .filter((n) => n.parent === node.id && n.move.context !== 'alternative')
     .sort((a, b) =>
       node.depth % 2 === 1
-        ? (b.deep_score ?? 0) - (a.deep_score ?? 0)
-        : (a.deep_score ?? 0) - (b.deep_score ?? 0)
+        ? (b.move.score ?? 0) - (a.move.score ?? 0)
+        : (a.move.score ?? 0) - (b.move.score ?? 0)
     )
-    .map((child) => buildTreeData(child, moveTree, maxDepth, highlight))
+    .map((child) => {
+      let currentChildMaxDepth = maxDepth
+      const isParentMainline = node.move.context === 'mainline'
+      const isChildVariationStart = child.move.context !== 'mainline'
+
+      // Determine if this child's branch should be fully expanded
+      // because the child itself is selected, or it's on the path to a selected node.
+      const shouldExpandBranchForHighlight =
+        child.id === highlight?.mainNodeId ||
+        child.id === highlight?.compareNodeId ||
+        highlight?.pathNodeIds?.includes(child.id)
+
+      // If the parent is mainline, the child starts a new variation,
+      // and this child's branch is NOT needed for the current highlight,
+      // then limit the depth for this child's branch to only show the child itself.
+      if (
+        isParentMainline &&
+        isChildVariationStart &&
+        !shouldExpandBranchForHighlight
+      ) {
+        currentChildMaxDepth = child.depth
+      }
+      return buildTreeData(child, moveTree, currentChildMaxDepth, highlight)
+    })
     .filter(Boolean)
 
   let symbol: string | undefined = undefined
-  if (node.move == 'start') {
+  if (node.move.move == 'Start') {
     symbol = 'image:///icons/pieces/start.svg'
   }
-  if (node.piece && node.piece.length === 1) {
-    const color = node.depth % 2 === 0 ? 'w' : 'b'
-    symbol = `image:///icons/pieces/${color}${node.piece}.svg`
+  if (node.piece) {
+    symbol = `image:///icons/pieces/${node.piece.toLowerCase()}.svg`
+  }
+
+  // Enhance node styling based on its role
+  const nodeName =
+    typeof node.move.move === 'string' ? node.move.move : String(node.move.move)
+
+  // Apply different stylings that work with your SVG icons
+  const nodeColor = '#fff'
+  let borderColor = undefined
+  let borderWidth = 2
+  let symbolSize = 30
+
+  // Instead of changing the name (which might interfere with your SVG),
+  // create a distinctive visual appearance with borders and background
+  if (isMainNode) {
+    borderColor = '#1890ff'
+    borderWidth = 4
+    symbolSize = 65
+  } else if (isCompareNode) {
+    borderColor = '#ff4d4f'
+    borderWidth = 4
+    symbolSize = 65
+  } else if (isHighlightedPath) {
+    borderColor = '#76081B'
+    borderWidth = 3
+    symbolSize = 45
   }
 
   return {
-    name: node.move,
-    value: node.deep_score,
+    name: nodeName,
+    value: node.move.score ?? null,
     layout: 'radial',
     symbol: symbol || 'circle',
-    symbolSize: 50,
+    symbolSize: symbolSize,
     label: {
       color: '#333',
-      fontWeight: 700,
+      fontWeight: 400,
+      fontSize: 12,
       position: 'inside',
-      formatter:
-        node.deep_score != null
-          ? `${node.move}\n${node.deep_score}`
-          : node.move,
-      verticalAlign: 'middle',
-      align: 'center',
+      formatter: node.move.score
+        ? `${node.move.move}\n${node.move.score}`
+        : node.move.move,
     },
     itemStyle: {
-      color: '#fff',
-      borderColor:
-        node.id === highlight?.mainNodeId
-          ? '#76081B'
-          : node.id === highlight?.compareNodeId
-          ? '#76081B'
-          : highlight?.pathNodeIds?.includes(node.id)
-          ? '#76081B'
-          : undefined,
-      borderWidth:
-        node.id === highlight?.mainNodeId ||
-        node.id === highlight?.compareNodeId
-          ? 4
-          : 2,
+      color: nodeColor,
+      borderColor: borderColor,
+      borderWidth: borderWidth,
+      shadowBlur: isMainNode || isCompareNode ? 10 : 0,
+      shadowColor: isMainNode
+        ? 'rgba(24, 144, 255, 0.9)'
+        : isCompareNode
+        ? 'rgba(255, 77, 79, 0.9)'
+        : 'rgba(0,0,0,0)',
     },
     children,
     analysisNode: node,
     leaves: {
       label: {
-        position: 'inside',
+        position: 'right',
         verticalAlign: 'middle',
-        align: 'center',
+        align: 'left',
       },
     },
     lineStyle: {

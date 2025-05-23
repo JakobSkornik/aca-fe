@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import axios from 'axios'
-import { AnalysisResult } from '@/types/AnalysisResult'
+import { AnalysisResult } from '@/types/ws'
 
 type ErrorResponse = {
   error: string
