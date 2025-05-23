@@ -1,4 +1,4 @@
-import { MoveAnalysisNode } from '@/types/ws'
+import { Move } from '@/types/ws' // Add Move
 
 import ecoA from './openings/ecoA.json'
 import ecoB from './openings/ecoB.json'
@@ -27,12 +27,13 @@ for (const [fen, entry] of Object.entries(ecoAll)) {
 
 export default openingBook
 
-export function getOpeningName(node: MoveAnalysisNode): string | null {
-  if (!node?.move.position) return null
-  return openingBook[node.move.position] || null
+export function getOpeningName(move: Move): string | null {
+  const position = move.position
+  if (!position) return null
+  return openingBook[position] || null
 }
 
-export function getOpeningComment(node: MoveAnalysisNode): string | null {
-  const openingName = getOpeningName(node)
+export function getOpeningComment(move: Move): string | null {
+  const openingName = getOpeningName(move)
   return openingName ? `Book move: ${openingName}.` : null
 }

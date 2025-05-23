@@ -42,7 +42,7 @@ const ChessBoardSection = ({
     requestMoveAnalysis,
   } = useGameState()
 
-  const { moves, moveTree, currentMoveIndex, previewMode } = gameState
+  const { moves, currentMoveIndex, previewMode } = gameState
   const [boardWidth, setBoardWidth] = useState<number>(0)
 
   const parentRef = useRef<HTMLDivElement>(null)
@@ -186,9 +186,7 @@ const ChessBoardSection = ({
           </p>
         </div>
       )}
-      {moveTree != null && (
-        <Comments moveTree={moveTree} currentMoveIndex={currentMoveIndex} />
-      )}
+      {gameState.isLoaded && <Comments />}
     </div>
   )
 }

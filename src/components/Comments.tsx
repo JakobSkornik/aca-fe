@@ -1,14 +1,20 @@
-import React, { useEffect, useState } from 'react'
-import { CommentsProps } from '@/types/props/CommentsProps'
+import React, { useEffect, useMemo, useState  } from 'react'
 import { buildComments } from '@/helpers/commentator'
+import { useGameState } from '@/contexts/GameStateContext'
 
 const transitionDuration = 500 // ms
-const revealInterval = 2300 // ms between each comment reveal
+const revealInterval = 1300 // ms between each comment reveal
 
-const Comments: React.FC<CommentsProps> = ({moveTree, currentMoveIndex }) => {
+const Comments: React.FC = () => {
+  const { gameState } = useGameState()
+  const { moves, moveTree, currentMoveIndex } = gameState
+
   // Prepare sentences
-  const allSentences = React.useMemo(() => buildComments(moveTree), [moveTree])
-  const sentences: string[] = React.useMemo(() => {
+  const allSentences = useMemo(() => {
+    return buildComments(moves, moveTree)
+  }, [moves, moveTree])
+
+  const sentences: string[] = useMemo(() => {
     return (
       allSentences[currentMoveIndex] ||
       allSentences[allSentences.length - 1] || ['No move selected.']
