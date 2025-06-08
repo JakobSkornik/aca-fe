@@ -1,4 +1,4 @@
-import { Move } from '@/types/ws' // Add Move
+import { Move } from '@/types/chess/Move' // Add Move
 
 import ecoA from './openings/ecoA.json'
 import ecoB from './openings/ecoB.json'

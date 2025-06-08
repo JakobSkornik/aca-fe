@@ -1,9 +1,8 @@
-import { MoveAnalysisNode } from '../ws'
+import { Move } from '../chess/Move'
 
 export interface PosInfoProps {
-  node: MoveAnalysisNode | null
-  tree: Record<number, MoveAnalysisNode>
-  compareNode?: MoveAnalysisNode | null
+  mainNode: Move | null
+  compareNode?: Move | null
   onClose?: () => void
   highlight?: boolean
 }

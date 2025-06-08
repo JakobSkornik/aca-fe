@@ -1,35 +1,17 @@
-import { Chess, Move as ChessJsMove } from 'chess.js' // Import Chess
-import { Move, TraceFeature, MoveAnalysisNode, PV } from '@/types/ws' // Added PV
+import { Chess, Move as ChessJsMove } from 'chess.js'
+import { parseTrace } from '../traceParser'
 
-export function getMainlineMoves(
-  tree: Record<number, MoveAnalysisNode>
-): MoveAnalysisNode[] {
-  const mainline: MoveAnalysisNode[] = []
+import { Move } from '@/types/chess/Move'
+import { PosFeature } from '@/types/chess/Trace'
+import { PV } from '@/types/chess/PV'
+import { TraceFeature } from '@/types/chess/TraceFeature'
 
-  // Find root node
-  const root = Object.values(tree).find((node) => node.parent === -1)
-  if (!root) return mainline
-
-  let current: MoveAnalysisNode | undefined = root
-  mainline.push(current)
-
-  while (true) {
-    current = Object.values(tree).find(
-      (node) => node.parent === current!.id && node.move.context === 'mainline'
-    )
-    if (!current) break
-    mainline.push(current)
-  }
-
-  return mainline
+export function getScore(move: Move): number {
+  return typeof move.score === 'number' ? move.score : 0
 }
 
-export function getScore(node: MoveAnalysisNode): number {
-  return typeof node.move.score === 'number' ? node.move.score : 0
-}
-
-export function isWhiteMove(node: MoveAnalysisNode): boolean {
-  return node.depth % 2 === 1
+export function isWhiteMove(node: Move): boolean {
+  return node.depth % 2 === 0
 }
 
 export function formatCp(cp: number): string {
@@ -50,7 +32,7 @@ export function compareScores(
   oldEvalForWhite: number,
   isPlayerMakingTheMoveWhite: boolean
 ): number {
-  if (isPlayerMakingTheMoveWhite) {
+  if (!isPlayerMakingTheMoveWhite) {
     return newEvalForWhite - oldEvalForWhite
   } else {
     return oldEvalForWhite - newEvalForWhite
@@ -58,33 +40,15 @@ export function compareScores(
 }
 
 export function sortMovesByScore(
-  moves: MoveAnalysisNode[],
+  moves: Move[],
   isWhite: boolean
-): MoveAnalysisNode[] {
+): Move[] {
   return moves.sort((a, b) => compareScores(getScore(b), getScore(a), isWhite))
 }
 
-export function getNthBestSibling(
-  tree: Record<number, MoveAnalysisNode>,
-  node: MoveAnalysisNode,
-  n: number
-): MoveAnalysisNode | undefined {
-  const siblings = Object.values(tree).filter((n) => n.parent === node.parent)
-  const sortedSiblings = sortMovesByScore(siblings, isWhiteMove(node))
-  return sortedSiblings[n - 1]
-}
-
-export function isBestMove(
-  tree: Record<number, MoveAnalysisNode>,
-  node: MoveAnalysisNode
-): boolean {
-  const bestSibling = getNthBestSibling(tree, node, 1)
-  return bestSibling ? bestSibling.id === node.id : false
-}
-
 export function getScoreDelta(
-  node: MoveAnalysisNode,
-  prevNode: MoveAnalysisNode
+  node: Move,
+  prevNode: Move
 ): number {
   const isWhite = isWhiteMove(node)
   return compareScores(getScore(node), getScore(prevNode), isWhite)
@@ -142,8 +106,12 @@ export function areSameMoveSAN(
     const chess2 = new Chess(fen)
 
     // Use { sloppy: true } to allow for slightly varied SAN (like missing check/mate indicators)
-    const move1_details = chess1.move(san1, {strict: false}) as ChessJsMove | null
-    const move2_details = chess2.move(san2, {strict: false}) as ChessJsMove | null
+    const move1_details = chess1.move(san1, {
+      strict: false,
+    }) as ChessJsMove | null
+    const move2_details = chess2.move(san2, {
+      strict: false,
+    }) as ChessJsMove | null
 
     if (move1_details && move2_details) {
       return (
@@ -157,4 +125,70 @@ export function areSameMoveSAN(
   } catch {
     return false
   }
+}
+
+// New placeholder function for comparing traces
+export function compareTraces(
+  currentMovePlayed: Move | undefined,
+  alternativePvEndPointTraceRaw: Move['trace'] | undefined,
+  isCurrentMoveByWhite: boolean, // Player who made currentMovePlayed
+  // featuresToCompare: PosFeature[] = ['Material', 'Mobility', 'KingSafety', 'Threats'] // Ideally use PosFeature[]
+  featuresToCompare: string[] = [
+    'Material',
+    'Mobility',
+    'KingSafety',
+    'Threats',
+    'Passed Pawns',
+    'Space',
+    'Bishops',
+    'Knights',
+    'Rooks',
+    'Queens',
+  ] // Use string for flexibility
+): string | null {
+  const parsedCurrentTrace = parseTrace(currentMovePlayed)
+  // Create a dummy move object for parsing the alternative trace
+  // Phase information from currentMovePlayed is used as a proxy for the phase at the end of the PV.
+  const parsedAlternativeTrace = parseTrace({
+    trace: alternativePvEndPointTraceRaw,
+    phase: currentMovePlayed?.phase,
+    // Other Move fields are not needed by parseTrace if only trace and phase are used
+  } as Move)
+
+  const differences: string[] = []
+
+  for (const featureName of featuresToCompare) {
+    const key = featureName as PosFeature // Cast to PosFeature for object access
+
+    const valCurrent = parsedCurrentTrace[key] ?? 0
+    const valAlternative = parsedAlternativeTrace[key] ?? 0
+
+    // All trace values from parseTrace are from White's POV.
+    // rawDiff > 0 means the alternative is better for White for this feature.
+    const rawDiff = valAlternative - valCurrent
+
+    let playerPerspectiveDiff: number
+    if (isCurrentMoveByWhite) {
+      playerPerspectiveDiff = rawDiff
+    } else {
+      // If Black made the move, a positive rawDiff (good for White) is bad for Black.
+      playerPerspectiveDiff = -rawDiff
+    }
+
+    // Define a generic threshold for a "significant" difference.
+    // This might need to be feature-specific in a more advanced implementation.
+    const threshold = 0.1 // Example threshold, adjust as needed
+
+    if (playerPerspectiveDiff > threshold) {
+      differences.push(`improved ${featureName.toLowerCase()}`)
+    } else if (playerPerspectiveDiff < -threshold) {
+      differences.push(`worsened ${featureName.toLowerCase()}`)
+    }
+  }
+
+  if (differences.length > 0) {
+    return `The alternative could have led to: ${differences.join(', ')}.`
+  }
+
+  return null
 }

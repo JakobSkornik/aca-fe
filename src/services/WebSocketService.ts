@@ -24,7 +24,6 @@ class WebSocketService {
       this.ws.readyState === WebSocket.OPEN &&
       this.currentSessionId === sessionId
     ) {
-      console.debug('WebSocketService: Already connected to session:', sessionId)
       if (this.handlers?.onOpen) {
         this.handlers.onOpen()
       }
@@ -41,10 +40,6 @@ class WebSocketService {
     this.ws = new WebSocket(fullWsUrl)
 
     this.ws.onopen = () => {
-      console.debug(
-        'WebSocketService: Connection established for session:',
-        this.currentSessionId
-      )
       if (this.handlers?.onOpen) {
         this.handlers.onOpen()
       }
@@ -73,11 +68,6 @@ class WebSocketService {
     }
 
     this.ws.onclose = (event: CloseEvent) => {
-      console.debug(
-        'WebSocketService: Connection closed:',
-        event.code,
-        event.reason
-      )
       if (this.handlers?.onClose) {
         this.handlers.onClose(event)
       }
@@ -85,17 +75,12 @@ class WebSocketService {
       if (this.currentSessionId === sessionId) {
         this.ws = null
         this.currentSessionId = null
-
       }
     }
   }
 
   public disconnect(): void {
     if (this.ws) {
-      console.debug(
-        'WebSocketService: Disconnecting session:',
-        this.currentSessionId
-      )
       this.ws.close()
       this.ws = null
       this.currentSessionId = null
@@ -104,7 +89,6 @@ class WebSocketService {
 
   public sendMessage(message: ClientWsMessage): boolean {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.debug('WebSocketService: Sending message:', message)
       this.ws.send(JSON.stringify(message))
       return true
     } else {

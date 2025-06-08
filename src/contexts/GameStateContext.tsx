@@ -18,19 +18,19 @@ import {
   ErrorServerPayload,
   MoveListServerPayload,
   NodeAnalysisUpdatePayload,
-  TraceTreeNodePayload,
-  RequestTraceTreeClientPayload,
+  AnalysisProgressServerPayload,
+  FullAnalysisCompleteServerPayload,
 } from '../types/WebSocketMessages'
-import { Move, MoveAnalysisNode } from '@/types/ws'
-import { PgnHeaders } from '@/types/PgnHeaders'
+import { Move } from '@/types/chess/Move'
+import { PgnHeaders } from '@/types/chess/PgnHeaders'
 
 interface GameStateContextType {
   gameState: GameState
 
   setIsLoaded: (isLoaded: boolean) => void
   setMoves: (moves: Move[]) => void
+  setMovePvs: (moveIndex: number, pvs: Move[][]) => void
   setCurrentMoveIndex: (index: number) => void
-  setMoveTree: (tree: Record<number, MoveAnalysisNode>) => void
   setPgnHeaders: (headers: PgnHeaders | null) => void
   setIsWsConnected: (isConnected: boolean) => void
   setWsError: (error: string | null) => void
@@ -44,27 +44,37 @@ interface GameStateContextType {
   requestPgnHeaders: () => void
   requestMoveList: () => void
   requestMoveAnalysis: (move: Move) => void
-  requestTraceTree: (mainlineMoves: Move[]) => void
+  requestFullGameAnalysis: () => void // New
 
   // Preview related actions
   setPreviewMode: (previewMode: boolean) => void
   setPreviewMoves: (previewMoves: Move[]) => void
+  setPreviewPvs: (pvs: Record<number, Move[][]>) => void
   setPreviewMoveIndex: (index: number) => void
   addPreviewMove: (move: Move) => void
+
+  // Annotation related actions
+  updateMoveAnnotations: (updatedMoves: Move[]) => void
+  updateMoveAnnotation: (moveIndex: number, annotation: string) => void
 }
 
 export const initialGameState: GameState = {
   game: new Chess(),
   isLoaded: false,
   moves: [],
+  movePvs: {},
   currentMoveIndex: 0,
-  moveTree: {},
   pgnHeaders: null,
   isWsConnected: false,
   wsError: null,
   previewMode: false,
   previewMoves: [],
+  previewMovePvs: {},
   previewMoveIndex: 0,
+  // New analysis states
+  isAnalysisInProgress: false,
+  analysisProgress: 0,
+  isFullyAnalyzed: false,
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(
@@ -83,12 +93,15 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
     setGameState((prev) => ({ ...prev, moves }))
   }, [])
 
-  const setCurrentMoveIndex = useCallback((index: number) => {
-    setGameState((prev) => ({ ...prev, currentMoveIndex: index }))
+  const setMovePvs = useCallback((moveIndex: number, pvs: Move[][]) => {
+    setGameState((prev) => ({
+      ...prev,
+      movePvs: { ...prev.movePvs, [moveIndex]: pvs },
+    }))
   }, [])
 
-  const setMoveTree = useCallback((tree: Record<number, MoveAnalysisNode>) => {
-    setGameState((prev) => ({ ...prev, moveTree: tree }))
+  const setCurrentMoveIndex = useCallback((index: number) => {
+    setGameState((prev) => ({ ...prev, currentMoveIndex: index }))
   }, [])
 
   const setPgnHeaders = useCallback((headers: PgnHeaders | null) => {
@@ -134,6 +147,13 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
     }))
   }
 
+  const setPreviewPvs = (pvs: Record<number, Move[][]>) => {
+    setGameState((prev) => ({
+      ...prev,
+      previewMovePvs: pvs,
+    }))
+  }
+
   const addPreviewMove = (move: Move) => {
     setGameState((prev) => ({
       ...prev,
@@ -147,6 +167,30 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
       previewMoveIndex: index,
     }))
   }
+
+  // --- Annotation Functions ---
+  const updateMoveAnnotation = useCallback(
+    (moveIndex: number, annotation: string) => {
+      setGameState((prev) => {
+        const newMoves = [...prev.moves]
+        if (moveIndex >= 0 && moveIndex < newMoves.length) {
+          newMoves[moveIndex] = {
+            ...newMoves[moveIndex],
+            annotation,
+          }
+        }
+        return { ...prev, moves: newMoves }
+      })
+    },
+    []
+  )
+
+  const updateMoveAnnotations = useCallback((updatedMoves: Move[]) => {
+    setGameState((prevState) => ({
+      ...prevState,
+      moves: updatedMoves,
+    }))
+  }, [])
 
   const requestPgnHeaders = useCallback(() => {
     webSocketService.sendMessage({
@@ -167,22 +211,20 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
     })
   }, [])
 
-  const requestTraceTree = useCallback(
-    (mainlineMoves: Move[]) => {
-      if (webSocketService.isConnected()) {
-        const payload: RequestTraceTreeClientPayload = { mainlineMoves }
-        webSocketService.sendMessage({
-          type: ClientWsMessageType.GET_TRACE_TREE,
-          payload,
-        })
-        // Clear existing tree when a new request is made
-        setMoveTree({})
-      } else {
-        console.warn('Cannot request trace tree: WebSocket not connected.')
-      }
-    },
-    [setMoveTree]
-  )
+  // New function for full game analysis
+  const requestFullGameAnalysis = useCallback(() => {
+    if (gameState.isAnalysisInProgress) return
+
+    setGameState((prev) => ({
+      ...prev,
+      isAnalysisInProgress: true,
+      analysisProgress: 0,
+    }))
+
+    webSocketService.sendMessage({
+      type: ClientWsMessageType.GET_GAME_ANALYSIS,
+    })
+  }, [gameState.isAnalysisInProgress])
 
   // --- WebSocket Event Handlers ---
   const handleWsOpen = useCallback(() => {
@@ -201,63 +243,97 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
           console.error('WebSocket error:', errorPayload)
           setWsError(errorPayload.message)
           setIsLoaded(false)
+          // Reset analysis state on error
+          setGameState((prev) => ({
+            ...prev,
+            isAnalysisInProgress: false,
+            analysisProgress: 0,
+          }))
           break
+
         case ServerWsMessageType.SESSION_METADATA:
           const metadataPayload = srvMsg.payload as SessionMetadataServerPayload
           setPgnHeaders(metadataPayload.headers)
           setIsLoaded(true)
           setWsError(null)
           break
+
         case ServerWsMessageType.MOVE_LIST:
           const moveListPayload = srvMsg.payload as MoveListServerPayload
           setMoves(moveListPayload.moveList)
           setIsLoaded(true)
           setWsError(null)
           break
+
         case ServerWsMessageType.ANALYSIS_UPDATE:
           const analysisPayload = srvMsg.payload as NodeAnalysisUpdatePayload
           setGameState((prevGameState) => {
-            const newMoves = prevGameState.previewMode
-              ? [...prevGameState.previewMoves]
-              : [...prevGameState.moves]
+            const isPreview = prevGameState.previewMode
+            const currentMoves = isPreview
+              ? prevGameState.previewMoves
+              : prevGameState.moves
 
-            const moveIndex = newMoves.findIndex(
+            const moveIndex = currentMoves.findIndex(
               (move) => move.position === analysisPayload.move.position
             )
 
-            if (moveIndex !== -1) {
-              newMoves[moveIndex] = analysisPayload.move
+            if (moveIndex === -1) {
+              console.warn(
+                'ANALYSIS_UPDATE: Could not find move to update with FEN:',
+                analysisPayload.move.position
+              )
+              return prevGameState
             }
 
-            if (prevGameState.previewMode) {
+            const newMoves = [...currentMoves]
+            const newMovePvs = { ...prevGameState.movePvs }
+
+            newMoves[moveIndex] = analysisPayload.move
+            if (analysisPayload.pvs) {
+              newMovePvs[moveIndex] = analysisPayload.pvs
+            }
+
+            if (isPreview) {
               return {
                 ...prevGameState,
                 previewMoves: newMoves,
+                previewMovePvs: newMovePvs,
+              }
+            } else {
+              return {
+                ...prevGameState,
+                moves: newMoves,
+                movePvs: newMovePvs,
               }
             }
-            return { ...prevGameState, moves: newMoves }
           })
           break
-        case ServerWsMessageType.TRACE_TREE_NODE_BATCH:
-          const tracePayload = srvMsg.payload as TraceTreeNodePayload
-          const nodes = tracePayload.nodes as MoveAnalysisNode[]
 
-          // Process the batch of nodes
-          setGameState((prev) => {
-            // Create a new tree object with all existing nodes
-            const updatedTree = { ...prev.moveTree }
-
-            // Add each node from the batch to the tree
-            nodes.forEach((node) => {
-              updatedTree[node.id] = node
-            })
-
-            return {
-              ...prev,
-              moveTree: updatedTree,
-            }
-          })
+        // New case for analysis progress
+        case ServerWsMessageType.ANALYSIS_PROGRESS:
+          const progressPayload =
+            srvMsg.payload as AnalysisProgressServerPayload
+          setGameState((prev) => ({
+            ...prev,
+            analysisProgress: progressPayload.percentage,
+          }))
           break
+
+        // New case for full analysis completion
+        case ServerWsMessageType.FULL_ANALYSIS_COMPLETE:
+          const completePayload =
+            srvMsg.payload as FullAnalysisCompleteServerPayload
+
+          setGameState((prev) => ({
+            ...prev,
+            moves: completePayload.moves,
+            movePvs: completePayload.pvs,
+            isAnalysisInProgress: false,
+            analysisProgress: 100,
+            isFullyAnalyzed: true,
+          }))
+          break
+
         default:
           console.warn('Received unknown WS message type:', srvMsg.type)
       }
@@ -269,6 +345,12 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
     setIsWsConnected(false)
     setWsError('WebSocket connection error.')
     setIsLoaded(false)
+    // Reset analysis state on connection error
+    setGameState((prev) => ({
+      ...prev,
+      isAnalysisInProgress: false,
+      analysisProgress: 0,
+    }))
   }, [setIsWsConnected, setWsError, setIsLoaded])
 
   const handleWsClose = useCallback(() => {
@@ -282,7 +364,6 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
       setPgnHeaders(null)
       setMoves(initialGameState.moves)
       setCurrentMoveIndex(0)
-      setMoveTree({})
       setIsLoaded(false)
       setWsError(null)
 
@@ -301,7 +382,6 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
       setPgnHeaders,
       setMoves,
       setCurrentMoveIndex,
-      setMoveTree,
       setIsLoaded,
       setWsError,
     ]
@@ -326,8 +406,8 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
         gameState,
         setIsLoaded,
         setMoves,
+        setMovePvs,
         setCurrentMoveIndex,
-        setMoveTree,
         setPgnHeaders,
         setIsWsConnected,
         setWsError,
@@ -338,11 +418,14 @@ export const GameStateProvider = ({ children }: { children: ReactNode }) => {
         requestPgnHeaders,
         requestMoveList,
         requestMoveAnalysis,
-        requestTraceTree,
+        requestFullGameAnalysis, // New
         setPreviewMode,
         setPreviewMoves,
+        setPreviewPvs,
         setPreviewMoveIndex,
         addPreviewMove,
+        updateMoveAnnotations,
+        updateMoveAnnotation,
       }}
     >
       {children}

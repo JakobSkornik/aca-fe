@@ -1,57 +1,59 @@
 import React, { useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
 
+import { useGameState } from '@/contexts/GameStateContext'
 import { buildTreeData } from '@/helpers/buildTreeData'
-import { getNodeById } from '@/helpers/tree'
-import { MoveAnalysisNode } from '@/types/ws'
-import { MoveTreeProps } from '@/types/props/MoveTreeProps'
 
-type ChartProps = {
-  moveTree: MoveTreeProps['moveTree']
-  maxDepth: number
-  onClickNode: (node: MoveAnalysisNode | null) => void
-  mainNode?: MoveAnalysisNode | null
-  compareNode?: MoveAnalysisNode | null
-}
+import { ChartProps } from '@/types/props/ChartProps'
+import { PathHighlightOpts } from '@/types/PathHighlightOpts'
+import { EChartsClickParams } from '@/types/echarts/EChartsClickParams'
 
 const Chart: React.FC<ChartProps> = ({
-  moveTree,
   maxDepth,
   onClickNode,
   mainNode,
   compareNode,
 }) => {
-  const rootNode = useMemo(() => {
-    if (mainNode) return mainNode
-    return Object.values(moveTree).find((node) => node.parent === -1)
-  }, [moveTree, mainNode])
+  const { gameState } = useGameState()
+  const { moves, movePvs, previewMode, previewMoves, previewMovePvs, currentMoveIndex } =
+    gameState
 
-  // Find path between mainNode and compareNode
-  const pathNodeIds = useMemo(() => {
-    if (!mainNode || !compareNode) return []
-    const path: number[] = []
-    let current: MoveAnalysisNode | undefined = compareNode
-    while (current) {
-      path.push(current.id)
-      if (current.id === mainNode.id) break
-      current = getNodeById(moveTree, current.parent)
-    }
-    if (!path.includes(mainNode.id)) return []
-    return path
-  }, [mainNode, compareNode, moveTree])
+  const shownMoves = previewMode ? previewMoves : moves
+  const shownPvs = previewMode ? previewMovePvs : movePvs
 
-  // Pass highlight info to buildTreeData
+  const rootNode = useMemo(
+    () => (shownMoves.length > 0 && currentMoveIndex >= 0 && currentMoveIndex < shownMoves.length 
+      ? shownMoves[currentMoveIndex] 
+      : shownMoves[0] || null),
+    [shownMoves, currentMoveIndex]
+  )
+
   const treeData = useMemo(() => {
-    return rootNode
-      ? [
-          buildTreeData(rootNode, moveTree, maxDepth, {
-            mainNodeId: mainNode?.id,
-            compareNodeId: compareNode?.id,
-            pathNodeIds,
-          }),
-        ]
-      : []
-  }, [rootNode, moveTree, maxDepth, mainNode, compareNode, pathNodeIds])
+    if (!shownMoves.length || !rootNode) {
+      return []
+    }
+
+    const highlightOptions: PathHighlightOpts = {
+      mainNodeId: mainNode?.id,
+      compareNodeId: compareNode?.id,
+    }
+
+    const data = buildTreeData(
+      rootNode,
+      shownMoves,
+      shownPvs,
+      maxDepth,
+      highlightOptions
+    )
+    return data ? [data] : []
+  }, [
+    shownMoves,
+    rootNode,
+    mainNode?.id,
+    compareNode?.id,
+    shownPvs,
+    maxDepth,
+  ])
 
   const option = useMemo(
     () => ({
@@ -60,77 +62,74 @@ const Chart: React.FC<ChartProps> = ({
         {
           type: 'tree',
           layout: 'orthogonal',
-          nodeGap: 40,
+          nodeGap: 30,
+          edgeForkPosition: '75%',
+          initialTreeDepth: maxDepth,
           data: treeData,
           symbol: 'circle',
-          symbolSize: 60,
+          symbolSize: 40,
           roam: true,
-          initialTreeDepth: maxDepth,
           label: {
             position: 'inside',
             verticalAlign: 'middle',
             align: 'center',
+            color: '#333',
+            fontSize: 12,
           },
           leaves: {
             label: {
-              position: 'inside',
+              position: 'right',
               verticalAlign: 'middle',
-              align: 'center',
+              align: 'left',
             },
           },
           lineStyle: {
             color: '#bbb',
-            width: 2,
-            curveness: 0.2,
+            width: 1.5,
           },
           emphasis: {
             focus: 'ancestor',
+            lineStyle: {
+              width: 2,
+            },
           },
           expandAndCollapse: false,
-          animationDuration: 0,
-          animationDurationUpdate: 0,
+          animationDuration: 300,
+          animationDurationUpdate: 300,
           scaleLimit: {
-            min: 0.3,
+            min: 0.2,
             max: 5,
           },
-          // center: ['40%', '50%'], // Center the tree in the chart area
         },
       ],
-      tooltip: {
-        show: false,
-      },
     }),
     [treeData, maxDepth]
   )
 
-
-  type EChartsTreeNodeParams = {
-    componentType: string
-    data?: {
-      analysisNode?: MoveAnalysisNode
-      [key: string]: unknown
-    }
-    [key: string]: unknown
-  }
-
   const onEvents = {
-    click: (params: EChartsTreeNodeParams) => {
-      const node = params.data?.analysisNode as MoveAnalysisNode | undefined
-      if (node) onClickNode(node)
+    click: (params: EChartsClickParams) => {
+      const clickedAnalysisNode = params.data?.analysisNode
+      if (clickedAnalysisNode) {
+        onClickNode(clickedAnalysisNode)
+      }
     },
   }
 
-  if (!rootNode) return null
+  if (shownMoves.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        Loading tree or no moves to display...
+      </div>
+    )
+  }
 
   return (
-    <div
-      className="w-full h-full overflow-hidden"
-    >
+    <div className="w-full h-full overflow-hidden">
       <ReactECharts
         option={option}
         style={{ width: '100%', height: '100%' }}
         notMerge={true}
-        lazyUpdate
+        lazyUpdate={true}
         onEvents={onEvents}
       />
     </div>

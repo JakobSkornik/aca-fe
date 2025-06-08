@@ -1,12 +1,12 @@
-import { Move, MoveAnalysisNode } from './ws'
-import { PgnHeaders } from './PgnHeaders'
+import { Move } from './chess/Move'
+import { PgnHeaders } from './chess/PgnHeaders'
 
 // --- Message Type Enums ---
 export enum ClientWsMessageType {
   GET_SESSION_METADATA = 'GET_SESSION_METADATA',
   GET_DETAILED_ANALYSIS = 'GET_DETAILED_ANALYSIS',
   GET_MOVE_LIST = 'GET_MOVE_LIST',
-  GET_TRACE_TREE = 'GET_TRACE_TREE',
+  GET_GAME_ANALYSIS = 'GET_GAME_ANALYSIS',
 }
 
 export enum ServerWsMessageType {
@@ -14,8 +14,8 @@ export enum ServerWsMessageType {
   SESSION_METADATA = 'SESSION_METADATA',
   MOVE_LIST = 'MOVE_LIST',
   ANALYSIS_UPDATE = 'ANALYSIS_UPDATE',
-  TRACE_TREE_NODE = 'TRACE_TREE_NODE',
-  TRACE_TREE_NODE_BATCH = 'TRACE_TREE_NODE_BATCH',
+  ANALYSIS_PROGRESS = 'ANALYSIS_PROGRESS',
+  FULL_ANALYSIS_COMPLETE = 'FULL_ANALYSIS_COMPLETE',
 }
 
 // --- Client Message Payloads ---
@@ -25,10 +25,6 @@ export interface GetSessionMetadataClientPayload {
 
 export interface RequestAnalysisClientPayload {
   move: Move
-}
-
-export interface RequestTraceTreeClientPayload {
-  mainlineMoves: Move[]
 }
 
 // --- Server Message Payloads ---
@@ -48,10 +44,20 @@ export interface ErrorServerPayload {
 
 export interface NodeAnalysisUpdatePayload {
   move: Move
+  pvs: Move[][]
 }
 
-export interface TraceTreeNodePayload {
-  nodes: MoveAnalysisNode[]
+export interface AnalysisProgressServerPayload {
+  current_move: number
+  total_moves: number
+  percentage: number
+  current_phase: string
+  current_move_san: string
+}
+
+export interface FullAnalysisCompleteServerPayload {
+  moves: Move[]
+  pvs: Record<number, Move[][]>
 }
 
 // --- Generic Message Structures ---
@@ -60,7 +66,6 @@ export interface ClientWsMessage {
   payload?:
     | GetSessionMetadataClientPayload
     | RequestAnalysisClientPayload
-    | RequestTraceTreeClientPayload
 }
 
 export interface ServerWsMessage {
@@ -70,5 +75,6 @@ export interface ServerWsMessage {
     | SessionMetadataServerPayload
     | MoveListServerPayload
     | NodeAnalysisUpdatePayload
-    | TraceTreeNodePayload
+    | AnalysisProgressServerPayload
+    | FullAnalysisCompleteServerPayload
 }

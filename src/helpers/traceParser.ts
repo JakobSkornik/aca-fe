@@ -1,7 +1,8 @@
-import { Move, TraceFeature } from '@/types/ws'
-import { PosFeature, Trace } from '@/types/Trace'
+import { Move } from '@/types/chess/Move'
+import { TraceFeature } from '@/types/chess/TraceFeature'
+import { PosFeature, Trace } from '@/types/chess/Trace'
 
-export function parseTrace(node:  Move | undefined): Trace {
+export function parseTrace(node: Move | undefined): Trace {
   const trace: Trace = {
     Bishops: 0,
     Imbalance: 0,
@@ -23,12 +24,14 @@ export function parseTrace(node:  Move | undefined): Trace {
 
   if (node.phase === 'end') {
     for (const key in node.trace) {
+      if (key === 'FinalEvaluation') continue
       const val = node.trace[key]
       if (typeof val === 'string') continue
       trace[key as PosFeature] = (val as TraceFeature).eg
     }
   } else {
     for (const key in node.trace) {
+      if (key === 'FinalEvaluation') continue
       const val = node.trace[key]
       if (typeof val === 'string') continue
       trace[key as PosFeature] = (val as TraceFeature).mg

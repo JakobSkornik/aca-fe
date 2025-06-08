@@ -5,6 +5,7 @@ import { Arrow } from 'react-chessboard/dist/chessboard/types'
 import Comments from './Comments'
 import { useGameState } from '../contexts/GameStateContext'
 import { Chess, Square } from 'chess.js'
+import { Move } from '@/types/chess/Move'
 
 const PADDING_PX = 16
 const MIN_BOARD_SIZE = 500
@@ -38,11 +39,20 @@ const ChessBoardSection = ({
     setPreviewMode,
     addPreviewMove,
     setPreviewMoves,
+    setPreviewPvs,
     setPreviewMoveIndex,
     requestMoveAnalysis,
   } = useGameState()
 
-  const { moves, currentMoveIndex, previewMode } = gameState
+  const {
+    moves,
+    movePvs,
+    currentMoveIndex,
+    previewMode,
+    previewMoves,
+    previewMovePvs,
+    previewMoveIndex,
+  } = gameState
   const [boardWidth, setBoardWidth] = useState<number>(0)
 
   const parentRef = useRef<HTMLDivElement>(null)
@@ -83,13 +93,17 @@ const ChessBoardSection = ({
       })
 
       const newMove = {
+        id: allMoves.length + 1,
         move: moveResult.san,
         position: moveResult.after,
         score: 0,
         isAnalyzed: false,
         context: 'preview',
-      }
+        depth: moves[currentMoveIndex]?.depth ?? 0,
+        piece: moveResult.piece,
+      } as Move
 
+      // dont switch to preview mode if the move is the same as the next move
       if (
         !previewMode &&
         newMove.position === allMoves[currentMoveIndex + 1]?.position
@@ -98,22 +112,24 @@ const ChessBoardSection = ({
         return true
       }
 
-      if (!previewMode) {
-        const prevMoves = moves.slice(0, currentMoveIndex + 1)
-        setPreviewMoves(prevMoves)
+      const prevMoves = (!previewMode ? moves : previewMoves).slice(
+        0,
+        currentMoveIndex + 1
+      )
+      setPreviewMoves(prevMoves)
 
-        addPreviewMove(newMove)
-        setPreviewMoveIndex(currentMoveIndex + 1)
-        requestMoveAnalysis(newMove)
-        setCurrentMoveIndex(currentMoveIndex + 1)
-        setPreviewMode(true)
-      }
+      const prevPvs = Object.fromEntries(
+        Object.entries(!previewMode ? movePvs : previewMovePvs).filter(
+          ([key]) => Number(key) <= currentMoveIndex
+        )
+      )
+      setPreviewPvs(prevPvs)
 
-      if (previewMode) {
-        addPreviewMove(newMove)
-        requestMoveAnalysis(newMove)
-        setCurrentMoveIndex(currentMoveIndex + 1)
-      }
+      addPreviewMove(newMove)
+      requestMoveAnalysis(newMove)
+      setPreviewMoveIndex(previewMode ? previewMoveIndex : currentMoveIndex)
+      setCurrentMoveIndex(currentMoveIndex + 1)
+      setPreviewMode(true)
       return true
     } catch {
       return false

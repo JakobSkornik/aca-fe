@@ -4,7 +4,7 @@ import { Chess } from 'chess.js'
 
 import MoveTree from './MoveTree'
 import { useGameState } from '../contexts/GameStateContext'
-import { Move } from '@/types/ws'
+import { Move } from '@/types/chess/Move'
 import Tooltip from './ui/Tooltip'
 
 type GameViewerProps = {
@@ -24,29 +24,35 @@ const GameViewer = ({
     resetGameState,
     setCurrentMoveIndex,
     requestMoveAnalysis,
-    requestTraceTree,
+    requestFullGameAnalysis, // New
     setPreviewMode,
     setPreviewMoves,
+    setPreviewPvs,
     setPreviewMoveIndex,
     addPreviewMove,
   } = useGameState()
   const {
     moves,
+    movePvs,
     currentMoveIndex,
-    moveTree,
     previewMode,
     previewMoves,
+    previewMovePvs,
     previewMoveIndex,
+    isAnalysisInProgress,
+    analysisProgress,
+    isFullyAnalyzed,
   } = gameState
   const { result, opening } = gameState?.pgnHeaders || {
     result: '',
     opening: '',
   }
-  const [animatedScore, setAnimatedScore] = useState(50) // Default to even position
+  const [animatedScore, setAnimatedScore] = useState(-1)
   const [showMoveTree, setShowMoveTree] = useState(false)
   const [currentMove, setCurrentMove] = useState<Move | null>(null)
 
   const displayedMoves = previewMode ? previewMoves : moves
+  const activePvs = previewMode ? previewMovePvs : movePvs
 
   const handleMoveChange = useCallback(
     (newMoveIndex: number) => {
@@ -91,8 +97,11 @@ const GameViewer = ({
   }
 
   useEffect(() => {
-    setCurrentMove(displayedMoves?.[currentMoveIndex || 0] || null)
-  }, [gameState, currentMoveIndex, displayedMoves])
+    if (displayedMoves.length >= 1 && !displayedMoves[0].isAnalyzed) {
+      requestMoveAnalysis(displayedMoves[0])
+      setCurrentMove(displayedMoves[0])
+    }
+  }, [displayedMoves, requestMoveAnalysis])
 
   useEffect(() => {
     // Scroll to the active move item when the currentMoveIndex changes
@@ -146,61 +155,59 @@ const GameViewer = ({
   }
 
   const handlePvClick = (pvIdx: number, pvMoveIdx: number) => {
-    const currentMoves = displayedMoves.slice(0, currentMoveIndex + 1)
+    const startIdx = currentMoveIndex || 0
+
+    const currentMoves = previewMode
+      ? previewMoves.slice(0, startIdx + 1)
+      : moves.slice(0, startIdx + 1)
     setPreviewMoves([...currentMoves])
 
+    const currentPvs = Object.fromEntries(
+      Object.entries(previewMode ? previewMovePvs : movePvs).filter(
+        ([key]) => Number(key) <= startIdx
+      )
+    )
+    setPreviewPvs(currentPvs)
+
     if (!previewMode) {
-      setPreviewMoveIndex(currentMoveIndex)
+      setPreviewMoveIndex(startIdx)
     }
 
     const chess = new Chess(currentMove?.position || '')
     for (let i = 0; i <= pvMoveIdx; i++) {
-      chess.move(displayedPvs[pvIdx].moves[i])
-      const previewMove = {
-        move: displayedPvs[pvIdx].moves[i],
-        position: chess.fen(),
-        isAnalyzed: false,
-        context: 'preview',
-      } as Move
-      addPreviewMove(previewMove)
-      requestMoveAnalysis(previewMove)
+      chess.move(displayedPvs[pvIdx][i].move)
+      addPreviewMove(displayedPvs[pvIdx][i])
     }
 
     setPreviewMode(true)
-    handleMoveChange(currentMoveIndex + 1 + pvMoveIdx)
+    handleMoveChange(startIdx + 1)
   }
 
   const exitPreviewMode = () => {
     setPreviewMode(false)
-    handleMoveChange(previewMoveIndex)
+    setCurrentMoveIndex(previewMoveIndex || 0)
   }
 
   const handleShowMoveTree = () => {
-    if (moves && moves.length > 0 && Object.keys(moveTree).length == 0) {
-      requestTraceTree(moves)
-    }
     setShowMoveTree(true)
   }
 
-  const stm = (currentMoveIndex || 0) % 2 === 0
+  const stm = (currentMoveIndex || 0) % 2 === 1
   const score = currentMove?.score ? currentMove.score : 0
-  const pvs = currentMove?.pvs || []
+  const pvs = activePvs[currentMoveIndex] || []
 
   const displayedPvs = (() => {
-    const validPvs = Array.isArray(pvs)
-      ? pvs.filter((pv) => pv && typeof pv.score === 'number')
-      : []
-    const sortedPvs = [...validPvs].sort((a, b) =>
-      stm ? b.score - a.score : a.score - b.score
-    )
+    const sortedPvs = [...pvs].sort((pvA, pvB) => {
+      const scoreA = pvA[0]?.score ?? 0
+      const scoreB = pvB[0]?.score ?? 0
+      return stm ? scoreB - scoreA : scoreA - scoreB
+    })
     return sortedPvs.slice(0, 3)
   })()
 
   const normalizeScore = (score: number) => {
-    // sigmoid function: 1 / (1 + e^(-k*x))
-    // k controls the steepness of the curve (sensitivity to score)
     const scoreInPawns = score / 100
-    const k = 1 // Steepness factor - higher = steeper curve
+    const k = 1
     const sigmoid = 1 / (1 + Math.exp(-k * scoreInPawns))
     return sigmoid * 100
   }
@@ -209,10 +216,6 @@ const GameViewer = ({
     const normalizedScore = normalizeScore(score)
     setAnimatedScore(normalizedScore)
   }, [score])
-
-  // const handleHoverMove = (arrow: string | null) => {
-  //   onArrowHover(arrow)
-  // }
 
   const clearContext = () => {
     resetGameState()
@@ -254,7 +257,7 @@ const GameViewer = ({
                 />
               </button>
             </Tooltip>
-            <Tooltip content="Show move tree">
+            <Tooltip content="Show game tree">
               <button
                 onClick={handleShowMoveTree}
                 className="px-2 py-2 bg-darkest-gray text-white rounded-md text-sm hvr-shadow"
@@ -312,7 +315,7 @@ const GameViewer = ({
       {/* Best Continuations */}
       <div className="p-4 border-b z-10 sticky overflow-x-auto">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Best Continuations</h3>
+          <h3 className="text-sm font-semibold">Principal Variations</h3>
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold">STM</span>
             <div
@@ -330,22 +333,23 @@ const GameViewer = ({
             const pv = displayedPvs[rowIdx]
 
             if (!pv) {
-              // Return an empty placeholder row with consistent height
               return (
                 <div
                   key={`empty-${rowIdx}`}
-                  className="flex items-center gap-1 no-wrap"
-                  style={{ minHeight: '30px' }}
+                  className="flex items-center gap-1 no-wrap min-h-[26px]"
                 />
               )
             }
 
             return (
-              <div key={rowIdx} className="flex items-center gap-1 no-wrap">
+              <div
+                key={rowIdx}
+                className="flex items-center gap-1 no-wrap min-h-[26px]"
+              >
                 <span className="text-sm font-semibold mr-1">
-                  {(pv.score / 100).toFixed(2)}:
+                  {((pv[0]?.score ?? 0) / 100).toFixed(2)}:
                 </span>
-                {pv.moves.map((pvMoveText, moveInPvIdx) => {
+                {pv.map((pvMove, moveInPvIdx) => {
                   const isWhiteMoveInThisPvStep = stm
                     ? moveInPvIdx % 2 === 0
                     : moveInPvIdx % 2 !== 0
@@ -353,7 +357,7 @@ const GameViewer = ({
                   return (
                     <div
                       key={`${rowIdx}-${moveInPvIdx}`}
-                      className="px-2 py-0.5 rounded text-sm cursor-pointer hvr-shadow"
+                      className="px-2 py-0.5 rounded text-xs cursor-pointer hvr-shadow no-wrap"
                       style={{
                         backgroundColor: isWhiteMoveInThisPvStep
                           ? 'var(--light-gray)'
@@ -364,14 +368,14 @@ const GameViewer = ({
                       }}
                       onMouseEnter={() =>
                         handlePvHover(
-                          pv.moves.slice(0, moveInPvIdx + 1),
+                          pv.slice(0, moveInPvIdx + 1).map((m) => m.move),
                           moveInPvIdx
                         )
                       }
                       onMouseLeave={() => handlePvHover([], 0)}
                       onClick={() => handlePvClick(rowIdx, moveInPvIdx)}
                     >
-                      {pvMoveText}
+                      {pvMove.move}
                     </div>
                   )
                 })}
@@ -437,19 +441,64 @@ const GameViewer = ({
         )}
       </div>
 
+      {/* Full Game Analysis Button/Progress Bar */}
+      {!isFullyAnalyzed && (
+        <div className="p-4 border-b z-10 sticky">
+          {!isAnalysisInProgress ? (
+            <Tooltip content="Analyze all moves with engine">
+              <button
+                onClick={requestFullGameAnalysis}
+                className="w-full bg-darkest-gray text-white py-3 px-4 rounded-md hvr-shadow flex items-center justify-center gap-2"
+                disabled={isAnalysisInProgress}
+              >
+                <Image
+                  src="/icons/chart.svg"
+                  alt="Analyze"
+                  height={20}
+                  width={20}
+                />
+                <span>Analyze Full Game</span>
+              </button>
+            </Tooltip>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold">Analyzing Game...</span>
+                <span className="text-sm">{Math.round(analysisProgress)}%</span>
+              </div>
+              <div className="relative h-4 bg-darkest-gray rounded-full">
+                <div
+                  className="absolute h-full bg-light-gray transition-[width] duration-300 rounded-full"
+                  style={{
+                    width: `${analysisProgress}%`,
+                    left: 0,
+                  }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+                  {Math.round(analysisProgress)}%
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Move List Section */}
       <div
         className="overflow-y-auto flex-1 p-4"
         ref={listRef}
-        style={{ maxHeight: 'calc(100vh - 240px)' }} // Dynamic height calculation
+        style={{ maxHeight: 'calc(100vh - 240px)' }}
       >
         <ul className="pb-20">
-          {' '}
           {displayedMoves?.map((moveData, index) => {
-            const moveNumber = Math.floor((index + 1) / 2)
+            const isPreviewBranch =
+              previewMode &&
+              typeof previewMoveIndex === 'number' &&
+              index > previewMoveIndex
+            const moveNumber = Math.floor(index / 2) + 1
             const isWhiteMove = index % 2 === 0
             const scoreDisplay =
-              moveData.score !== undefined
+              moveData.isAnalyzed && moveData.score !== undefined
                 ? (moveData.score / 100).toFixed(2)
                 : ''
             const selectedStyle =
@@ -461,31 +510,70 @@ const GameViewer = ({
                   }
                 : {}
 
+            const getPieceImagePath = (piece: string | null | undefined) => {
+              if (!piece) return null
+              const pieceLower = piece.toLowerCase()
+              return `/icons/pieces/${pieceLower}.svg`
+            }
+
+            const pieceImagePath = getPieceImagePath(moveData.piece)
+
             return (
               <li
                 key={index}
                 className={`p-2 move-item-${index} ${
                   index === currentMoveIndex ? 'font-bold' : ''
                 } ${
-                  !isWhiteMove ? 'bg-lightest-gray' : 'bg-dark-gray'
-                } cursor-pointer flex justify-between rounded-md`}
+                  isPreviewBranch
+                    ? isWhiteMove
+                      ? 'bg-preview-white'
+                      : 'bg-preview-black'
+                    : isWhiteMove
+                    ? 'bg-lightest-gray'
+                    : 'bg-dark-gray'
+                } cursor-pointer flex justify-between items-center rounded-md`}
                 style={selectedStyle}
                 onClick={() => handleRowClick(index)}
               >
-                <div>
-                  {isWhiteMove ? `${moveNumber}.` : `${moveNumber}...`}{' '}
-                  {moveData.move}
+                <div className="flex items-center gap-2">
+                  {/* Piece image */}
+                  {pieceImagePath && (
+                    <Image
+                      src={pieceImagePath}
+                      alt={`${isWhiteMove ? 'white' : 'black'} ${
+                        moveData.piece
+                      }`}
+                      height={16}
+                      width={16}
+                      className="flex-shrink-0"
+                    />
+                  )}
+
+                  {/* Move number and notation */}
+                  <span>
+                    {isWhiteMove ? `${moveNumber}.` : `${moveNumber}...`}{' '}
+                    {moveData.move}
+                  </span>
+
+                  {/* Annotation symbol */}
+                  {moveData.annotation && (
+                    <span className="text-xs font-semibold text-orange-600">
+                      {moveData.annotation}
+                    </span>
+                  )}
                 </div>
-                <div className="var(--darkest-gray)">{scoreDisplay}</div>
+
+                <div className="var(--darkest-gray) text-sm flex-shrink-0">
+                  {scoreDisplay}
+                </div>
               </li>
             )
           })}
         </ul>
       </div>
 
-      {showMoveTree && moveTree && (
+      {showMoveTree && (
         <MoveTree
-          moveTree={moveTree}
           onClose={() => setShowMoveTree(false)}
           onArrowHover={onArrowHover}
         />

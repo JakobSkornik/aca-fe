@@ -1,180 +1,269 @@
-import { MoveAnalysisNode } from '@/types/ws'
+import { Move } from '@/types/chess/Move'
+import { EchartsTreeNode } from '@/types/echarts/EchartsTreeNode'
+import { PathHighlightOpts } from '@/types/PathHighlightOpts'
 
-interface TreeNode {
-  name: string
-  value: number | null
-  layout: string
-  label: {
-    color: string
-    fontWeight: number
-    position: string
-    fontSize: number
-    formatter: string | ((params: MoveAnalysisNode) => string)
-    verticalAlign?: string
-    align?: string
+function isPvNodeInPath(
+  pv: Move[],
+  highlight: PathHighlightOpts
+): boolean {
+  return pv.some(move => 
+    move.id === highlight.mainNodeId || 
+    move.id === highlight.compareNodeId
+  )
+}
+
+function buildPvBranch(
+  pv: Move[],
+  pvMoveIdx: number,
+  currentDisplayDepthInPv: number,
+  maxDisplayDepth: number,
+  highlight: PathHighlightOpts,
+  mainlineMoveIdForPv: number | undefined
+): EchartsTreeNode | null {
+  if (pvMoveIdx >= pv.length || currentDisplayDepthInPv > maxDisplayDepth) {
+    return null
   }
-  itemStyle: {
-    borderColor?: string
-    borderWidth?: number
-    shadowBlur: number
-    shadowColor: string
-    color: string
-  }
-  lineStyle: {
-    color: string
-    width: number
-  }
-  symbol: string
-  symbolSize: number
-  children: (TreeNode | null)[]
-  analysisNode: MoveAnalysisNode
-  leaves: {
-    label: {
-      position: string
-      verticalAlign: string
-      align: string
+
+  const move = pv[pvMoveIdx]
+  const children: EchartsTreeNode[] = []
+
+  const isParentMainlineHighlighted =
+    mainlineMoveIdForPv !== undefined &&
+    (mainlineMoveIdForPv === highlight.mainNodeId ||
+      mainlineMoveIdForPv === highlight.compareNodeId)
+
+  const isThisPvNodeMain = move.id === highlight.mainNodeId
+  const isThisPvNodeCompare = move.id === highlight.compareNodeId
+  
+  // Check if any node in this PV is selected (main or compare)
+  const isPvPathSelected = isPvNodeInPath(pv, highlight)
+
+  // Expand full PV if:
+  // 1. Its parent mainline node was selected, OR
+  // 2. This PV node itself is selected, OR  
+  // 3. Any node in this PV path is selected
+  if (
+    (isParentMainlineHighlighted || isThisPvNodeMain || isThisPvNodeCompare || isPvPathSelected) &&
+    pvMoveIdx < pv.length - 1
+  ) {
+    const nextPvMoveNode = buildPvBranch(
+      pv,
+      pvMoveIdx + 1,
+      currentDisplayDepthInPv + 1,
+      maxDisplayDepth,
+      highlight,
+      mainlineMoveIdForPv
+    )
+    if (nextPvMoveNode) {
+      children.push(nextPvMoveNode)
     }
+  } else if (
+    !(isParentMainlineHighlighted || isThisPvNodeMain || isThisPvNodeCompare || isPvPathSelected) &&
+    pvMoveIdx > 0
+  ) {
+    return null
+  }
+
+  let itemStyle = {
+    color: '#fff',
+    borderColor: '#d3803c', // Default PV color
+    borderWidth: 1,
+    shadowBlur: 0,
+    shadowColor: 'transparent',
+  }
+  let symbolSize = 35
+
+  if (isThisPvNodeMain) {
+    itemStyle = {
+      color: '#fff',
+      borderColor: '#1890ff', // Main node color
+      borderWidth: 3,
+      shadowBlur: 10,
+      shadowColor: 'rgba(24, 144, 255, 0.7)',
+    }
+    symbolSize = 35
+  } else if (isThisPvNodeCompare) {
+    itemStyle = {
+      color: '#fff',
+      borderColor: '#ff4d4f', // Compare node color
+      borderWidth: 3,
+      shadowBlur: 10,
+      shadowColor: 'rgba(255, 77, 79, 0.7)',
+    }
+    symbolSize = 35
+  }
+
+  const lineStyle = {
+    color: '#d3803c', // PV line color
+    width: 1,
+  }
+
+  return {
+    name: move.move || 'PV',
+    value: move.score ?? null,
+    itemStyle,
+    lineStyle,
+    symbol: move.piece
+      ? `image:///icons/chart_pieces/${move.piece.toLowerCase()}.svg`
+      : 'circle',
+    symbolSize,
+    label: {
+      position: 'inside',
+      align: 'center',
+      verticalAlign: 'middle',
+      formatter: (params: { data: EchartsTreeNode }): string => {
+        const analysisMove = params.data.analysisNode as Move
+        const displayName = params.data.name
+        return analysisMove?.score !== undefined && analysisMove?.score !== null
+          ? `${displayName}\n${(analysisMove.score / 100).toFixed(2)}`
+          : String(displayName)
+      },
+      fontSize: 10,
+    },
+    children,
+    analysisNode: move,
+    depth: currentDisplayDepthInPv,
+  }
+}
+
+function buildTreeRecursive(
+  currentMainlineMove: Move,
+  allMainlineMoves: Move[],
+  allMainlinePvs: Record<number, Move[][]>,
+  maxDisplayDepth: number,
+  highlight: PathHighlightOpts,
+  currentDisplayDepth: number
+): EchartsTreeNode | null {
+  if (currentDisplayDepth > maxDisplayDepth) {
+    return null
+  }
+
+  const children: EchartsTreeNode[] = []
+  const isMainNode = currentMainlineMove.id === highlight.mainNodeId
+  const isCompareNode = currentMainlineMove.id === highlight.compareNodeId
+
+  const currentMainlineIndex = allMainlineMoves.findIndex(
+    (m) => m.id === currentMainlineMove.id
+  )
+
+  // Add PVs for the NEXT mainline move as children of the current move
+  // This is because PVs represent alternatives from the current position
+  if (
+    currentMainlineIndex !== -1 &&
+    currentMainlineIndex + 1 < allMainlineMoves.length
+  ) {
+    const nextMainlineMove = allMainlineMoves[currentMainlineIndex + 1]
+    
+    // Fix: Use the next move's INDEX instead of ID to access PVs
+    const nextMoveIndex = currentMainlineIndex + 1
+    const pvsForNextMove = allMainlinePvs[nextMoveIndex] || []
+    
+    pvsForNextMove.forEach((pvBranchMoves: Move[]) => {
+      if (pvBranchMoves.length > 0) {
+        const pvBranchRoot = buildPvBranch(
+          pvBranchMoves,
+          0,
+          currentDisplayDepth + 1,
+          maxDisplayDepth,
+          highlight,
+          currentMainlineMove.id
+        )
+        if (pvBranchRoot) {
+          children.push(pvBranchRoot)
+        }
+      }
+    })
+
+    // Add the actual next mainline move as a child
+    const nextMainlineNode = buildTreeRecursive(
+      nextMainlineMove,
+      allMainlineMoves,
+      allMainlinePvs,
+      maxDisplayDepth,
+      highlight,
+      currentDisplayDepth + 1
+    )
+    if (nextMainlineNode) {
+      children.push(nextMainlineNode)
+    }
+  }
+
+  let itemStyle: EchartsTreeNode['itemStyle'] = {
+    color: '#fff',
+    borderColor: '#ccc', // Default mainline border
+    borderWidth: 2,
+    shadowBlur: 0,
+    shadowColor: 'transparent',
+  }
+  let symbolSize = 40
+  const lineStyleColor = '#bbb'
+
+  if (isMainNode) {
+    itemStyle = {
+      color: '#fff',
+      borderColor: '#1890ff', // Main node color
+      borderWidth: 3,
+      shadowBlur: 10,
+      shadowColor: 'rgba(24, 144, 255, 0.7)',
+    }
+    symbolSize = 55
+  } else if (isCompareNode) {
+    itemStyle = {
+      color: '#fff',
+      borderColor: '#ff4d4f', // Compare node color
+      borderWidth: 3,
+      shadowBlur: 10,
+      shadowColor: 'rgba(255, 77, 79, 0.7)',
+    }
+    symbolSize = 55
+  }
+
+  return {
+    name: currentMainlineMove.move || 'Start', // SAN of the move
+    value: currentMainlineMove.score ?? null,
+    itemStyle,
+    lineStyle: { color: lineStyleColor, width: 1.5 },
+    symbol: currentMainlineMove.piece
+      ? `image:///icons/chart_pieces/${currentMainlineMove.piece.toLowerCase()}.svg`
+      : currentMainlineMove.move === 'Start' // Handle potential "Start" node
+      ? 'image:///icons/chart_pieces/start.svg'
+      : 'circle',
+    symbolSize,
+    label: {
+      position: 'inside',
+      formatter: (params: { data: EchartsTreeNode }): string => {
+        const analysisMove = params.data.analysisNode as Move
+        const displayName = params.data.name
+        return analysisMove?.score !== undefined && analysisMove?.score !== null
+          ? `${displayName}\n${(analysisMove.score / 100).toFixed(2)}`
+          : String(displayName)
+      },
+      color: '#333',
+      fontWeight: 400,
+      fontSize: 12,
+    },
+    children,
+    analysisNode: currentMainlineMove,
+    depth: currentDisplayDepth,
   }
 }
 
 export function buildTreeData(
-  node: MoveAnalysisNode,
-  moveTree: Record<number, MoveAnalysisNode>,
-  maxDepth: number,
-  highlight?: {
-    mainNodeId?: number
-    compareNodeId?: number
-    pathNodeIds: number[]
+  rootMainlineNodeForDisplay: Move,
+  allMainlineMoves: Move[],
+  allMainlinePvs: Record<number, Move[][]>,
+  maxDisplayDepth: number,
+  highlight: PathHighlightOpts
+): EchartsTreeNode | null {
+  if (!rootMainlineNodeForDisplay) {
+    return null
   }
-): TreeNode | null {
-  if (!node || node.depth > maxDepth) return null
-
-  // Determine if this is a main or compare node
-  const isMainNode = node.id === highlight?.mainNodeId
-  const isCompareNode = node.id === highlight?.compareNodeId
-  const isHighlightedPath = highlight?.pathNodeIds?.includes(node.id) || false
-
-  // Order children: white to move (odd depth) = descending, black to move (even depth) = ascending
-  let edgeColor = '#bbb'
-  let edgeWidth = 1
-  const parentIdx = node.parent
-
-  if (
-    highlight?.pathNodeIds.includes(node.id) &&
-    highlight?.pathNodeIds.includes(parentIdx)
-  ) {
-    edgeColor = '#c7711a'
-    edgeWidth = 2
-  } else if (node.move.context === 'mainline') {
-    edgeColor = '#b8e38c'
-    edgeWidth = 2
-  }
-
-  const children = Object.values(moveTree)
-    .filter((n) => n.parent === node.id && n.move.context !== 'alternative')
-    .sort((a, b) =>
-      node.depth % 2 === 1
-        ? (b.move.score ?? 0) - (a.move.score ?? 0)
-        : (a.move.score ?? 0) - (b.move.score ?? 0)
-    )
-    .map((child) => {
-      let currentChildMaxDepth = maxDepth
-      const isParentMainline = node.move.context === 'mainline'
-      const isChildVariationStart = child.move.context !== 'mainline'
-
-      // Determine if this child's branch should be fully expanded
-      // because the child itself is selected, or it's on the path to a selected node.
-      const shouldExpandBranchForHighlight =
-        child.id === highlight?.mainNodeId ||
-        child.id === highlight?.compareNodeId ||
-        highlight?.pathNodeIds?.includes(child.id)
-
-      // If the parent is mainline, the child starts a new variation,
-      // and this child's branch is NOT needed for the current highlight,
-      // then limit the depth for this child's branch to only show the child itself.
-      if (
-        isParentMainline &&
-        isChildVariationStart &&
-        !shouldExpandBranchForHighlight
-      ) {
-        currentChildMaxDepth = child.depth
-      }
-      return buildTreeData(child, moveTree, currentChildMaxDepth, highlight)
-    })
-    .filter(Boolean)
-
-  let symbol: string | undefined = undefined
-  if (node.move.move == 'Start') {
-    symbol = 'image:///icons/pieces/start.svg'
-  }
-  if (node.piece) {
-    symbol = `image:///icons/pieces/${node.piece.toLowerCase()}.svg`
-  }
-
-  // Enhance node styling based on its role
-  const nodeName =
-    typeof node.move.move === 'string' ? node.move.move : String(node.move.move)
-
-  // Apply different stylings that work with your SVG icons
-  const nodeColor = '#fff'
-  let borderColor = undefined
-  let borderWidth = 2
-  let symbolSize = 30
-
-  // Instead of changing the name (which might interfere with your SVG),
-  // create a distinctive visual appearance with borders and background
-  if (isMainNode) {
-    borderColor = '#1890ff'
-    borderWidth = 4
-    symbolSize = 65
-  } else if (isCompareNode) {
-    borderColor = '#ff4d4f'
-    borderWidth = 4
-    symbolSize = 65
-  } else if (isHighlightedPath) {
-    borderColor = '#76081B'
-    borderWidth = 3
-    symbolSize = 45
-  }
-
-  return {
-    name: nodeName,
-    value: node.move.score ?? null,
-    layout: 'radial',
-    symbol: symbol || 'circle',
-    symbolSize: symbolSize,
-    label: {
-      color: '#333',
-      fontWeight: 400,
-      fontSize: 12,
-      position: 'inside',
-      formatter: node.move.score
-        ? `${node.move.move}\n${node.move.score}`
-        : node.move.move,
-    },
-    itemStyle: {
-      color: nodeColor,
-      borderColor: borderColor,
-      borderWidth: borderWidth,
-      shadowBlur: isMainNode || isCompareNode ? 10 : 0,
-      shadowColor: isMainNode
-        ? 'rgba(24, 144, 255, 0.9)'
-        : isCompareNode
-        ? 'rgba(255, 77, 79, 0.9)'
-        : 'rgba(0,0,0,0)',
-    },
-    children,
-    analysisNode: node,
-    leaves: {
-      label: {
-        position: 'right',
-        verticalAlign: 'middle',
-        align: 'left',
-      },
-    },
-    lineStyle: {
-      color: edgeColor,
-      width: edgeWidth,
-    },
-  }
+  return buildTreeRecursive(
+    rootMainlineNodeForDisplay,
+    allMainlineMoves,
+    allMainlinePvs,
+    maxDisplayDepth,
+    highlight,
+    0
+  )
 }

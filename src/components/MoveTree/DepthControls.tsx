@@ -33,7 +33,7 @@ const DepthControls: React.FC<DepthControlsProps> = ({
       >
         -
       </button>
-      <span style={{ fontSize: '14px' }}>Nr. of moves: {maxDepth}</span>
+      <span style={{ fontSize: '14px' }}>Nr. of plies: {maxDepth}</span>
       <button
         className="hvr-shadow"
         onClick={() => setMaxDepth((prev) => prev + 1)}
