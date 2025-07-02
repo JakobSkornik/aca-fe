@@ -63,7 +63,7 @@ const ChessBoardSection = ({
     const handleResize = () => {
       if (parentRef.current) {
         const width = Math.max(
-          parentRef.current.clientWidth - 2 * PADDING_PX,
+          parentRef.current.clientHeight - 2 * PADDING_PX,
           MIN_BOARD_SIZE
         )
         setBoardWidth(width)
@@ -72,14 +72,6 @@ const ChessBoardSection = ({
 
     // Initial calculation
     handleResize()
-
-    // Debounced resize observer
-    const observer = new ResizeObserver(() => {
-      setTimeout(handleResize, 50) // Debounce the resize observer
-    })
-    observer.observe(parentRef.current?.parentElement as Element)
-
-    return () => observer.disconnect()
   }, [])
 
   // Making a move on the chessboard starts a preview session
@@ -171,18 +163,17 @@ const ChessBoardSection = ({
   return (
     <div
       ref={parentRef}
-      className="flex flex-col w-full items-center p-4 border-r"
+      className="flex flex-col w-full items-center p-4 border-r mx-auto"
     >
       {gameState.isLoaded && (
         <div className="text-center mt-2">
-          <h3 className="text-lg font-semibold">{headers?.blackName}</h3>
-          <h3 className="text-md">{headers?.blackElo}</h3>
           <p className="text-sm text-gray-600">
             Captured: {blackCapturesString}
           </p>
         </div>
       )}
       {boardWidth > 0 && (
+        <div className="align-center justify-center">
         <Chessboard
           position={currentFen}
           boardWidth={boardWidth}
@@ -192,17 +183,15 @@ const ChessBoardSection = ({
           customArrows={arrows}
           onPieceDrop={handleMove}
         />
-      )}
+      </div>)}
       {gameState.isLoaded && (
         <div className="text-center mb-2">
-          <h3 className="text-lg font-semibold">{headers?.whiteName}</h3>
-          <h3 className="text-md">{headers?.whiteElo}</h3>
           <p className="text-sm text-gray-600">
             Captured: {whiteCapturesString}
           </p>
         </div>
       )}
-      {gameState.isLoaded && <Comments />}
+      {/* {gameState.isLoaded && <Comments />} */}
     </div>
   )
 }

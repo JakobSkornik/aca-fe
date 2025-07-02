@@ -84,7 +84,7 @@ const FeatureCharts: React.FC = () => {
   }
 
   return (
-    <div className="h-full w-full overflow-auto flex flex-col min-w-[200px] relative">
+    <div className="h-full w-full overflow-auto flex flex-row relative space-x-2">
       {/* Tooltip */}
       {hoveredFeature && (
         <div className="absolute top-2 left-2 right-2 z-10 bg-black bg-opacity-90 text-white text-xs p-3 rounded shadow-lg pointer-events-none">
@@ -99,12 +99,13 @@ const FeatureCharts: React.FC = () => {
       {selected.map((feature: PosFeature) => (
         <div
           key={feature}
-          className="w-fill my-2 relative"
+          className="my-2 relative"
+          style={{ height: 'calc(10vh - 16px)', minWidth: '200px' }}
           onMouseEnter={() => setHoveredFeature(feature)}
           onMouseLeave={() => setHoveredFeature(null)}
         >
           <ReactECharts
-            style={{ height: '80px', width: '100%' }}
+            style={{ height: '100%', width: '100%' }}
             option={{
               title: {
                 text: feature,

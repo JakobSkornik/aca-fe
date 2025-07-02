@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
+import { UIHelpers } from '@/helpers/uiHelpers'
 
 type DropdownOption = {
   value: string
@@ -51,7 +52,7 @@ const Dropdown: React.FC<DropdownProps> = ({
     <div ref={dropdownRef} className={`relative w-full ${className}`}>
       <button
         type="button"
-        className="w-full flex items-center justify-between px-4 py-2 bg-light-gray text-lightest-gray rounded-md hvr-shadow"
+        className={`${UIHelpers.getButtonClasses()} w-full flex justify-between`}
         onClick={() => setIsOpen(!isOpen)}
       >
         <span className="truncate">
@@ -62,18 +63,17 @@ const Dropdown: React.FC<DropdownProps> = ({
           alt="Dropdown"
           width={16}
           height={16}
-          className={`transition-transform duration-200 ${
-            isOpen ? 'rotate-180' : ''
-          }`}
+          className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''
+            }`}
         />
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-lightest-gray rounded-md shadow-xl max-h-60 overflow-auto">
+        <div className="absolute z-50 w-full mt-1 bg-dark-gray rounded-md shadow-xl max-h-60 overflow-auto">
           {options.map((option) => (
             <div
               key={option.value}
-              className="mx-4 px-2 my-2 py-2 cursor-pointer hvr-shadow text-lightest-gray"
+              className="mx-4 px-2 my-2 py-2 cursor-pointer hvr-shadow text-darkest-gray"
               onClick={() => handleSelect(option)}
             >
               {option.label}

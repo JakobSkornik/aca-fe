@@ -74,6 +74,10 @@ body {
   box-shadow: 0px 0px 8px 10px rgba(0, 0, 0, 0.2);
 }
 
+.selected-shadow {
+  box-shadow: 0px 0px 8px 10px rgba(0, 0, 0, 0.2);
+}
+
 .bg-preview-white {
   background-color: rgba(255, 208, 122, 0.49);
 }

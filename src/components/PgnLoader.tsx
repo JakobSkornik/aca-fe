@@ -1,7 +1,9 @@
 import Image from 'next/image'
 import React, { useRef, useState } from 'react'
-import { useGameState } from '../contexts/GameStateContext'
+
 import Dropdown from './ui/Dropdown'
+import { UIHelpers } from '@/helpers/uiHelpers'
+import { useGameState } from '@/contexts/GameStateContext'
 
 const PgnLoader = () => {
   const { connectToAnalysisSession } = useGameState()
@@ -235,7 +237,7 @@ const PgnLoader = () => {
   }
 
   return (
-    <div className="w-[400px]">
+    <div className="w-[400px] bg-lightest-gray p-4 rounded shadow-md">
       <h2 className="text-xl font-semibold mb-4">Load PGN / Analysis</h2>
 
       {/* Custom Dropdown */}
@@ -254,14 +256,14 @@ const PgnLoader = () => {
           type="file"
           accept=".json,.pgn"
           onChange={handleFileUpload}
-          className="hidden" // Hide the native input
+          className="hidden"
         />
         <button
           onClick={handleCustomButtonClick}
-          className="flex items-center gap-2 bg-lightest-gray text-lightest-gray px-4 py-2 rounded-md hvr-shadow w-full"
+          className={`${UIHelpers.getButtonClasses()} w-full flex justify-between`}
         >
-          <Image src="/icons/upload.svg" alt="Upload" width={20} height={20} priority />
           <span>Upload PGN/JSON File</span>
+          <Image src="/icons/upload.svg" alt="Upload" width={20} height={20} priority />
         </button>
       </div>
 
@@ -284,9 +286,7 @@ const PgnLoader = () => {
       <button
         disabled={loading || !tempPgn.trim()}
         onClick={submitPgn}
-        className={`bg-darkest-gray text-white py-2 px-4 rounded-md ${
-          loading || !tempPgn.trim() ? 'opacity-50 cursor-not-allowed' : ''
-        }`}
+        className={UIHelpers.getPrimaryButtonClasses(loading || !tempPgn.trim())}
       >
         {loading ? (
           <div className="flex items-center justify-center">
