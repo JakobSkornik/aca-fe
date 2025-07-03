@@ -1,12 +1,12 @@
 import { Chess } from 'chess.js'
 import { Move } from './chess/Move'
 import { PgnHeaders } from './chess/PgnHeaders'
+import { MoveList } from '../helpers/moveListUtils'
 
 export type GameState = {
   game: Chess
   isLoaded: boolean
-  moves: Move[]
-  movePvs: Record<number, Move[][]>
+  moves: MoveList
   currentMoveIndex: number
   pgnHeaders: PgnHeaders | null
   isWsConnected: boolean
@@ -17,7 +17,6 @@ export type GameState = {
   analysisProgress: number
 
   previewMode: boolean
-  previewMoves: Move[]
-  previewMovePvs: Record<number, Move[][]>
+  previewMoves: MoveList
   previewMoveIndex: number
 }

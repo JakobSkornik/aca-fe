@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { useGameState } from '../contexts/GameStateContext'
 import { parseTrace } from '@/helpers/traceParser'
+import { getMainlineMoves } from '@/helpers/moveListUtils'
 import { PosFeature } from '@/types/chess/Trace'
 import {
   materialDescription,
@@ -51,8 +52,8 @@ const featureDescriptions: Record<PosFeature, string> = {
 }
 
 const FeatureCharts: React.FC = () => {
-  const { gameState } = useGameState()
-  const { moves, previewMoves, previewMode, currentMoveIndex } = gameState
+  const { state } = useGameState()
+  const { moves, previewMoves, previewMode, currentMoveIndex } = state
   const [selected] = useState<PosFeature[]>(availableFeatures)
   const [hoveredFeature, setHoveredFeature] = useState<PosFeature | null>(null)
 
@@ -66,7 +67,7 @@ const FeatureCharts: React.FC = () => {
   const getFeatureSeries = (feature: PosFeature) => {
     const values: number[] = []
     let lastValue = 0
-    for (const move of shownMoves) {
+    for (const move of getMainlineMoves(shownMoves)) {
       const trace = parseTrace(move)
       if (!trace) {
         values.push(lastValue)

@@ -4,25 +4,27 @@ import { Arrow } from 'react-chessboard/dist/chessboard/types'
 import { useGameState } from '../contexts/GameStateContext'
 import { Chess, Square } from 'chess.js'
 import { Move } from '@/types/chess/Move'
+import { 
+  getPositionForIndex, 
+  getCapturesForMove as getCapturesHelper,
+  formatCapturesForDisplay as formatCaptures
+} from '@/helpers/moveListUtils'
 
 const PADDING_PX = 16
 const MIN_BOARD_SIZE = 500
 
-const WhiteCapturesMap: Record<string, string> = {
-  p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔',
-}
-const BlackCapturesMap: Record<string, string> = {
-  p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚',
-}
-
-const PreviewChessboard = ({ hoveredArrow }: { hoveredArrow: string | null }) => {
-  const { gameState } = useGameState()
-  const { previewMode, previewMoves, previewMoveIndex } = gameState
+/**
+ * PreviewChessboard Component
+ * 
+ * Displays either preview moves or falls back to mainline moves.
+ * Uses elegant helper functions for safe access to move data.
+ * Automatically handles MoveList structure for both preview and mainline moves.
+ */
+const PreviewChessboard = () => {
+  const { state, manager } = useGameState()
+  const { previewMode, previewMoves, previewMoveIndex, currentMoveIndex, isLoaded } = state
   const [boardWidth, setBoardWidth] = useState<number>(0)
   const parentRef = useRef<HTMLDivElement>(null)
-  const currentFen = previewMode ? previewMoves[previewMoveIndex]?.position : undefined
-  const whiteCaptures = previewMode ? previewMoves[previewMoveIndex]?.capturedByWhite : undefined
-  const blackCaptures = previewMode ? previewMoves[previewMoveIndex]?.capturedByBlack : undefined
 
   useEffect(() => {
     const handleResize = () => {
@@ -37,40 +39,75 @@ const PreviewChessboard = ({ hoveredArrow }: { hoveredArrow: string | null }) =>
     handleResize()
   }, [])
 
-  const arrows = hoveredArrow
-    ? ([
-        [
-          hoveredArrow.slice(0, 2) as Square,
-          hoveredArrow.slice(2, 4) as Square,
-          'var(--orange)',
-        ],
-      ] as Arrow[])
-    : []
-
-  // Always show a position: if not in preview mode, show mainline move
-  const showPreview = previewMode && previewMoves.length > 0 && previewMoveIndex >= 0 && previewMoves[previewMoveIndex]?.position
-  const fallbackIndex = previewMode ? previewMoveIndex : gameState.currentMoveIndex
-  const fallbackMoves = previewMode ? previewMoves : gameState.moves
-  const fallbackFen = fallbackMoves[fallbackIndex]?.position
-  const fallbackWhiteCaptures = fallbackMoves[fallbackIndex]?.capturedByWhite
-  const fallbackBlackCaptures = fallbackMoves[fallbackIndex]?.capturedByBlack
-
-  let whiteCapturesString = ['']
-  if (fallbackWhiteCaptures != null) {
-    whiteCapturesString = Object.entries(fallbackWhiteCaptures).map(
-      ([piece, count]) => `${BlackCapturesMap[piece]} `.repeat(count)
-    )
+  // Use manager helpers for safe access
+  const getPreviewPosition = () => {
+    if (previewMode && previewMoves.length > 0 && previewMoveIndex >= 0) {
+      return manager.getPreviewPosition(previewMoveIndex)
+    }
+    return null
   }
-  let blackCapturesString = ['']
-  if (fallbackBlackCaptures != null) {
-    blackCapturesString = Object.entries(fallbackBlackCaptures).map(
-      ([piece, count]) => `${WhiteCapturesMap[piece]} `.repeat(count)
-    )
+
+  const getPreviewCaptures = () => {
+    if (previewMode && previewMoves.length > 0 && previewMoveIndex >= 0) {
+      return manager.getPreviewCaptures(previewMoveIndex)
+    }
+    return { capturedByWhite: undefined, capturedByBlack: undefined }
+  }
+
+  // Determine what to display: preview or fallback to mainline
+  const previewPosition = getPreviewPosition()
+  const previewCaptures = getPreviewCaptures()
+  
+  const shouldShowPreview = previewMode && previewPosition !== null
+  const displayPosition = shouldShowPreview 
+    ? previewPosition 
+    : manager.getCurrentPosition(currentMoveIndex)
+    
+  const displayCaptures = shouldShowPreview 
+    ? previewCaptures 
+    : manager.getCapturesForMove(currentMoveIndex)
+
+  // Format captures for display
+  const whiteCapturesString = manager.formatCapturesForDisplay(displayCaptures.capturedByWhite, true)
+  const blackCapturesString = manager.formatCapturesForDisplay(displayCaptures.capturedByBlack, false)
+
+  // Add this handler for making a move in preview mode
+  const handleDrop = (sourceSquare: Square, targetSquare: Square) => {
+    if (!previewMode) return false
+    // Use chess.js to validate and create the move
+    const chess = new Chess(displayPosition || undefined)
+    const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
+    if (move) {
+      // Convert chess.js move to your Move type (add more fields as needed)
+      const newMove: Move = {
+        id: -1,
+        depth: -1,
+        position: chess.fen(),
+        move: move.san,
+        isAnalyzed: false,
+        context: '',
+        piece: move.piece,
+        // annotation, score, phase, capturedByWhite, capturedByBlack, trace can be left undefined
+      }
+      manager.addPreviewMove(newMove)
+      manager.commitPreviewToMainline()
+      return true
+    }
+    return false
   }
 
   return (
     <div ref={parentRef} className="flex flex-col w-full items-center p-4 border-r mx-auto">
-      {gameState.isLoaded && (
+      {/* Preview mode indicator */}
+      {previewMode && shouldShowPreview && (
+        <div className="text-center mb-2">
+          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+            Preview Mode
+          </span>
+        </div>
+      )}
+      
+      {isLoaded && (
         <div className="text-center mt-2">
           <p className="text-sm text-gray-600">Captured: {blackCapturesString}</p>
         </div>
@@ -78,16 +115,16 @@ const PreviewChessboard = ({ hoveredArrow }: { hoveredArrow: string | null }) =>
       {boardWidth > 0 && (
         <div className="align-center justify-center">
           <Chessboard
-            position={fallbackFen}
+            position={displayPosition || undefined}
             boardWidth={boardWidth}
             customDarkSquareStyle={{ backgroundColor: 'var(--dark-gray)' }}
             customLightSquareStyle={{ backgroundColor: 'var(--lightest-gray)' }}
             customNotationStyle={{ color: 'var(--darkest-gray)' }}
-            customArrows={arrows}
+            onPieceDrop={handleDrop}
           />
         </div>
       )}
-      {gameState.isLoaded && (
+      {isLoaded && (
         <div className="text-center mb-2">
           <p className="text-sm text-gray-600">Captured: {whiteCapturesString}</p>
         </div>

@@ -8,36 +8,32 @@ import { Move } from '@/types/chess/Move'
 import { UIHelpers } from '@/helpers/uiHelpers'
 import { useGameState } from '@/contexts/GameStateContext'
 import Comments from './Comments'
+import { 
+  getMainlineMove as getMainlineMoveHelper, 
+  getPvMoves as getPvMovesHelper,
+  getMainlineMoveCount as getMoveCountHelper,
+  getMoveFromPv,
+  getFirstMoveFromPv
+} from '@/helpers/moveListUtils'
+import { get } from 'http'
 
 type GameViewerProps = {}
 
 const GameViewer = () => {
   const listRef = useRef<HTMLDivElement>(null)
-  const {
-    gameState,
-    resetGameState,
-    setCurrentMoveIndex,
-    requestMoveAnalysis,
-    requestFullGameAnalysis, // New
-    setPreviewMode,
-    setPreviewMoves,
-    setPreviewPvs,
-    setPreviewMoveIndex,
-    addPreviewMove,
-  } = useGameState()
+  const { state, manager } = useGameState()
   const {
     moves,
-    movePvs,
     currentMoveIndex,
     previewMode,
     previewMoves,
-    previewMovePvs,
     previewMoveIndex,
     isAnalysisInProgress,
     analysisProgress,
     isFullyAnalyzed,
-  } = gameState
-  const { result, opening, whiteName, whiteElo, blackName, blackElo } = gameState?.pgnHeaders || {
+    pgnHeaders,
+  } = state
+  const { result, opening, whiteName, whiteElo, blackName, blackElo } = pgnHeaders || {
     result: '',
     opening: '',
     whiteName: '',
@@ -47,29 +43,41 @@ const GameViewer = () => {
   }
   const [animatedScore, setAnimatedScore] = useState(-1)
   const [showMoveTree, setShowMoveTree] = useState(false)
-  const [currentMove, setCurrentMove] = useState<Move | null>(null)
 
   const displayedMoves = previewMode ? previewMoves : moves
-  const activePvs = previewMode ? previewMovePvs : movePvs
+
+  // Always derive the mainline move for score display
+  const mainlineMove = previewMode
+    ? previewMoves[previewMoveIndex]?.[0] || null
+    : manager.getMainlineMove(currentMoveIndex)
+  const score = mainlineMove?.score ?? 0
+
+  // Get PVs for the current position using manager
+  const getCurrentPvs = () => {
+    if (previewMode) {
+      const pvMoves = manager.getPvMoves(previewMoveIndex)
+      return pvMoves.length > 0 ? [pvMoves] : []
+    } else {
+      const pvMoves = manager.getPvMoves(currentMoveIndex)
+      return pvMoves.length > 0 ? [pvMoves] : []
+    }
+  }
 
   const handleMoveChange = useCallback(
     (newMoveIndex: number) => {
-      if (!displayedMoves[newMoveIndex]) {
-        return
+      const mainlineMove = manager.getMainlineMove(newMoveIndex)
+      if (!mainlineMove) return
+      if (!mainlineMove.isAnalyzed) {
+        manager.requestMoveAnalysis(mainlineMove)
       }
-
-      if (!displayedMoves[newMoveIndex].isAnalyzed) {
-        requestMoveAnalysis(displayedMoves[newMoveIndex])
-      }
-
-      setCurrentMove(displayedMoves[newMoveIndex])
-      setCurrentMoveIndex(newMoveIndex)
+      manager.goToMove(newMoveIndex)
     },
-    [displayedMoves, requestMoveAnalysis, setCurrentMoveIndex]
+    [manager]
   )
 
   const handleMoveNavigation = useCallback(
     (action: 'first' | 'prev' | 'next' | 'last' | 'click') => {
+      const totalMoves = manager.getMainlineMoveCount()
       let newIndex = currentMoveIndex || 0
       switch (action) {
         case 'first':
@@ -79,23 +87,23 @@ const GameViewer = () => {
           newIndex = Math.max(0, newIndex - 1)
           break
         case 'next':
-          newIndex = Math.min((displayedMoves?.length || 1) - 1, newIndex + 1)
+          newIndex = Math.min(totalMoves - 1, newIndex + 1)
           break
         case 'last':
-          newIndex = (displayedMoves?.length || 1) - 1
+          newIndex = totalMoves - 1
           break
       }
       handleMoveChange(newIndex)
     },
-    [currentMoveIndex, handleMoveChange, displayedMoves?.length]
+    [currentMoveIndex, handleMoveChange, manager]
   )
 
   useEffect(() => {
-    if (displayedMoves.length >= 1 && !displayedMoves[0].isAnalyzed) {
-      requestMoveAnalysis(displayedMoves[0])
-      setCurrentMove(displayedMoves[0])
+    const firstMove = manager.getMainlineMove(0)
+    if (firstMove && !firstMove.isAnalyzed) {
+      manager.requestMoveAnalysis(firstMove)
     }
-  }, [displayedMoves, requestMoveAnalysis])
+  }, [displayedMoves, manager])
 
   useEffect(() => {
     // Scroll to the active move item when the currentMoveIndex changes
@@ -128,52 +136,48 @@ const GameViewer = () => {
     }
   }, [currentMoveIndex, displayedMoves?.length])
 
+  // Prevent horizontal scrolling on left/right arrow keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown, { passive: false })
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   const handlePvClick = (pvIdx: number, pvMoveIdx: number) => {
     const startIdx = currentMoveIndex
-
-    const currentMoves = previewMode
-      ? previewMoves.slice(0, startIdx + 1)
-      : moves.slice(0, startIdx + 1)
-    setPreviewMoves([...currentMoves])
-
-    // const currentPvs = Object.fromEntries(
-    //   Object.entries(previewMode ? previewMovePvs : movePvs).filter(
-    //     ([key]) => Number(key) <= startIdx
-    //   )
-    // )
-    // setPreviewPvs(currentPvs)
-
-    // if (!previewMode) {
-    //   setPreviewMoveIndex(startIdx)
-    // }
-
-    // const chess = new Chess(currentMove?.position || '')
-    for (let i = 0; i <= pvMoveIdx; i++) {
-      // chess.move(displayedPvs[pvIdx][i].move)
-      addPreviewMove(displayedPvs[pvIdx][i])
-    }
-
-    setPreviewMode(true)
-    // handleMoveChange(startIdx + 1)
+    // Mainline up to current index
+    const currentMoves = moves.slice(0, startIdx + 1).map(m => [...m])
+    // PV moves up to and including clicked
+    const pvMoves = getCurrentPvs()[pvIdx].slice(0, pvMoveIdx + 1)
+    const pvMoveList = pvMoves.map(m => [m])
+    // Combine
+    const previewMoves = [...currentMoves, ...pvMoveList]
+    manager.setPreviewMoves(previewMoves, previewMoves.length - 1)
+    manager.enterPreviewMode()
   }
 
   const exitPreviewMode = () => {
-    setPreviewMode(false)
-    setCurrentMoveIndex(currentMoveIndex || 0)
+    manager.exitPreviewMode()
+    manager.goToMove(currentMoveIndex || 0)
   }
 
   const handleShowMoveTree = () => {
     setShowMoveTree(true)
   }
 
-  const stm = (currentMoveIndex || 0) % 2 === 1
-  const score = currentMove?.score ? currentMove.score : 0
-  const pvs = activePvs[currentMoveIndex] || []
+  const stm = previewMode
+    ? previewMoveIndex % 2 === 1
+    : (currentMoveIndex || 0) % 2 === 1
+  const pvs = getCurrentPvs()
 
   const displayedPvs = (() => {
     const sortedPvs = [...pvs].sort((pvA, pvB) => {
-      const scoreA = pvA[0]?.score ?? 0
-      const scoreB = pvB[0]?.score ?? 0
+      const scoreA = getFirstMoveFromPv(pvA)?.score ?? 0
+      const scoreB = getFirstMoveFromPv(pvB)?.score ?? 0
       return stm ? scoreB - scoreA : scoreA - scoreB
     })
     return sortedPvs.slice(0, 3)
@@ -192,7 +196,7 @@ const GameViewer = () => {
   }, [score])
 
   const clearContext = () => {
-    resetGameState()
+    manager.disconnectSession()
   }
 
   return (
@@ -225,7 +229,7 @@ const GameViewer = () => {
           {previewMode && (
             <div>
               <p>
-                <strong>Previewing:</strong> {currentMove?.move || 'N/A'}
+                <strong>Previewing:</strong> {mainlineMove?.move || 'N/A'}
               </p>
             </div>
           )}
@@ -283,7 +287,12 @@ const GameViewer = () => {
             className="flex items-center text-xs"
           >
             <span className="font-bold mr-2 text-darkest-gray">
-              {pv[0] && pv[0].score !== undefined && (pv[0].score / 100).toFixed(2)}
+              {(() => {
+                const firstMove = getFirstMoveFromPv(pv)
+                return firstMove && firstMove.score !== undefined 
+                  ? (firstMove.score / 100).toFixed(2) 
+                  : ''
+              })()}
             </span>
             <div className="flex space-x-1">
               {pv.map((move, moveIdx) => {
@@ -332,7 +341,7 @@ const GameViewer = () => {
             </div>
           ) : (
             <button
-              onClick={() => requestFullGameAnalysis()}
+              onClick={() => manager.requestFullGameAnalysis()}
               className={UIHelpers.getPrimaryButtonClasses(isAnalysisInProgress)}
               disabled={isAnalysisInProgress}
             >

@@ -1,20 +1,17 @@
-import { useState } from 'react'
-
+import { useGameState } from '@/contexts/GameStateContext'
 import MainlineChessboard from '@/components/MainlineChessboard'
 import PreviewChessboard from '@/components/PreviewChessboard'
 import ControlPanel from '@/components/ControlPanel'
 import FeatureCharts from '@/components/FeatureCharts'
 import MoveList from '@/components/MoveList'
 import PgnLoader from '@/components/PgnLoader'
-import { useGameState } from '@/contexts/GameStateContext'
 
 const AnnotatePGN = () => {
-  const { gameState } = useGameState()
-  const [hoveredArrow, setHoveredArrow] = useState<string | null>(null)
+  const { state } = useGameState()
 
   return (
     <div className="flex flex-col h-screen bg-light-gray p-4 space-y-4">
-      {!gameState.isLoaded ? (
+      {!state.isLoaded ? (
         <div className="flex flex-1 flex-col items-center justify-center">
           <h1 className="text-2xl font-bold darkest-gray text-center mb-4">
             Automatic Chess Annotator
@@ -28,10 +25,10 @@ const AnnotatePGN = () => {
           </h1>
           <div className="flex flex-row flex-grow bg-lightest-gray shadow-md rounded-md overflow-hidden space-x-4">
             <div className="flex-none max-w-[35vw] w-[35vw]">
-              <MainlineChessboard hoveredArrow={hoveredArrow} />
+              <MainlineChessboard />
             </div>
             <div className="flex-none max-w-[35vw] w-[35vw]">
-              <PreviewChessboard hoveredArrow={hoveredArrow} />
+              <PreviewChessboard />
             </div>
             <div className="flex-none max-w-[30vw] w-[30vw]">
               <ControlPanel />

@@ -6,7 +6,7 @@ import { UIHelpers } from '@/helpers/uiHelpers'
 import { useGameState } from '@/contexts/GameStateContext'
 
 const PgnLoader = () => {
-  const { connectToAnalysisSession } = useGameState()
+  const { manager } = useGameState()
   const [tempPgn, setTempPgn] = useState<string>('')
   const [error, setError] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
@@ -222,7 +222,7 @@ const PgnLoader = () => {
       }
       const data = await response.json()
       if (data.session_id) {
-        connectToAnalysisSession(data.session_id)
+        manager.connectToSession(data.session_id)
       }
     } catch (err) {
       console.error('Error loading game:', err)

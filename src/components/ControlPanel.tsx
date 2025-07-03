@@ -6,12 +6,12 @@ import { useGameState } from '../contexts/GameStateContext'
 type ControlPanelProps = {}
 
 const ControlPanel = () => {
-  const { gameState } = useGameState()
+  const { state } = useGameState()
 
   return (
     <div className="p-4 overflow-y-hidden h-full w-full">
-      {!gameState.isLoaded && !gameState.previewMode && <PgnLoader />}
-      {(gameState.isLoaded || gameState.previewMode) && (
+      {!state.isLoaded && !state.previewMode && <PgnLoader />}
+      {(state.isLoaded || state.previewMode) && (
         <GameViewer />
       )}
     </div>

@@ -6,30 +6,43 @@ import {
   generateNonBestMoveComments, 
   generateBestMoveComments 
 } from '@/helpers/commentator/keyMoments'
+import {
+  getMainlineMove,
+  getMainlineMoves,
+  getPvMoves,
+  type MoveList
+} from '@/helpers/moveListUtils'
 
 const initialDelay = 1500 // Delay before starting typewriter
 const typewriterSpeed = 25 // ms per character
 const sentenceDelay = 500 // Delay between sentences
 
 const Comments: React.FC = () => {
-  const { gameState, updateMoveAnnotations } = useGameState()
+  const { state, manager } = useGameState()
   const {
     moves,
-    movePvs,
     currentMoveIndex,
     previewMode,
     previewMoves,
-    previewMovePvs,
-  } = gameState
+  } = state
 
   // Use preview data if in preview mode
-  const activeMoves = previewMode ? previewMoves : moves
-  const activePvs = previewMode ? previewMovePvs : movePvs
+  const activeMoves = getMainlineMoves(previewMode ? previewMoves : moves)
+  const activeMoveList = previewMode ? previewMoves : moves
   const activeIndex = currentMoveIndex
 
   // Prepare sentences and annotations using the sophisticated keyMoments logic
   const { allSentences, annotations } = useMemo(() => {
-    const sentences = buildComments(activeMoves, activePvs)
+    // Get PVs in legacy format for buildComments compatibility
+    const legacyPvs: Record<number, any[][]> = {}
+    activeMoves.forEach((_, index) => {
+      const pvs = getPvMoves(activeMoveList, index)
+      if (pvs.length > 0) {
+        legacyPvs[index] = [pvs] // Wrap single PV in array for legacy compatibility
+      }
+    })
+
+    const sentences = buildComments(activeMoves, legacyPvs)
     const moveAnnotations: Record<number, string> = {}
 
     // Use the sophisticated annotation logic from keyMoments
@@ -37,15 +50,15 @@ const Comments: React.FC = () => {
       if (move.isAnalyzed && move.score !== undefined && index > 0) {
         const prevMove = activeMoves[index - 1]
         const isCurrentMoveByWhite = index % 2 === 1 // Odd indices are white moves
-        const prevMovePvs = activePvs[index - 1] // PVs from the previous position
+        const prevMovePvs = getPvMoves(activeMoveList, index - 1) // PVs from the previous position
 
-        if (prevMove?.isAnalyzed && prevMove.score !== undefined && prevMovePvs) {
+        if (prevMove?.isAnalyzed && prevMove.score !== undefined && prevMovePvs.length > 0) {
           // Use the sophisticated analysis from keyMoments
           const analyzedContext = analyzeMoveAgainstPVs(
             prevMove,
             move,
             isCurrentMoveByWhite,
-            prevMovePvs
+            [prevMovePvs] // Wrap in array for legacy compatibility
           )
 
           // Generate comments and get annotation
@@ -82,7 +95,7 @@ const Comments: React.FC = () => {
     })
 
     return { allSentences: sentences, annotations: moveAnnotations }
-  }, [activeMoves, activePvs])
+  }, [activeMoves, activeMoveList])
 
   // Update annotations in the game context
   useEffect(() => {
@@ -91,23 +104,30 @@ const Comments: React.FC = () => {
       const needsUpdate = Object.entries(annotations).some(
         ([index, annotation]) => {
           const moveIndex = parseInt(index)
-          return activeMoves[moveIndex]?.annotation !== annotation
+          const mainlineMove = getMainlineMove(activeMoveList, moveIndex)
+          return mainlineMove?.annotation !== annotation
         }
       )
 
       if (needsUpdate) {
-        // Update moves with annotations
-        const updatedMoves = activeMoves.map((move, index) => ({
-          ...move,
-          annotation: annotations[index] || move.annotation,
-        }))
+        // Update moves with annotations - create new MoveList structure
+        const updatedMoveList: MoveList = activeMoveList.map((moveArray, index) => {
+          if (moveArray.length > 0) {
+            const updatedMainlineMove = {
+              ...moveArray[0],
+              annotation: annotations[index] || moveArray[0].annotation,
+            }
+            return [updatedMainlineMove, ...moveArray.slice(1)]
+          }
+          return moveArray
+        })
 
-        if (updateMoveAnnotations) {
-          updateMoveAnnotations(updatedMoves)
+        if (manager.updateMoveAnnotations) {
+          manager.updateMoveAnnotations(updatedMoveList)
         }
       }
     }
-  }, [activeMoves, annotations, previewMode, updateMoveAnnotations])
+  }, [activeMoveList, annotations, previewMode, manager])
 
   const sentences: string[] = useMemo(() => {
     // buildComments returns string[][], so we need to get the array at activeIndex
