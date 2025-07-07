@@ -107,47 +107,36 @@ const GameViewer = () => {
   }, [score])
 
   return (
-    <div className="relative flex flex-col w-full h-screen rounded-md">
+    <div className="relative flex flex-col w-full h-full rounded-md">
       {/* Top Section: Game Information */}
-      <div className="p-4 border-b z-10 sticky top-0">
+      <div className="p-4 border-b z-10 sticky top-0 flex-shrink-0">
         <div className="flex justify-between items-start">
-          {!previewMode && (
-            <div>
-              <p>
-                <strong>White:</strong> {whiteName || 'N/A'}
-              </p>
-              <p className="text-sm">
-                <strong>White ELO:</strong> {whiteElo || 'N/A'}
-              </p>
-              <p>
-                <strong>Black:</strong> {blackName || 'N/A'}
-              </p>
-              <p className="text-sm">
-                <strong>Black ELO:</strong> {blackElo || 'N/A'}
-              </p>
-              <p>
-                <strong>Result:</strong> {result || 'N/A'}
-              </p>
-              <p className="text-sm">
-                <strong>Opening:</strong> {opening || 'Unknown'}
-              </p>
-            </div>
-          )}
-          {previewMode && (
-            <div>
-              <p>
-                <strong>Previewing:</strong> {mainlineMove?.move || 'N/A'}
-              </p>
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            {/* Close session button moved to MoveList */}
+
+          <div>
+            <p>
+              <strong>White:</strong> {whiteName || 'N/A'}
+            </p>
+            <p className="text-sm">
+              <strong>White ELO:</strong> {whiteElo || 'N/A'}
+            </p>
+            <p>
+              <strong>Black:</strong> {blackName || 'N/A'}
+            </p>
+            <p className="text-sm">
+              <strong>Black ELO:</strong> {blackElo || 'N/A'}
+            </p>
+            <p>
+              <strong>Result:</strong> {result || 'N/A'}
+            </p>
+            <p className="text-sm">
+              <strong>Opening:</strong> {opening || 'Unknown'}
+            </p>
           </div>
         </div>
       </div>
 
       {/* Score Visualization */}
-      <div className="p-4 border-b z-10 sticky">
+      <div className="p-4 border-b z-10 sticky flex-shrink-0">
         <div className="flex items-center justify-between">
           <span className="text-sm">White</span>
           <span className="text-sm">Black</span>
@@ -172,7 +161,7 @@ const GameViewer = () => {
       </div>
 
       {/* Principal Variations */}
-      <div className="h-[120px] overflow-y-auto">
+      <div className="h-[120px] overflow-y-auto flex-shrink-0">
         {/* PV1 (Second-best variation) for reference */}
         <div className="p-2 space-y-1">
           <div className="text-xs font-bold text-gray-600 mb-1">Principal Variation 1:</div>
@@ -188,7 +177,8 @@ const GameViewer = () => {
               </span>
               <div className="flex space-x-1">
                 {pv1.map((move, moveIdx) => {
-                  const isWhiteMove = (currentMoveIndex + moveIdx) % 2 === 1;
+                  const previewSwitch = previewMode ? previewMoveIndex : 0;
+                  const isWhiteMove = (currentMoveIndex + moveIdx + previewSwitch) % 2 === 1;
                   const moveColors = UIHelpers.getPvMoveColors(false, isWhiteMove);
                   return (
                     <span
@@ -219,7 +209,8 @@ const GameViewer = () => {
               </span>
               <div className="flex space-x-1">
                 {pv2.map((move, moveIdx) => {
-                  const isWhiteMove = (currentMoveIndex + moveIdx) % 2 === 1;
+                  const previewSwitch = previewMode ? previewMoveIndex : 0;
+                  const isWhiteMove = (currentMoveIndex + moveIdx + previewSwitch) % 2 === 1;
                   const moveColors = UIHelpers.getPvMoveColors(false, isWhiteMove);
                   return (
                     <span
@@ -237,10 +228,8 @@ const GameViewer = () => {
         </div>
       </div>
 
-
-
       {/* Comments Section */}
-      <div className="p-4 border-t z-10">
+      <div className="flex-1 flex flex-col border-t z-10 min-h-0">
         <Comments />
       </div>
     </div>

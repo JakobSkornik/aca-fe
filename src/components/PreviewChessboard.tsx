@@ -5,7 +5,8 @@ import { Chess, Square } from 'chess.js'
 import { Move } from '@/types/chess/Move'
 
 const PADDING_PX = 16
-const MIN_BOARD_SIZE = 400
+const MIN_BOARD_SIZE = 300
+const FIXED_BOARD_SIZE = 300
 
 /**
  * PreviewChessboard Component
@@ -24,14 +25,39 @@ const PreviewChessboard = () => {
   useEffect(() => {
     const handleResize = () => {
       if (parentRef.current) {
-        const width = Math.max(
-          parentRef.current.clientHeight - 2 * PADDING_PX,
-          MIN_BOARD_SIZE
-        )
-        setBoardWidth(width)
+        // Check if we're in a fixed-width container (smaller screens)
+        const containerWidth = parentRef.current.clientWidth
+        const containerHeight = parentRef.current.clientHeight
+        
+        // Use fixed size for smaller screens or when container is constrained
+        if (containerWidth <= FIXED_BOARD_SIZE + 32) { // 32px for padding
+          setBoardWidth(FIXED_BOARD_SIZE - 2 * PADDING_PX)
+        } else {
+          // Use responsive sizing for larger screens
+          const width = Math.max(
+            containerHeight - 2 * PADDING_PX,
+            MIN_BOARD_SIZE
+          )
+          setBoardWidth(width)
+        }
       }
     }
+    
+    // Use a debounced resize handler to prevent excessive updates
+    let resizeTimeout: NodeJS.Timeout
+    const debouncedHandleResize = () => {
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(handleResize, 100)
+    }
+    
     handleResize()
+    
+    // Add resize listener for responsive behavior
+    window.addEventListener('resize', debouncedHandleResize)
+    return () => {
+      window.removeEventListener('resize', debouncedHandleResize)
+      clearTimeout(resizeTimeout)
+    }
   }, [])
 
   // Get the current position based on mode

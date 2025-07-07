@@ -79,6 +79,11 @@ body {
   z-index: 100;
 }
 
+.selected-shadow {
+  box-shadow: 0px 0px 8px 10px rgba(49, 49, 49, 0.452);
+  z-index: 100;
+}
+
 .bg-preview-white {
   background-color: rgb(253, 190, 72);
 }

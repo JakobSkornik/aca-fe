@@ -56,11 +56,6 @@ const MoveList = () => {
     }
   }
 
-  const exitPreviewMode = () => {
-    manager.exitPreviewMode()
-    manager.goToMove(currentMoveIndex || 0)
-  }
-
   // Keyboard navigation listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -170,9 +165,11 @@ const MoveList = () => {
               onClick={() => handleMoveNavigation('first')}
               className={UIHelpers.getButtonClasses()}
             >
-              <img
+              <Image
                 src="/icons/fast_back.svg"
                 alt="First"
+                width={16}
+                height={16}
                 className="w-4 h-4"
               />
             </button>
@@ -182,7 +179,13 @@ const MoveList = () => {
               onClick={() => handleMoveNavigation('prev')}
               className={UIHelpers.getButtonClasses()}
             >
-              <img src="/icons/back.svg" alt="Previous" className="w-4 h-4" />
+              <Image 
+                src="/icons/back.svg" 
+                alt="Previous" 
+                width={16}
+                height={16}
+                className="w-4 h-4" 
+              />
             </button>
           </Tooltip>
           <Tooltip content="Next move">
@@ -190,7 +193,13 @@ const MoveList = () => {
               onClick={() => handleMoveNavigation('next')}
               className={UIHelpers.getButtonClasses()}
             >
-              <img src="/icons/forward.svg" alt="Next" className="w-4 h-4" />
+              <Image 
+                src="/icons/forward.svg" 
+                alt="Next" 
+                width={16}
+                height={16}
+                className="w-4 h-4" 
+              />
             </button>
           </Tooltip>
           <Tooltip content="Go to last move">
@@ -198,9 +207,11 @@ const MoveList = () => {
               onClick={() => handleMoveNavigation('last')}
               className={UIHelpers.getButtonClasses()}
             >
-              <img
+              <Image
                 src="/icons/fast_forward.svg"
                 alt="Last"
+                width={16}
+                height={16}
                 className="w-4 h-4"
               />
             </button>
@@ -210,33 +221,27 @@ const MoveList = () => {
               onClick={handlePvButton}
               className={UIHelpers.getButtonClasses()}
             >
-              <img
+              <Image
                 src={previewMode ? "/icons/up.svg" : "/icons/down.svg"}
                 alt={previewMode ? "Exit Preview" : "Enter Preview"}
+                width={16}
+                height={16}
                 className="w-4 h-4"
               />
             </button>
           </Tooltip>
-          {previewMode && (
-            <Tooltip content="Exit preview mode">
-              <button
-                onClick={exitPreviewMode}
-                className={UIHelpers.getButtonClasses()}
-              >
-                <img
-                  src="/icons/close.svg"
-                  alt="Close"
-                  className="w-4 h-4"
-                />
-              </button>
-            </Tooltip>
-          )}
           <Tooltip content="Close analysis session">
             <button
               onClick={() => manager.disconnectSession()}
               className={UIHelpers.getIconButtonClasses()}
             >
-              <img src="/icons/close.svg" alt="Close" className="w-4 h-4" />
+              <Image 
+                src="/icons/close.svg" 
+                alt="Close" 
+                width={16}
+                height={16}
+                className="w-4 h-4" 
+              />
             </button>
           </Tooltip>
         </div>
@@ -258,7 +263,7 @@ const MoveList = () => {
                       />
                       <div
                         className="absolute inset-0 flex items-center justify-center text-sm font-bold"
-                        style={{ color: 'var(--lightest-gray)' }}
+                        style={{ color: analysisProgress < 50 ? 'var(--lightest-gray)' : 'var(--darkest-gray)' }}
                       >
                         {analysisProgress.toFixed(0)}%
                       </div>

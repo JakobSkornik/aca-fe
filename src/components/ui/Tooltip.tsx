@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 
 type TooltipProps = {
   content: string
@@ -14,49 +14,87 @@ const Tooltip: React.FC<TooltipProps> = ({
   delay = 300,
 }) => {
   const [isVisible, setIsVisible] = useState(false)
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
 
   const showTooltip = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
     timeoutRef.current = setTimeout(() => {
-      setIsVisible(true)
+      if (triggerRef.current && !isVisible) {
+        const rect = triggerRef.current.getBoundingClientRect()
+        let x = rect.left + rect.width / 2
+        let y = rect.top
+
+        // Adjust position based on tooltip position preference
+        switch (position) {
+          case 'top':
+            y = rect.top - 8 // 8px above the element
+            break
+          case 'bottom':
+            y = rect.bottom + 8
+            break
+          case 'left':
+            x = rect.left - 8
+            y = rect.top + rect.height / 2
+            break
+          case 'right':
+            x = rect.right + 8
+            y = rect.top + rect.height / 2
+            break
+        }
+
+        setTooltipPosition({ x, y })
+        setIsVisible(true)
+      }
     }, delay)
   }
 
   const hideTooltip = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
     }
     setIsVisible(false)
   }
 
-  let tooltipClass =
-    'absolute z-50 px-2 py-1 text-xs bg-dark-gray text-lightest-gray rounded shadow whitespace-nowrap'
-
-  // Position styling
-  switch (position) {
-    case 'top':
-      tooltipClass += ' bottom-full left-1/2 transform -translate-x-1/2 mb-1'
-      break
-    case 'bottom':
-      tooltipClass += ' top-full left-1/2 transform -translate-x-1/2 mt-1'
-      break
-    case 'left':
-      tooltipClass += ' right-full top-1/2 transform -translate-y-1/2 mr-1'
-      break
-    case 'right':
-      tooltipClass += ' left-full top-1/2 transform -translate-y-1/2 ml-1'
-      break
-  }
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [])
 
   return (
-    <div
-      className="relative inline-block"
-      onMouseEnter={showTooltip}
-      onMouseLeave={hideTooltip}
-    >
-      {children}
-      {isVisible && <div className={tooltipClass}>{content}</div>}
-    </div>
+    <>
+      <div
+        ref={triggerRef}
+        className="relative inline-block"
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        onMouseMove={(e) => {
+          // Prevent mouse move from triggering tooltip recalculation
+          e.stopPropagation()
+        }}
+      >
+        {children}
+      </div>
+      {isVisible && (
+        <div
+          className="fixed z-[9999] px-2 py-1 text-xs bg-dark-gray text-darkest-gray rounded shadow whitespace-nowrap transform -translate-x-1/2 pointer-events-none"
+          style={{
+            left: tooltipPosition.x,
+            top: tooltipPosition.y,
+          }}
+        >
+          {content}
+        </div>
+      )}
+    </>
   )
 }
 

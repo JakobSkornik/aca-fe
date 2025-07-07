@@ -5,6 +5,7 @@ import { PgnHeaders } from '../types/chess/PgnHeaders'
 import { MoveList, createMoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList, getNextAvailableId } from '../helpers/moveListUtils'
 import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload } from '../types/WebSocketMessages'
 import { CaptureCount } from '../types/chess/CaptureCount'
+import { chessPositionManager } from '../helpers/ChessPositionManager'
 
 export type GameStateSnapshot = {
   game: Chess
@@ -498,7 +499,16 @@ export class GameStateManager {
   }
 
   getCurrentPosition(index: number) {
-    return this.state.moves.getCurrentPosition(index)
+    const position = this.state.moves.getCurrentPosition(index)
+    
+    // Update chess position manager with the current position
+    if (position) {
+      chessPositionManager.updatePositionFromFen(position)
+    } else {
+      chessPositionManager.resetToStart()
+    }
+    
+    return position
   }
 
   getCapturesForMove(index: number) {

@@ -203,7 +203,7 @@ const Comments: React.FC = () => {
       timeouts.forEach(timeout => clearTimeout(timeout))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commentHistory.length])
+  }, [commentHistory.length, manager.getCurrentMove()])
 
   // Scroll to bottom when new comments are added
   useEffect(() => {
@@ -225,28 +225,68 @@ const Comments: React.FC = () => {
     ? commentHistory 
     : commentHistory.filter(item => item.isMainline)
 
+  // Determine which comment corresponds to the current move
+  const getCurrentCommentIndex = () => {
+    if (displayedComments.length === 0) return -1
+    
+    // Find the comment that matches the current move
+    // We need to match based on the move index in the title
+    const currentMoveNumber = previewMode ? previewMoveIndex : currentMoveIndex
+    
+    for (let i = 0; i < displayedComments.length; i++) {
+      const comment = displayedComments[i]
+      const title = comment.title.toLowerCase()
+      
+      // Check if this comment corresponds to the current move
+      // Look for move numbers in the title (e.g., "1. e4", "2... Nf6")
+      const moveMatch = title.match(/(\d+)\.?\s*\.\.\.?\s*[a-h]?[1-8]?[x]?[a-h][1-8]/)
+      if (moveMatch) {
+        const moveNumber = parseInt(moveMatch[1])
+        if (moveNumber === currentMoveNumber + 1) {
+          return i
+        }
+      }
+    }
+    
+    // If no exact match, return the last comment as fallback
+    return displayedComments.length - 1
+  }
+
+  const currentCommentIndex = getCurrentCommentIndex()
+
   return (
-    <div className="p-4 border-t z-10">
+    <div className="flex flex-col h-full">
       <div 
         ref={containerRef}
-        className="text-sm text-gray-700 whitespace-pre-wrap min-h-[60px] max-h-[200px] overflow-y-auto"
+        className="text-sm text-gray-700 whitespace-pre-wrap flex-1 overflow-y-auto p-4"
       >
-        {displayedComments.map((item, index) => (
-          <div 
-            key={item.id}
-            className={`mb-2 pb-2 ${index < displayedComments.length - 1 ? 'border-b border-gray-200' : ''} ${
-              !item.isMainline ? 'bg-gray-100 p-2 rounded' : ''
-            }`}
-          >
-            <div className="font-bold text-gray-800 mb-1">
-              {item.title}
+        {displayedComments.map((item, index) => {
+          const isSelected = index === currentCommentIndex
+          return (
+            <div 
+              key={item.id}
+              className={`mb-2 pb-2 transition-all duration-200 rounded-md ${
+                index < displayedComments.length - 1 ? 'border-b border-gray-200' : ''
+              } ${
+                !item.isMainline ? 'bg-gray-100 p-2 rounded' : ''
+              } ${
+                isSelected ? 'selected-shadow p-4' : ''
+              }`}
+            >
+              <div className={`font-bold mb-1 ${
+                isSelected ? 'text-base' : 'text-gray-800'
+              }`}>
+                {item.title}
+              </div>
+              <div className={`${
+                isSelected ? 'text-base' : 'text-gray-700'
+              }`}>
+                {item.displayedText}
+                {item.isAnimating && <span className="animate-pulse">|</span>}
+              </div>
             </div>
-            <div className="text-gray-700">
-              {item.displayedText}
-              {item.isAnimating && <span className="animate-pulse">|</span>}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

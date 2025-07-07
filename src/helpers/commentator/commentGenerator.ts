@@ -1,6 +1,8 @@
 import { Move } from '@/types/chess/Move'
 import { getOpeningComment } from './openings'
 import { parseTrace } from '../traceParser'
+import { chessPositionManager } from '../ChessPositionManager'
+import { Move as ChessMove } from 'chess.js'
 
 export interface Comment {
   type: 'opening' | 'missed_opportunity' | 'best_move' | 'phase_transition' | 'blunder' | 'mistake' | 'inaccuracy'
@@ -15,6 +17,20 @@ export interface CommentContext {
   pv1Moves: Move[]
   pv2Moves: Move[]
   isWhiteMove: boolean
+  positionContext?: {
+    isInCheck: boolean
+    isCheckmate: boolean
+    isDraw: boolean
+    isStalemate: boolean
+    gamePhase: 'opening' | 'middlegame' | 'endgame'
+    turn: 'w' | 'b'
+    moveNumber: number
+    castlingRights: {
+      w: { k: boolean; q: boolean }
+      b: { k: boolean; q: boolean }
+    }
+    lastMove: ChessMove | null
+  }
 }
 
 // Piece mapper for move display
@@ -26,19 +42,15 @@ const pieceMapper = {
 // Blunder comments
 const blunderComments = [
   "Blunder! Your move massively worsened your position in the game",
-  "Turned a winning position into a losing position",
   "This move dramatically changes the evaluation in your opponent's favor",
   "A critical error that significantly weakens your position",
-  "This blunder gives your opponent a decisive advantage"
 ]
 
 // Mistake comments
 const mistakeComments = [
   "This mistake significantly weakens your position",
-  "This move gives your opponent a clear advantage",
   "A significant error that worsens your position",
-  "This move allows your opponent to gain the upper hand",
-  "A mistake that changes the evaluation in your opponent's favor"
+  "This move allows your opponent to improve their position",
 ]
 
 // Inaccuracy comments
@@ -56,6 +68,13 @@ const inaccuracyComments = [
 export function generateComments(context: CommentContext): Comment[] {
   const comments: Comment[] = []
 
+  // Update chess position manager with current move
+  chessPositionManager.updatePosition(context.currentMove)
+
+  // Get position context from chess.js
+  const positionContext = chessPositionManager.getPositionContext()
+  context.positionContext = positionContext
+
   // Check for opening comment first
   const openingComment = getOpeningComment(context.currentMove)
   if (openingComment) {
@@ -65,6 +84,12 @@ export function generateComments(context: CommentContext): Comment[] {
       text: openingComment,
       priority: 1
     }]
+  }
+
+  // Check for chess.js specific comments (check, checkmate, etc.)
+  const chessJsComment = generateChessJsComment(context)
+  if (chessJsComment) {
+    comments.push(chessJsComment)
   }
 
   // Check if this is the best move first
@@ -93,6 +118,104 @@ export function generateComments(context: CommentContext): Comment[] {
 
   // Sort by priority (higher priority first)
   return comments.sort((a, b) => b.priority - a.priority)
+}
+
+/**
+ * Generate chess.js specific comments based on position state
+ */
+function generateChessJsComment(context: CommentContext): Comment | null {
+  if (!context.positionContext) return null
+
+  const { isInCheck, isCheckmate, isDraw, isStalemate, gamePhase, lastMove } = context.positionContext
+
+  // Check for checkmate
+  if (isCheckmate) {
+    return {
+      type: 'best_move',
+      text: 'Checkmate! The game is over.',
+      priority: 10
+    }
+  }
+
+  // Check for check
+  if (isInCheck) {
+    return {
+      type: 'best_move',
+      text: 'Check! The king is under attack.',
+      priority: 8
+    }
+  }
+
+  // Check for draw
+  if (isDraw) {
+    return {
+      type: 'phase_transition',
+      text: 'The game is a draw.',
+      priority: 7
+    }
+  }
+
+  // Check for stalemate
+  if (isStalemate) {
+    return {
+      type: 'phase_transition',
+      text: 'Stalemate! The game is a draw.',
+      priority: 7
+    }
+  }
+
+  // Check for phase transitions
+  if (gamePhase === 'endgame' && context.moveIndex > 20) {
+    return {
+      type: 'phase_transition',
+      text: 'The game has entered the endgame phase.',
+      priority: 3
+    }
+  }
+
+  // Check for special moves
+  if (lastMove) {
+    const moveText = formatMoveWithPiece(context.currentMove)
+    
+    // Check for castling
+    if (lastMove.san?.includes('O-O')) {
+      return {
+        type: 'best_move',
+        text: `${moveText} - Kingside castling to improve king safety.`,
+        priority: 4
+      }
+    }
+    
+    if (lastMove.san?.includes('O-O-O')) {
+      return {
+        type: 'best_move',
+        text: `${moveText} - Queenside castling to improve king safety.`,
+        priority: 4
+      }
+    }
+
+    // Check for captures
+    if (lastMove.captured) {
+      return {
+        type: 'best_move',
+        text: `${moveText} - Capturing the ${lastMove.captured}.`,
+        priority: 5
+      }
+    }
+
+    // Check for pawn moves
+    if (lastMove.piece === 'p') {
+      if (lastMove.to[1] === '8' || lastMove.to[1] === '1') {
+        return {
+          type: 'best_move',
+          text: `${moveText} - Pawn promotion!`,
+          priority: 6
+        }
+      }
+    }
+  }
+
+  return null
 }
 
 /**
@@ -130,9 +253,9 @@ function formatMoveWithPiece(move: Move): string {
 }
 
 /**
- * Get the 3 biggest feature differences between current position and PV sequence end
+ * Get differences between current position and PV sequence end, including position quality assessment
  */
-function getFeatureDifferences(currentMove: Move, pvMoves: Move[]): string {
+function getDifferencesBetweenPositions(currentMove: Move, pvMoves: Move[], isWhiteMove: boolean): string {
   if (pvMoves.length === 0) return ''
 
   try {
@@ -140,29 +263,128 @@ function getFeatureDifferences(currentMove: Move, pvMoves: Move[]): string {
     const pvEndMove = pvMoves[pvMoves.length - 1]
     const pvEndTrace = parseTrace(pvEndMove)
 
+    // Analyze position quality changes
+    const currentScore = currentMove.score ?? 0
+    const pvEndScore = pvEndMove.score ?? 0
+    
+    // Convert scores to perspective of the player who made the move
+    const currentScoreFromPerspective = isWhiteMove ? currentScore : -currentScore
+    const pvEndScoreFromPerspective = isWhiteMove ? pvEndScore : -pvEndScore
+    
+    // Determine position quality categories with more granular assessment
+    const getPositionQuality = (score: number): 'very_bad' | 'bad' | 'neutral' | 'good' | 'very_good' => {
+      const absScore = Math.abs(score / 100)
+      if (absScore <= 0.5) return 'neutral'
+      if (absScore <= 1.5) return score > 0 ? 'good' : 'bad'
+      if (absScore <= 3.0) return score > 0 ? 'good' : 'bad'
+      return score > 0 ? 'very_good' : 'very_bad'
+    }
+    
+    const currentQuality = getPositionQuality(currentScoreFromPerspective)
+    const pvEndQuality = getPositionQuality(pvEndScoreFromPerspective)
+    
+    // Calculate the magnitude of improvement/worsening
+    const scoreDifference = pvEndScoreFromPerspective - currentScoreFromPerspective
+    const scoreDifferenceInPawns = Math.abs(scoreDifference / 100)
+    
+    // Analyze feature differences
     const features = ['Material', 'Mobility', 'KingSafety', 'Threats', 'Passed Pawns', 'Space', 'Bishops', 'Knights', 'Rooks', 'Queens']
-    const differences: { feature: string; diff: number }[] = []
+    const differences: { feature: string; diff: number; improvement: boolean }[] = []
 
     for (const feature of features) {
       const currentVal = currentTrace[feature as keyof typeof currentTrace] || 0
       const pvVal = pvEndTrace[feature as keyof typeof pvEndTrace] || 0
-      const diff = Math.abs(pvVal - currentVal)
+      const diff = pvVal - currentVal // Positive means improvement
 
-      if (diff > 0.1) { // Only include significant differences
-        differences.push({ feature, diff })
+      if (Math.abs(diff) > 0.1) { // Only include significant differences
+        differences.push({ 
+          feature, 
+          diff: Math.abs(diff), 
+          improvement: diff > 0 
+        })
       }
     }
 
     // Sort by difference magnitude and take top 3
     differences.sort((a, b) => b.diff - a.diff)
     const topDifferences = differences.slice(0, 3)
+    const improvedFeatures = topDifferences.filter(d => d.improvement)
+    // const worsenedFeatures = topDifferences.filter(d => !d.improvement)
 
-    if (topDifferences.length === 0) return ''
+    // Build position quality analysis with magnitude consideration
+    let positionQualityText = ''
+    
+    // Check if the alternative move would preserve the position (prevent worsening)
+    const isPreservingPosition = scoreDifference > 0 && pvEndScoreFromPerspective >= 0 && currentScoreFromPerspective < 0
+    
+    // If there's a significant score difference, describe the improvement/worsening
+    if (scoreDifferenceInPawns > 0.5) {
+      if (scoreDifference > 0) {
+        // Improvement
+        if (isPreservingPosition) {
+          // The alternative would have preserved a good/neutral position
+          if (Math.abs(currentScoreFromPerspective / 100) > 1.0) {
+            positionQualityText = 'This would have preserved your position.'
+          } else {
+            positionQualityText = 'This would have preserved the equal position.'
+          }
+        } else if (scoreDifferenceInPawns > 2.0) {
+          positionQualityText = 'This would have significantly improved the position.'
+        } else if (scoreDifferenceInPawns > 1.0) {
+          positionQualityText = 'This would have improved the position.'
+        } else {
+          positionQualityText = 'This would have slightly improved the position.'
+        }
+      } else {
+        // Worsening
+        if (scoreDifferenceInPawns > 2.0) {
+          positionQualityText = 'This significantly worsened the position.'
+        } else if (scoreDifferenceInPawns > 1.0) {
+          positionQualityText = 'This worsened the position.'
+        } else {
+          positionQualityText = 'This slightly worsened the position.'
+        }
+      }
+    } else if (currentQuality !== pvEndQuality) {
+      // Quality category changed
+      if (currentQuality === 'very_bad' && pvEndQuality === 'bad') {
+        positionQualityText = 'This would have improved the position from very bad to bad.'
+      } else if (currentQuality === 'bad' && pvEndQuality === 'neutral') {
+        positionQualityText = 'This would have improved the position from bad to equal.'
+      } else if (currentQuality === 'bad' && pvEndQuality === 'good') {
+        positionQualityText = 'This would have turned a bad position into a good one.'
+      } else if (currentQuality === 'neutral' && pvEndQuality === 'good') {
+        positionQualityText = 'This would have improved the position from equal to good.'
+      } else if (currentQuality === 'good' && pvEndQuality === 'neutral') {
+        positionQualityText = 'This would have worsened the position from good to equal.'
+      } else if (currentQuality === 'good' && pvEndQuality === 'bad') {
+        positionQualityText = 'This would have turned a good position into a bad one.'
+      } else if (currentQuality === 'neutral' && pvEndQuality === 'bad') {
+        positionQualityText = 'This would have worsened the position from equal to bad.'
+      } else if (currentQuality === 'bad' && pvEndQuality === 'very_bad') {
+        positionQualityText = 'This worsened the position from bad to very bad.'
+      }
+    }
 
-    const featureTexts = topDifferences.map(d => d.feature.toLowerCase())
-    return `The alternative would have improved ${featureTexts.join(', ')}.`
+    // Build feature analysis
+    let featureText = ''
+    if (improvedFeatures.length > 0) {
+      const featureNames = improvedFeatures.map(d => d.feature.toLowerCase())
+      featureText = `The alternative would have improved ${featureNames.join(', ')}.`
+    }
+
+    // Combine position quality and feature analysis
+    if (positionQualityText && featureText) {
+      return `${positionQualityText} ${featureText}`
+    } else if (positionQualityText) {
+      return positionQualityText
+    } else if (featureText) {
+      return featureText
+    }
+
+    return 'The alternative move would have been better.'
   } catch (error) {
-    console.error('Error analyzing feature differences:', error)
+    console.error('Error analyzing position differences:', error)
     return ''
   }
 }
@@ -193,7 +415,7 @@ function getContextualSuffix(score: number, isWhiteMove: boolean): string {
   const context = getPositionContext(score, isWhiteMove)
 
   if (context === 'neutral') {
-    return ' but position is roughly equal.'
+    return ' but position is still roughly equal.'
   } else if (context === 'very good') {
     return isWhiteMove ? ' and maintains a very strong position.' : ' and maintains a very strong position.'
   } else if (context === 'very bad') {
@@ -256,7 +478,7 @@ function checkMoveQuality(context: CommentContext): Comment | null {
       betterMoveSuggestion = ` A better move would be ${betterMove}.`
 
       // Add feature improvements if available
-      const featureDifferences = getFeatureDifferences(context.currentMove, context.pv1Moves)
+      const featureDifferences = getDifferencesBetweenPositions(context.currentMove, context.pv1Moves, context.isWhiteMove)
       if (featureDifferences) {
         betterMoveSuggestion += ` ${featureDifferences}`
       }
@@ -314,7 +536,7 @@ function checkMissedOpportunity(context: CommentContext): Comment | null {
         }
 
         // Get feature differences
-        const featureDifferences = getFeatureDifferences(context.currentMove, context.pv1Moves)
+        const featureDifferences = getDifferencesBetweenPositions(context.currentMove, context.pv1Moves, context.isWhiteMove)
         if (featureDifferences) {
           sequenceText += ` ${featureDifferences}`
         }
