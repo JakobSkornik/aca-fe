@@ -1,17 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
-import { Arrow } from 'react-chessboard/dist/chessboard/types'
 import { useGameState } from '../contexts/GameStateContext'
 import { Chess, Square } from 'chess.js'
 import { Move } from '@/types/chess/Move'
-import { 
-  getPositionForIndex, 
-  getCapturesForMove as getCapturesHelper,
-  formatCapturesForDisplay as formatCaptures
-} from '@/helpers/moveListUtils'
 
 const PADDING_PX = 16
-const MIN_BOARD_SIZE = 500
+const MIN_BOARD_SIZE = 400
 
 /**
  * PreviewChessboard Component
@@ -24,6 +18,7 @@ const PreviewChessboard = () => {
   const { state, manager } = useGameState()
   const { previewMode, previewMoves, previewMoveIndex, currentMoveIndex, isLoaded } = state
   const [boardWidth, setBoardWidth] = useState<number>(0)
+  const [currentPosition, setCurrentPosition] = useState<string>('start')
   const parentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -39,83 +34,111 @@ const PreviewChessboard = () => {
     handleResize()
   }, [])
 
-  // Use manager helpers for safe access
-  const getPreviewPosition = () => {
-    if (previewMode && previewMoves.length > 0 && previewMoveIndex >= 0) {
+  // Get the current position based on mode
+  const getCurrentPosition = () => {
+    if (previewMode) {
       return manager.getPreviewPosition(previewMoveIndex)
+    } else {
+      return manager.getCurrentPosition(currentMoveIndex)
     }
-    return null
   }
 
-  const getPreviewCaptures = () => {
-    if (previewMode && previewMoves.length > 0 && previewMoveIndex >= 0) {
+  // Get the current captures based on mode
+  const getCurrentCaptures = () => {
+    if (previewMode) {
       return manager.getPreviewCaptures(previewMoveIndex)
+    } else {
+      return manager.getCapturesForMove(currentMoveIndex)
     }
-    return { capturedByWhite: undefined, capturedByBlack: undefined }
   }
 
-  // Determine what to display: preview or fallback to mainline
-  const previewPosition = getPreviewPosition()
-  const previewCaptures = getPreviewCaptures()
-  
-  const shouldShowPreview = previewMode && previewPosition !== null
-  const displayPosition = shouldShowPreview 
-    ? previewPosition 
-    : manager.getCurrentPosition(currentMoveIndex)
-    
-  const displayCaptures = shouldShowPreview 
-    ? previewCaptures 
-    : manager.getCapturesForMove(currentMoveIndex)
+  // Update current position when the display position changes
+  useEffect(() => {
+    const position = getCurrentPosition()
+    if (position) {
+      setCurrentPosition(position)
+    }
+  }, [previewMode, previewMoveIndex, currentMoveIndex, previewMoves.getLength()])
+
+  // Handle making a move on the chessboard
+  const handleDrop = (sourceSquare: Square, targetSquare: Square) => {
+    try {
+      // Use chess.js to validate and create the move
+      const chess = new Chess(currentPosition)
+      
+      // Let chess.js handle all validation - it will reject invalid moves automatically
+      const moveResult = chess.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
+      
+      if (!moveResult) {
+        console.log('Move was rejected by chess.js')
+        return false
+      }
+
+      // Create the new move object
+      const newMove: Move = {
+        id: manager.getNextId(),
+        depth: -1,
+        position: moveResult.after,
+        move: moveResult.from + moveResult.to,
+        isAnalyzed: false,
+        context: 'preview',
+        piece: `${moveResult.color}${moveResult.piece}`
+      }
+
+      if (!previewMode) {
+        // Not in preview mode
+        const mainlineMoves = manager.getMainlineMovesList()
+        const nextMove = mainlineMoves[currentMoveIndex + 1]
+        
+        if (nextMove && newMove.position === nextMove.position) {
+          // Move matches the next mainline move - just advance
+          manager.moveNext()
+          return true
+        } else {
+          // First advance to the next position, then enter preview mode
+          manager.moveNext()
+          manager.enterPreviewModeWithMove(newMove, currentMoveIndex + 1)
+          return true
+        }
+      } else {
+        // Already in preview mode
+        const previewMovesList = previewMoves.getMainlineMoves()
+        const nextPreviewMove = previewMovesList[previewMoveIndex + 1]
+        
+        if (nextPreviewMove && newMove.position === nextPreviewMove.position) {
+          // Move matches the next preview move - just advance
+          manager.moveNext()
+          return true
+        } else {
+          manager.clearPreviewMovesFromIndex(previewMoveIndex + 1)
+          manager.addPreviewMove(newMove)
+          return true
+        }
+      }
+    } catch (error) {
+      console.error('Error making move:', error)
+      return false
+    }
+  }
+
+  // Get current position and captures
+  const displayCaptures = getCurrentCaptures()
 
   // Format captures for display
   const whiteCapturesString = manager.formatCapturesForDisplay(displayCaptures.capturedByWhite, true)
   const blackCapturesString = manager.formatCapturesForDisplay(displayCaptures.capturedByBlack, false)
 
-  // Add this handler for making a move in preview mode
-  const handleDrop = (sourceSquare: Square, targetSquare: Square) => {
-    if (!previewMode) return false
-    // Use chess.js to validate and create the move
-    const chess = new Chess(displayPosition || undefined)
-    const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
-    if (move) {
-      // Convert chess.js move to your Move type (add more fields as needed)
-      const newMove: Move = {
-        id: -1,
-        depth: -1,
-        position: chess.fen(),
-        move: move.san,
-        isAnalyzed: false,
-        context: '',
-        piece: move.piece,
-        // annotation, score, phase, capturedByWhite, capturedByBlack, trace can be left undefined
-      }
-      manager.addPreviewMove(newMove)
-      manager.commitPreviewToMainline()
-      return true
-    }
-    return false
-  }
-
   return (
     <div ref={parentRef} className="flex flex-col w-full items-center p-4 border-r mx-auto">
-      {/* Preview mode indicator */}
-      {previewMode && shouldShowPreview && (
-        <div className="text-center mb-2">
-          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-            Preview Mode
-          </span>
-        </div>
-      )}
-      
       {isLoaded && (
         <div className="text-center mt-2">
           <p className="text-sm text-gray-600">Captured: {blackCapturesString}</p>
         </div>
       )}
       {boardWidth > 0 && (
-        <div className="align-center justify-center">
+        <div className={`align-center justify-center ${previewMode ? 'selected-shadow' : ''}`}>
           <Chessboard
-            position={displayPosition || undefined}
+            position={currentPosition}
             boardWidth={boardWidth}
             customDarkSquareStyle={{ backgroundColor: 'var(--dark-gray)' }}
             customLightSquareStyle={{ backgroundColor: 'var(--lightest-gray)' }}

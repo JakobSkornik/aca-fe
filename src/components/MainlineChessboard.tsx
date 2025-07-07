@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
-import { Arrow } from 'react-chessboard/dist/chessboard/types'
 import { useGameState } from '../contexts/GameStateContext'
 
 const PADDING_PX = 16
-const MIN_BOARD_SIZE = 500
+const MIN_BOARD_SIZE = 400
 
 const MainlineChessboard = () => {
   const { state, manager } = useGameState()
@@ -48,6 +47,11 @@ const MainlineChessboard = () => {
             customDarkSquareStyle={{ backgroundColor: 'var(--dark-gray)' }}
             customLightSquareStyle={{ backgroundColor: 'var(--lightest-gray)' }}
             customNotationStyle={{ color: 'var(--darkest-gray)' }}
+            areArrowsAllowed={false}
+            arePiecesDraggable={false}
+            boardOrientation="white"
+            showBoardNotation={true}
+            snapToCursor={false}
           />
         </div>
       )}

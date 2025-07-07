@@ -1,36 +1,18 @@
-import Image from 'next/image'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Chess } from 'chess.js'
+import React, { useEffect, useState } from 'react'
 
-import MoveTree from './MoveTree'
-import Tooltip from './ui/Tooltip'
-import { Move } from '@/types/chess/Move'
+import Comments from './Comments'
 import { UIHelpers } from '@/helpers/uiHelpers'
 import { useGameState } from '@/contexts/GameStateContext'
-import Comments from './Comments'
-import { 
-  getMainlineMove as getMainlineMoveHelper, 
-  getPvMoves as getPvMovesHelper,
-  getMainlineMoveCount as getMoveCountHelper,
-  getMoveFromPv,
-  getFirstMoveFromPv
-} from '@/helpers/moveListUtils'
-import { get } from 'http'
 
 type GameViewerProps = {}
 
 const GameViewer = () => {
-  const listRef = useRef<HTMLDivElement>(null)
   const { state, manager } = useGameState()
   const {
-    moves,
     currentMoveIndex,
     previewMode,
     previewMoves,
     previewMoveIndex,
-    isAnalysisInProgress,
-    analysisProgress,
-    isFullyAnalyzed,
     pgnHeaders,
   } = state
   const { result, opening, whiteName, whiteElo, blackName, blackElo } = pgnHeaders || {
@@ -42,99 +24,34 @@ const GameViewer = () => {
     blackElo: '',
   }
   const [animatedScore, setAnimatedScore] = useState(-1)
-  const [showMoveTree, setShowMoveTree] = useState(false)
-
-  const displayedMoves = previewMode ? previewMoves : moves
 
   // Always derive the mainline move for score display
   const mainlineMove = previewMode
-    ? previewMoves[previewMoveIndex]?.[0] || null
+    ? previewMoves.getMoveAtIndex(previewMoveIndex) || null
     : manager.getMainlineMove(currentMoveIndex)
   const score = mainlineMove?.score ?? 0
 
-  // Get PVs for the current position using manager
-  const getCurrentPvs = () => {
+  // Get PV1 (best variation) for reference and comment generation
+  const getCurrentPv1 = () => {
     if (previewMode) {
-      const pvMoves = manager.getPvMoves(previewMoveIndex)
-      return pvMoves.length > 0 ? [pvMoves] : []
+      const pv1Moves = previewMoves.getPv1(previewMoveIndex + 1)
+      return pv1Moves.length > 0 ? pv1Moves : []
     } else {
-      const pvMoves = manager.getPvMoves(currentMoveIndex)
-      return pvMoves.length > 0 ? [pvMoves] : []
+      const pv1Moves = manager.getPv1(currentMoveIndex + 1)
+      return pv1Moves.length > 0 ? pv1Moves : []
     }
   }
 
-  const handleMoveChange = useCallback(
-    (newMoveIndex: number) => {
-      const mainlineMove = manager.getMainlineMove(newMoveIndex)
-      if (!mainlineMove) return
-      if (!mainlineMove.isAnalyzed) {
-        manager.requestMoveAnalysis(mainlineMove)
-      }
-      manager.goToMove(newMoveIndex)
-    },
-    [manager]
-  )
-
-  const handleMoveNavigation = useCallback(
-    (action: 'first' | 'prev' | 'next' | 'last' | 'click') => {
-      const totalMoves = manager.getMainlineMoveCount()
-      let newIndex = currentMoveIndex || 0
-      switch (action) {
-        case 'first':
-          newIndex = 0
-          break
-        case 'prev':
-          newIndex = Math.max(0, newIndex - 1)
-          break
-        case 'next':
-          newIndex = Math.min(totalMoves - 1, newIndex + 1)
-          break
-        case 'last':
-          newIndex = totalMoves - 1
-          break
-      }
-      handleMoveChange(newIndex)
-    },
-    [currentMoveIndex, handleMoveChange, manager]
-  )
-
-  useEffect(() => {
-    const firstMove = manager.getMainlineMove(0)
-    if (firstMove && !firstMove.isAnalyzed) {
-      manager.requestMoveAnalysis(firstMove)
+  // Get PV2 (second-best variation) for reference and comment generation
+  const getCurrentPv2 = () => {
+    if (previewMode) {
+      const pv2Moves = previewMoves.getPv2(previewMoveIndex + 1)
+      return pv2Moves.length > 0 ? pv2Moves : []
+    } else {
+      const pv2Moves = manager.getPv2(currentMoveIndex + 1)
+      return pv2Moves.length > 0 ? pv2Moves : []
     }
-  }, [displayedMoves, manager])
-
-  useEffect(() => {
-    // Scroll to the active move item when the currentMoveIndex changes
-    if (listRef.current && displayedMoves?.length) {
-      const activeItem = listRef.current.querySelector(
-        `.move-item-${currentMoveIndex}`
-      )
-      if (activeItem) {
-        const container = listRef.current
-        const containerRect = container.getBoundingClientRect()
-        const itemRect = activeItem.getBoundingClientRect()
-        const isInView =
-          itemRect.top >= containerRect.top &&
-          itemRect.bottom <= containerRect.bottom
-
-        if (!isInView) {
-          const scrollTop =
-            itemRect.top -
-            containerRect.top +
-            container.scrollTop -
-            containerRect.height / 2 +
-            itemRect.height / 2
-
-          container.scrollTo({
-            top: scrollTop,
-            behavior: 'smooth',
-          })
-        }
-      }
-    }
-  }, [currentMoveIndex, displayedMoves?.length])
+  }
 
   // Prevent horizontal scrolling on left/right arrow keys
   useEffect(() => {
@@ -147,41 +64,36 @@ const GameViewer = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const handlePvClick = (pvIdx: number, pvMoveIdx: number) => {
-    const startIdx = currentMoveIndex
-    // Mainline up to current index
-    const currentMoves = moves.slice(0, startIdx + 1).map(m => [...m])
-    // PV moves up to and including clicked
-    const pvMoves = getCurrentPvs()[pvIdx].slice(0, pvMoveIdx + 1)
-    const pvMoveList = pvMoves.map(m => [m])
-    // Combine
-    const previewMoves = [...currentMoves, ...pvMoveList]
-    manager.setPreviewMoves(previewMoves, previewMoves.length - 1)
-    manager.enterPreviewMode()
+  const handlePv1Click = (pv1MoveIdx: number) => {
+    // Clicking on PV1 loads it to preview row up to the clicked move index
+    const pv1Moves = manager.getPv1(currentMoveIndex + 1)
+    if (pv1Moves && pv1Moves.length > pv1MoveIdx) {
+      const pvSequence = pv1Moves.slice(0, pv1MoveIdx + 1)
+      if (!previewMode) {
+        manager.moveNext()
+        manager.enterPreviewModeWithPvSequence(pvSequence)
+      } else {
+        manager.addPvSequenceToPreview(pvSequence, currentMoveIndex)
+      }
+    }
   }
 
-  const exitPreviewMode = () => {
-    manager.exitPreviewMode()
-    manager.goToMove(currentMoveIndex || 0)
+  const handlePv2Click = (pv2MoveIdx: number) => {
+    // Clicking on PV2 loads it to preview row up to the clicked move index
+    const pv2Moves = manager.getPv2(currentMoveIndex + 1)
+    if (pv2Moves && pv2Moves.length > pv2MoveIdx) {
+      const pvSequence = pv2Moves.slice(0, pv2MoveIdx + 1)
+      if (!previewMode) {
+        manager.moveNext()
+        manager.enterPreviewModeWithPvSequence(pvSequence)
+      } else {
+        manager.addPvSequenceToPreview(pvSequence, currentMoveIndex)
+      }
+    }
   }
 
-  const handleShowMoveTree = () => {
-    setShowMoveTree(true)
-  }
-
-  const stm = previewMode
-    ? previewMoveIndex % 2 === 1
-    : (currentMoveIndex || 0) % 2 === 1
-  const pvs = getCurrentPvs()
-
-  const displayedPvs = (() => {
-    const sortedPvs = [...pvs].sort((pvA, pvB) => {
-      const scoreA = getFirstMoveFromPv(pvA)?.score ?? 0
-      const scoreB = getFirstMoveFromPv(pvB)?.score ?? 0
-      return stm ? scoreB - scoreA : scoreA - scoreB
-    })
-    return sortedPvs.slice(0, 3)
-  })()
+  const pv1 = getCurrentPv1()
+  const pv2 = getCurrentPv2()
 
   const normalizeScore = (score: number) => {
     const scoreInPawns = score / 100
@@ -195,12 +107,8 @@ const GameViewer = () => {
     setAnimatedScore(normalizedScore)
   }, [score])
 
-  const clearContext = () => {
-    manager.disconnectSession()
-  }
-
   return (
-    <div className="relative flex flex-col w-[90%] h-screen rounded-md">
+    <div className="relative flex flex-col w-full h-screen rounded-md">
       {/* Top Section: Game Information */}
       <div className="p-4 border-b z-10 sticky top-0">
         <div className="flex justify-between items-start">
@@ -234,22 +142,7 @@ const GameViewer = () => {
             </div>
           )}
           <div className="flex items-center gap-2">
-            <Tooltip content="Close analysis session">
-              <button
-                onClick={clearContext}
-                className={UIHelpers.getIconButtonClasses()}
-              >
-                <img src="/icons/close.svg" alt="Close" className="w-4 h-4" />
-              </button>
-            </Tooltip>
-            <Tooltip content="Show game tree">
-              <button
-                onClick={handleShowMoveTree}
-                className={UIHelpers.getIconButtonClasses()}
-              >
-                <img src="/icons/tree.svg" alt="Tree" className="w-4 h-4" />
-              </button>
-            </Tooltip>
+            {/* Close session button moved to MoveList */}
           </div>
         </div>
       </div>
@@ -279,127 +172,73 @@ const GameViewer = () => {
         </div>
       </div>
 
-      {/* PVs */}
-      <div className="p-2 space-y-1">
-        {displayedPvs.map((pv, pvIdx) => (
-          <div
-            key={pvIdx}
-            className="flex items-center text-xs"
-          >
-            <span className="font-bold mr-2 text-darkest-gray">
-              {(() => {
-                const firstMove = getFirstMoveFromPv(pv)
-                return firstMove && firstMove.score !== undefined 
-                  ? (firstMove.score / 100).toFixed(2) 
-                  : ''
-              })()}
-            </span>
-            <div className="flex space-x-1">
-              {pv.map((move, moveIdx) => {
-                const isWhiteMove = (currentMoveIndex + moveIdx) % 2 === 1;
-                const moveColors = UIHelpers.getPvMoveColors(false, isWhiteMove);
-                return (
-                  <span
-                    key={moveIdx}
-                    className={`p-1 ${moveColors.bg} ${moveColors.text} rounded-sm cursor-pointer hover:bg-gray-300`}
-                    onClick={() => {
-                      const originalPvIdx = pvs.findIndex(
-                        (originalPv) => originalPv === pv
-                      )
-                      handlePvClick(originalPvIdx, moveIdx)
-                    }}
-                  >
-                    {move.move}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Analysis Status */}
-      {!isFullyAnalyzed && (
-        <div className="p-2 text-center">
-          {isAnalysisInProgress ? (
-            <div>
-              <p className="text-sm text-gray-600">
-                Analyzing...{analysisProgress.toFixed(0)}%
-              </p>
-              <div className="relative h-4 bg-darkest-gray rounded-full w-full">
-                <div
-                  className="absolute h-full bg-light-gray transition-[width] duration-500 rounded-full"
-                  style={{ width: `${analysisProgress}%`, left: 0 }}
-                />
-                <div
-                  className="absolute inset-0 flex items-center justify-center text-sm font-bold"
-                  style={{ color: 'var(--lightest-gray)' }}
-                >
-                  {analysisProgress.toFixed(0)}%
-                </div>
+      {/* Principal Variations */}
+      <div className="h-[120px] overflow-y-auto">
+        {/* PV1 (Second-best variation) for reference */}
+        <div className="p-2 space-y-1">
+          <div className="text-xs font-bold text-gray-600 mb-1">Principal Variation 1:</div>
+          {pv1.length > 0 && (
+            <div className="flex items-center text-xs">
+              <span className="font-bold mr-2 text-darkest-gray">
+                {(() => {
+                  const firstPv1Move = pv1[0]
+                  return firstPv1Move && firstPv1Move.score !== undefined
+                    ? (firstPv1Move.score / 100).toFixed(2)
+                    : ''
+                })()}
+              </span>
+              <div className="flex space-x-1">
+                {pv1.map((move, moveIdx) => {
+                  const isWhiteMove = (currentMoveIndex + moveIdx) % 2 === 1;
+                  const moveColors = UIHelpers.getPvMoveColors(false, isWhiteMove);
+                  return (
+                    <span
+                      key={moveIdx}
+                      className={`p-1 ${moveColors.bg} ${moveColors.text} rounded-sm cursor-pointer hover:bg-gray-300`}
+                      onClick={() => handlePv1Click(moveIdx)}
+                    >
+                      {move.move}
+                    </span>
+                  );
+                })}
               </div>
             </div>
-          ) : (
-            <button
-              onClick={() => manager.requestFullGameAnalysis()}
-              className={UIHelpers.getPrimaryButtonClasses(isAnalysisInProgress)}
-              disabled={isAnalysisInProgress}
-            >
-              Run Full Analysis
-            </button>
           )}
         </div>
-      )}
-
-      {/* Move navigation */}
-      <div className="flex justify-center items-center space-x-2 p-2 rounded-b-md">
-        <button
-          onClick={() => handleMoveNavigation('first')}
-          className={UIHelpers.getButtonClasses()}
-        >
-          <img
-            src="/icons/fast_back.svg"
-            alt="First"
-            className="w-4 h-4"
-          />
-        </button>
-        <button
-          onClick={() => handleMoveNavigation('prev')}
-          className={UIHelpers.getButtonClasses()}
-        >
-          <img src="/icons/back.svg" alt="Previous" className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => handleMoveNavigation('next')}
-          className={UIHelpers.getButtonClasses()}
-        >
-          <img src="/icons/forward.svg" alt="Next" className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => handleMoveNavigation('last')}
-          className={UIHelpers.getButtonClasses()}
-        >
-          <img
-            src="/icons/fast_forward.svg"
-            alt="Last"
-            className="w-4 h-4"
-          />
-        </button>
-        {previewMode &&(<button
-          onClick={() => exitPreviewMode()}>
-          <img
-            src="/icons/close.svg"
-            alt="Close"
-            className="w-4 h-4"
-          />
-        </button>)}
+        {/* PV2 (Second-best variation) for reference */}
+        <div className="p-2 space-y-1">
+          <div className="text-xs font-bold text-gray-600 mb-1">Principal Variation 2:</div>
+          {pv2.length > 0 && (
+            <div className="flex items-center text-xs">
+              <span className="font-bold mr-2 text-darkest-gray">
+                {(() => {
+                  const firstPv2Move = pv2[0]
+                  return firstPv2Move && firstPv2Move.score !== undefined
+                    ? (firstPv2Move.score / 100).toFixed(2)
+                    : ''
+                })()}
+              </span>
+              <div className="flex space-x-1">
+                {pv2.map((move, moveIdx) => {
+                  const isWhiteMove = (currentMoveIndex + moveIdx) % 2 === 1;
+                  const moveColors = UIHelpers.getPvMoveColors(false, isWhiteMove);
+                  return (
+                    <span
+                      key={moveIdx}
+                      className={`p-1 ${moveColors.bg} ${moveColors.text} rounded-sm cursor-pointer hover:bg-gray-300`}
+                      onClick={() => handlePv2Click(moveIdx)}
+                    >
+                      {move.move}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {showMoveTree && (
-        <MoveTree
-          onClose={() => setShowMoveTree(false)}
-        />
-      )}
+
 
       {/* Comments Section */}
       <div className="p-4 border-t z-10">

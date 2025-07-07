@@ -3,7 +3,6 @@ import ReactECharts from 'echarts-for-react'
 
 import { useGameState } from '@/contexts/GameStateContext'
 import { buildTreeData } from '@/helpers/buildTreeData'
-import { getMainlineMoves, getMainlineMove, getPvsAsRecord } from '@/helpers/moveListUtils'
 
 import { ChartProps } from '@/types/props/ChartProps'
 import { PathHighlightOpts } from '@/types/PathHighlightOpts'
@@ -19,8 +18,8 @@ const Chart: React.FC<ChartProps> = ({
   const { moves, previewMode, previewMoves, currentMoveIndex } = state
 
   const shownMoveList = previewMode ? previewMoves : moves
-  const shownMoves = getMainlineMoves(shownMoveList)
-  const shownPvs = getPvsAsRecord(shownMoveList)
+  const shownMoves = shownMoveList.getMainlineMoves()
+  const shownPvs = shownMoveList.getPvsAsRecord()
 
   const rootNode = useMemo(
     () => (shownMoves.length > 0 && currentMoveIndex >= 0 && currentMoveIndex < shownMoves.length 

@@ -7,10 +7,10 @@ export interface Move {
   position: string
   move: string
   isAnalyzed: boolean
-  context: string
+  context: string // mainline, pv1, pv2
   annotation?: string
   score?: number
-  phase?: string
+  phase?: string // early, mid, end
   capturedByWhite?: CaptureCount
   capturedByBlack?: CaptureCount
   piece?: string | null

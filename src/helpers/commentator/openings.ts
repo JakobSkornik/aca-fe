@@ -30,10 +30,12 @@ export default openingBook
 export function getOpeningName(move: Move): string | null {
   const position = move.position
   if (!position) return null
-  return openingBook[position] || null
+  const openingName = openingBook[position] || null
+  return openingName
 }
 
 export function getOpeningComment(move: Move): string | null {
   const openingName = getOpeningName(move)
-  return openingName ? `Book move: ${openingName}.` : null
+  const comment = openingName ? `Book move: ${openingName}.` : null
+  return comment
 }

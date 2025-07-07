@@ -5,6 +5,7 @@ import { Move } from '@/types/chess/Move'
 import { PosFeature } from '@/types/chess/Trace'
 import { PV } from '@/types/chess/PV'
 import { TraceFeature } from '@/types/chess/TraceFeature'
+import { getOpeningName } from './openings'
 
 export function getScore(move: Move): number {
   return typeof move.score === 'number' ? move.score : 0
@@ -191,4 +192,107 @@ export function compareTraces(
   }
 
   return null
+}
+
+export interface ScoreDiff {
+  whiteDiff: number
+  blackDiff: number
+  isWhiteMove: boolean
+}
+
+export interface MoveClassification {
+  tag: string
+  description: string
+  severity: 'good' | 'inaccuracy' | 'mistake' | 'blunder'
+}
+
+// Calculate score difference between two moves
+export function calculateScoreDiff(currentMove: Move, previousMove: Move, moveIndex: number): ScoreDiff {
+  const currentScore = currentMove.score ?? 0
+  const previousScore = previousMove.score ?? 0
+  
+  // Score is always from white POV
+  const rawDiff = currentScore - previousScore
+  
+  // Determine if this is a white or black move
+  // Even indices (0, 2, 4...) are white moves, odd indices (1, 3, 5...) are black moves
+  const isWhiteMove = moveIndex % 2 === 0
+  
+  if (isWhiteMove) {
+    // For white moves, positive diff is good for white
+    return {
+      whiteDiff: rawDiff,
+      blackDiff: -rawDiff,
+      isWhiteMove: true
+    }
+  } else {
+    // For black moves, negative diff is good for black (since score is from white POV)
+    return {
+      whiteDiff: rawDiff,
+      blackDiff: -rawDiff,
+      isWhiteMove: false
+    }
+  }
+}
+
+// Classify a move based on score difference
+export function classifyMove(scoreDiff: ScoreDiff, currentMove?: Move): MoveClassification | null {
+  const { whiteDiff, blackDiff, isWhiteMove } = scoreDiff
+  
+  // Check if this is an opening move - if so, don't classify it
+  if (currentMove && getOpeningName(currentMove)) {
+    return null
+  }
+  
+  // Use the perspective of the player who made the move
+  const playerDiff = isWhiteMove ? whiteDiff : blackDiff
+  
+  // Convert to pawns (score is in centipawns)
+  const diffInPawns = playerDiff / 100
+  
+  // Determine classification based on the player's perspective
+  if (diffInPawns >= 0.2) {
+    return {
+      tag: '!',
+      description: 'Good move',
+      severity: 'good'
+    }
+  } else if (diffInPawns <= -2.0) {
+    return {
+      tag: '??',
+      description: 'Blunder',
+      severity: 'blunder'
+    }
+  } else if (diffInPawns <= -1.0) {
+    return {
+      tag: '?',
+      description: 'Mistake',
+      severity: 'mistake'
+    }
+  } else if (diffInPawns <= -0.2) {
+    return {
+      tag: '?!',
+      description: 'Inaccuracy',
+      severity: 'inaccuracy'
+    }
+  }
+  
+  return null
+}
+
+// Get the appropriate score difference for classification
+export function getClassificationScoreDiff(currentMove: Move, previousMove: Move, moveIndex: number): number {
+  const scoreDiff = calculateScoreDiff(currentMove, previousMove, moveIndex)
+  return scoreDiff.isWhiteMove ? scoreDiff.whiteDiff : scoreDiff.blackDiff
+}
+
+// Apply classification to a move
+export function applyMoveClassification(move: Move, classification: MoveClassification | null): Move {
+  if (classification) {
+    return {
+      ...move,
+      annotation: classification.tag
+    }
+  }
+  return move
 }

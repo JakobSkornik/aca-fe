@@ -59,7 +59,7 @@ const Dropdown: React.FC<DropdownProps> = ({
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <Image
-          src="/icons/arrow_down.svg"
+          src="/icons/down.svg"
           alt="Dropdown"
           width={16}
           height={16}
