@@ -97,7 +97,7 @@ const PreviewChessboard = () => {
         } else {
           // First advance to the next position, then enter preview mode
           manager.moveNext()
-          manager.enterPreviewModeWithMove(newMove, currentMoveIndex + 1)
+          manager.enterPreviewModeWithMove(newMove)
           return true
         }
       } else {
