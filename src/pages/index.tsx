@@ -5,7 +5,6 @@ import ControlPanel from '@/components/ControlPanel'
 import MoveList from '@/components/MoveList'
 import PgnLoader from '@/components/PgnLoader'
 import FeatureTable from '@/components/FeatureTable'
-import GameViewer from '@/components/GameViewer'
 
 const AnnotatePGN = () => {
   const { state } = useGameState()

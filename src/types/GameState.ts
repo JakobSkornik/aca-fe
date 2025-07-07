@@ -1,5 +1,4 @@
 import { Chess } from 'chess.js'
-import { Move } from './chess/Move'
 import { PgnHeaders } from './chess/PgnHeaders'
 import { MoveList } from '../helpers/moveListUtils'
 

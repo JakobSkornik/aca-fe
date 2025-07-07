@@ -1,8 +1,8 @@
 import { Chess } from 'chess.js'
+import webSocketService from '../services/WebSocketService'
 import { Move } from '../types/chess/Move'
 import { PgnHeaders } from '../types/chess/PgnHeaders'
-import { MoveList, createMoveList, getMainlineMoves, getMainlineMove, getPvMoves, getCurrentPosition, getCapturesForMove, getMoveAnnotation, getMoveEvaluation, hasPvMoves, getMainlineMoveCount, getPositionForIndex, canGoToNext, canGoToPrevious, getNextMoveIndex, getPreviousMoveIndex, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList, getNextAvailableId } from '../helpers/moveListUtils'
-import webSocketService from '../services/WebSocketService'
+import { MoveList, createMoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList, getNextAvailableId } from '../helpers/moveListUtils'
 import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload } from '../types/WebSocketMessages'
 import { CaptureCount } from '../types/chess/CaptureCount'
 
@@ -15,7 +15,6 @@ export type GameStateSnapshot = {
   isAnalysisInProgress: boolean
   isFullyAnalyzed: boolean
   analysisProgress: number
-
   // Move state
   moves: MoveList
   currentMoveIndex: number
@@ -237,45 +236,45 @@ export class GameStateManager {
     this.notify()
   }
 
-  enterPreviewModeWithMove(move: Move, currentIndex: number) {
+  enterPreviewModeWithMove(move: Move) {
     // Create new preview moves list with ONLY the new move
     this.state.previewMoves = new MoveList()
-    
+
     // Add only the new move (not the entire mainline)
     this.state.previewMoves.addMove(move)
-    
+
     // Enter preview mode
     this.state.previewMode = true
     this.state.previewMoveIndex = 0 // Show the played move (first and only move)
-    
+
     // Request analysis for the new move
     if (!move.isAnalyzed) {
       this.requestMoveAnalysis(move)
     }
-    
+
     this.notify()
   }
 
   clearPreviewMovesFromIndex(index: number) {
     if (!this.state.previewMode) return
-    
+
     // Get current preview moves
     const currentMoves = this.state.previewMoves.getMainlineMoves()
-    
+
     // Keep only moves up to the specified index
     const movesToKeep = currentMoves.slice(0, index)
-    
+
     // Create new preview moves list
     this.state.previewMoves = new MoveList()
     movesToKeep.forEach(move => {
       this.state.previewMoves.addMove(move)
     })
-    
+
     // Ensure preview move index is within bounds
     if (this.state.previewMoveIndex >= this.state.previewMoves.getLength()) {
       this.state.previewMoveIndex = this.state.previewMoves.getLength() - 1
     }
-    
+
     this.notify()
   }
 
@@ -396,7 +395,7 @@ export class GameStateManager {
 
       case ServerWsMessageType.ANALYSIS_UPDATE:
         const analysisPayload = srvMsg.payload as NodeAnalysisUpdatePayload
-        
+
         if (analysisPayload.move.context == "mainline") {
           // Update mainline moves (annotation is now handled in MoveList)
           this.state.moves.handleWsNodeAnalysisUpdatePayload(analysisPayload)
@@ -418,10 +417,10 @@ export class GameStateManager {
         const completePayload = srvMsg.payload as FullAnalysisCompleteServerPayload
         const convertedMoves = convertMoveArrayToMoveList(completePayload.moves)
         const finalMoves = completePayload.pvs ? integratePvsIntoMoveList(convertedMoves, completePayload.pvs) : convertedMoves
-        
+
         // Apply classifications to the new move list
         finalMoves.applyClassificationsToAllMoves()
-        
+
         this.state.moves = finalMoves
         this.state.isAnalysisInProgress = false
         this.state.analysisProgress = 100
@@ -548,40 +547,40 @@ export class GameStateManager {
   enterPreviewModeWithPvSequence(pvSequence: Move[], startIndex: number = 0) {
     // Create new preview moves list with mainline moves up to start index
     this.state.previewMoves = createMoveList()
-    
+
     // Add the entire PV sequence
     pvSequence.forEach(move => {
       this.state.previewMoves.addMove(move)
     })
-    
+
     // Enter preview mode
     this.state.previewMode = true
     this.state.previewMoveIndex = startIndex // Point to the first PV move
-    
+
     this.notify()
   }
 
   addPvSequenceToPreview(pvSequence: Move[], startIndex: number) {
     if (!this.state.previewMode) return
-    
+
     // Clear any moves after the start index
     this.clearPreviewMovesFromIndex(startIndex + 1)
-    
+
     // Add the entire PV sequence
     pvSequence.forEach(move => {
       this.state.previewMoves.addMove(move)
     })
-    
+
     // Set preview move index to the first PV move
     this.state.previewMoveIndex = startIndex + 1
-    
+
     // Request analysis for all PV moves
     pvSequence.forEach(move => {
       if (!move.isAnalyzed) {
         this.requestMoveAnalysis(move)
       }
     })
-    
+
     this.notify()
   }
 } 

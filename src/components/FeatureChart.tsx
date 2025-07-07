@@ -1,6 +1,6 @@
 import React from 'react'
 import { Move } from '@/types/chess/Move'
-import { FeatureTableHelpers } from '@/helpers/featureTableHelpers'
+import { TraceFeature } from '@/types/chess/TraceFeature'
 
 interface FeatureChartProps {
   featureName: string
@@ -13,9 +13,7 @@ interface FeatureChartProps {
 const FeatureChart: React.FC<FeatureChartProps> = ({ 
   featureName, 
   moves, 
-  currentIndex, 
-  width = 60, 
-  height = 30 
+  currentIndex
 }) => {
   // Get feature values for the last 10 moves (or fewer if not available)
   const getFeatureValues = () => {
@@ -27,7 +25,7 @@ const FeatureChart: React.FC<FeatureChartProps> = ({
       if (move && move.trace) {
         const traceFeature = move.trace[featureName]
         if (traceFeature && typeof traceFeature === 'object' && 'eg' in traceFeature) {
-          values.push((traceFeature as any).eg)
+          values.push((traceFeature as TraceFeature).eg)
         } else {
           values.push(0)
         }

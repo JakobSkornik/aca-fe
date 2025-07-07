@@ -20,6 +20,7 @@ export class FeatureTableHelpers {
     if (!move.trace) return []
     
     return Object.entries(move.trace)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       .filter(([_, value]) => typeof value === 'object' && value !== null && 'eg' in value && 'mg' in value)
       .map(([name, value]) => {
         const traceFeature = value as TraceFeature

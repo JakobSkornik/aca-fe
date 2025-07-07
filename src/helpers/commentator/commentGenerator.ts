@@ -78,7 +78,7 @@ export function generateComments(context: CommentContext): Comment[] {
   const qualityComment = checkMoveQuality(context)
   if (qualityComment) {
     comments.push(qualityComment)
-    
+
     // For blunders and mistakes, don't add missed opportunity comments (too much information)
     if (qualityComment.type === 'blunder' || qualityComment.type === 'mistake') {
       return comments.sort((a, b) => b.priority - a.priority)
@@ -121,11 +121,11 @@ function checkBestMove(context: CommentContext): Comment | null {
  */
 function formatMoveWithPiece(move: Move): string {
   if (!move.move || !move.piece) return move.move || ''
-  
+
   const piece = move.piece.toLowerCase()
   const pieceSymbol = pieceMapper[piece as keyof typeof pieceMapper] || piece
   const destination = move.move.slice(2) // Extract destination from move string
-  
+
   return `${pieceSymbol}${destination}`
 }
 
@@ -134,31 +134,31 @@ function formatMoveWithPiece(move: Move): string {
  */
 function getFeatureDifferences(currentMove: Move, pvMoves: Move[]): string {
   if (pvMoves.length === 0) return ''
-  
+
   try {
     const currentTrace = parseTrace(currentMove)
     const pvEndMove = pvMoves[pvMoves.length - 1]
     const pvEndTrace = parseTrace(pvEndMove)
-    
+
     const features = ['Material', 'Mobility', 'KingSafety', 'Threats', 'Passed Pawns', 'Space', 'Bishops', 'Knights', 'Rooks', 'Queens']
     const differences: { feature: string; diff: number }[] = []
-    
+
     for (const feature of features) {
       const currentVal = currentTrace[feature as keyof typeof currentTrace] || 0
       const pvVal = pvEndTrace[feature as keyof typeof pvEndTrace] || 0
       const diff = Math.abs(pvVal - currentVal)
-      
+
       if (diff > 0.1) { // Only include significant differences
         differences.push({ feature, diff })
       }
     }
-    
+
     // Sort by difference magnitude and take top 3
     differences.sort((a, b) => b.diff - a.diff)
     const topDifferences = differences.slice(0, 3)
-    
+
     if (topDifferences.length === 0) return ''
-    
+
     const featureTexts = topDifferences.map(d => d.feature.toLowerCase())
     return `The alternative would have improved ${featureTexts.join(', ')}.`
   } catch (error) {
@@ -172,7 +172,7 @@ function getFeatureDifferences(currentMove: Move, pvMoves: Move[]): string {
  */
 function getPositionContext(score: number, isWhiteMove: boolean): string {
   const scoreInPawns = score / 100
-  
+
   // For Black moves, we need to invert the perspective since scores are from White's perspective
   const effectiveScore = isWhiteMove ? scoreInPawns : -scoreInPawns
   const absScore = Math.abs(effectiveScore)
@@ -191,7 +191,7 @@ function getPositionContext(score: number, isWhiteMove: boolean): string {
  */
 function getContextualSuffix(score: number, isWhiteMove: boolean): string {
   const context = getPositionContext(score, isWhiteMove)
-  
+
   if (context === 'neutral') {
     return ' but position is roughly equal.'
   } else if (context === 'very good') {
@@ -215,7 +215,7 @@ function checkMoveQuality(context: CommentContext): Comment | null {
 
   const previousScore = context.previousMove.score
   const currentScore = context.currentMove.score
-  
+
   // Calculate score change from the perspective of the player making the move
   // Scores are always from White's perspective, so:
   // - For White moves: positive change means White improved
@@ -254,7 +254,7 @@ function checkMoveQuality(context: CommentContext): Comment | null {
     if (pv1FirstMove && pv1FirstMove.move && pv1FirstMove.move !== context.currentMove.move) {
       const betterMove = formatMoveWithPiece(pv1FirstMove)
       betterMoveSuggestion = ` A better move would be ${betterMove}.`
-      
+
       // Add feature improvements if available
       const featureDifferences = getFeatureDifferences(context.currentMove, context.pv1Moves)
       if (featureDifferences) {
@@ -282,26 +282,26 @@ function checkMissedOpportunity(context: CommentContext): Comment | null {
   // Calculate score differences
   const pv1Score = pv1FirstMove.score
   const currentScore = context.currentMove.score
-  
+
   // Only show missed opportunity if we could have improved our position
   const scoreDifference = context.isWhiteMove ? pv1Score - currentScore : currentScore - pv1Score
-  
+
   // Check if we missed a significant opportunity (>30cp difference) AND it would improve our position
   if (scoreDifference > 30) {
     // Check if our move isn't a blunder (change from previous position)
     if (context.previousMove && context.previousMove.score !== undefined) {
       const previousScore = context.previousMove.score
       const changeFromPrevious = context.currentMove.score - previousScore
-      
+
       // If the change isn't too bad (not worse than -20cp), it's a missed opportunity
       if (changeFromPrevious > -20) {
         // Generate the better move sequences
         const pv1Sequence = context.pv1Moves.slice(0, 3)
           .map(move => formatMoveWithPiece(move))
           .join(' ')
-        
+
         let sequenceText = `A better move sequence would be: ${pv1Sequence}.`
-        
+
         // Add PV2 sequence if available and different
         if (context.pv2Moves.length > 0) {
           const pv2FirstMove = context.pv2Moves[0]
@@ -312,13 +312,13 @@ function checkMissedOpportunity(context: CommentContext): Comment | null {
             sequenceText += ` Alternative: ${pv2Sequence}.`
           }
         }
-        
+
         // Get feature differences
         const featureDifferences = getFeatureDifferences(context.currentMove, context.pv1Moves)
         if (featureDifferences) {
           sequenceText += ` ${featureDifferences}`
         }
-        
+
         return {
           type: 'missed_opportunity',
           text: `Missed opportunity. ${sequenceText}`,
@@ -330,28 +330,3 @@ function checkMissedOpportunity(context: CommentContext): Comment | null {
 
   return null
 }
-
-/**
- * Check for phase transitions (mid-game, end-game)
- */
-function checkPhaseTransition(context: CommentContext): Comment | null {
-  const phase = context.currentMove.phase?.toLowerCase()
-  
-  if (phase === 'mid' || phase === 'middlegame') {
-    return {
-      type: 'phase_transition',
-      text: 'Entering the middlegame.',
-      priority: 1
-    }
-  }
-  
-  if (phase === 'end' || phase === 'endgame') {
-    return {
-      type: 'phase_transition',
-      text: 'Entering the endgame.',
-      priority: 1
-    }
-  }
-
-  return null
-} 

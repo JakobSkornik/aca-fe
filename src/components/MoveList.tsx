@@ -9,10 +9,10 @@ const MoveList = () => {
   const listRef = useRef<HTMLDivElement>(null)
   const activeItemRef = useRef<HTMLDivElement>(null)
   const { state, manager } = useGameState()
-  const { 
-    currentMoveIndex, 
-    previewMode, 
-    previewMoves, 
+  const {
+    currentMoveIndex,
+    previewMode,
+    previewMoves,
     previewMoveIndex,
     isAnalysisInProgress,
     analysisProgress,
@@ -240,7 +240,7 @@ const MoveList = () => {
             </button>
           </Tooltip>
         </div>
-        
+
         {/* Second Row: Analysis button */}
         <div className="flex justify-end">
           {!isFullyAnalyzed && (
@@ -288,7 +288,7 @@ const MoveList = () => {
           <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 1, gridColumn: 1 }}>
             {/* Empty for alignment */}
           </div>
-          {Array.from({ length: displayLength }).map((_: any, colIndex: number) => {
+          {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
             const moveNum = Math.floor(colIndex / 2) + 1
             const isWhite = colIndex % 2 === 0
             return (
@@ -306,7 +306,7 @@ const MoveList = () => {
           <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 2, gridColumn: 1 }}>
             Tags:
           </div>
-          {Array.from({ length: displayLength }).map((_: any, colIndex: number) => {
+          {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
             const annotation = getMoveAnnotation(colIndex)
             return (
               <div
@@ -366,7 +366,7 @@ const MoveList = () => {
           <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 4, gridColumn: 1 }}>
             Preview:
           </div>
-          {Array.from({ length: displayLength }).map((_: any, colIndex: number) => {
+          {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
             let move = null
             let isSelected = false
             let pvType: 'pv1' | 'pv2' | null = null
@@ -382,7 +382,7 @@ const MoveList = () => {
               // In normal mode, show PV moves (first PV1, then PV2 if available)
               const pv1Moves = manager.getPv1(colIndex)
               const pv2Moves = manager.getPv2(colIndex)
-              
+
               if (pv1Moves && pv1Moves.length > 0) {
                 move = pv1Moves[0]
                 pvType = 'pv1'

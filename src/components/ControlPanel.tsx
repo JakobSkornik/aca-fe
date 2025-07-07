@@ -3,8 +3,6 @@ import PgnLoader from './PgnLoader'
 import GameViewer from './GameViewer'
 import { useGameState } from '../contexts/GameStateContext'
 
-type ControlPanelProps = {}
-
 const ControlPanel = () => {
   const { state } = useGameState()
 

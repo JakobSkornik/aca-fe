@@ -4,7 +4,6 @@ import Comments from './Comments'
 import { UIHelpers } from '@/helpers/uiHelpers'
 import { useGameState } from '@/contexts/GameStateContext'
 
-type GameViewerProps = {}
 
 const GameViewer = () => {
   const { state, manager } = useGameState()

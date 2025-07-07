@@ -5,7 +5,6 @@ import { Move } from '@/types/chess/Move'
 
 const initialDelay = 500 // Delay before starting typewriter
 const typewriterSpeed = 25 // ms per character
-const sentenceDelay = 500 // Delay between sentences
 
 // Piece mapper for move display
 const pieceMapper = {
@@ -37,7 +36,7 @@ const Comments: React.FC = () => {
   const currentMoveKey = `${currentMoveIndex}-${previewMode}-${previewMoveIndex}`
 
   // Format move with piece symbol (e.g., "♟f4")
-  const formatMoveWithPiece = (move: any): string => {
+  const formatMoveWithPiece = (move: Move): string => {
     if (!move.move || !move.piece) return move.move || ''
     
     const piece = move.piece.toLowerCase()
@@ -48,7 +47,7 @@ const Comments: React.FC = () => {
   }
 
   // Generate title for a move
-  const generateMoveTitle = (moveIndex: number, move: any): string => {
+  const generateMoveTitle = (moveIndex: number, move: Move): string => {
     const moveNumber = Math.floor(moveIndex / 2) + 1
     const isWhite = moveIndex % 2 === 0
     
@@ -145,6 +144,7 @@ const Comments: React.FC = () => {
     // Add to history
     setCommentHistory(prev => [...prev, newCommentItem])
     setLastProcessedMoveKey(currentMoveKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMoveKey, lastProcessedMoveKey, manager, currentMoveIndex, previewMode, previewMoveIndex, commentHistory])
 
   // Animate the latest comment
@@ -202,6 +202,7 @@ const Comments: React.FC = () => {
     return () => {
       timeouts.forEach(timeout => clearTimeout(timeout))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commentHistory.length])
 
   // Scroll to bottom when new comments are added

@@ -162,7 +162,8 @@ export class MoveList {
     }
 
     // Find the move in the move list
-    const [moveIdx, pvIdx] = this.findAnyMoveIndexById(payload.move.id) || [-1, -1]
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [moveIdx, _] = this.findAnyMoveIndexById(payload.move.id) || [-1, -1]
     
     if (moveIdx === -1) {
       // Move not found
@@ -243,6 +244,7 @@ export class MoveList {
     }
 
     // Find the move in the move list
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [moveIdx, _] = this.findAnyMoveIndexById(payload.move.id) || [-1, -1]
     
     if (moveIdx === -1) {
@@ -578,7 +580,7 @@ export class MoveList {
    * Gets move evaluation safely
    */
   getMoveEvaluation(index: number): {
-    score: any
+    score: number | undefined
     depth: number | undefined
   } | null {
     const move = this.getMoveAtIndex(index)
@@ -791,7 +793,7 @@ export function convertMoveArrayToMoveList(moves: Move[]): MoveList {
  * Converts a Record<number, Move[][]> PV structure to the new MoveList format
  */
 export function integratePvsIntoMoveList(moveList: MoveList, pvs: Record<number, Move[][]>): MoveList {
-  let result = moveList.clone()
+  const result = moveList.clone()
   Object.entries(pvs).forEach(([indexStr, pvMoves]) => {
     const index = parseInt(indexStr)
     if (pvMoves && pvMoves.length > 0) {
@@ -863,7 +865,7 @@ export function getMoveAnnotation(moveList: MoveList, index: number): string | u
  * Gets move evaluation safely
  */
 export function getMoveEvaluation(moveList: MoveList, index: number): {
-  score: any
+  score: number | undefined
   depth: number | undefined
 } | null {
   return moveList.getMoveEvaluation(index)
