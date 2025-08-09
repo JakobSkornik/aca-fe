@@ -6,8 +6,8 @@ import { calculateScoreDiff, classifyMove, applyMoveClassification } from '@/hel
 /**
  * Utility functions for managing a 2D move list structure where:
  * - moveList[idx][0] contains the mainline move
- * - moveList[idx][1...n] contains the PV moves for that position
- * - PV moves for position idx are stored at idx + 1
+  * - moveList[idx][1...n] contains the PV moves for that position
+  * - PV moves for position idx are stored at the same index idx (before-move PV)
  */
 
 export class MoveListItem {
@@ -187,28 +187,13 @@ export class MoveList {
       }
     }
 
-    // Handle PV moves if they exist
-    if (payload.pvs && payload.pvs.length > 0) {
-      // PVs for move N should be stored at move N+1
-      // This is because PVs represent alternative moves for the position after move N
-      const targetMoveIdx = moveIdx + 1
-      // Only extend the move list if we have a valid move to add
-      if (targetMoveIdx >= this.moves.length) {
-        if (payload.pvs[0] && payload.pvs[0][0]) {
-          // Add a new MoveListItem with the first PV move as the mainline move
-          this.moves.push(new MoveListItem(payload.pvs[0][0]))
-        } else {
-          // No valid move to add, skip
-          // Optionally, log a warning here
-        }
+    // Handle PV moves if they exist; store PVs at the SAME index as the mainline move
+    if (payload.pvs && payload.pvs.length > 0 && moveIdx < this.moves.length) {
+      if (payload.pvs[0] && payload.pvs[0].length > 0) {
+        this.setPv1(moveIdx, payload.pvs[0])
       }
-      // Handle the first PV line (pv1)
-      if (payload.pvs[0] && payload.pvs[0].length > 0 && targetMoveIdx < this.moves.length) {
-        this.setPv1(targetMoveIdx, payload.pvs[0])
-      }
-      // Handle the second PV line (pv2) if it exists
-      if (payload.pvs[1] && payload.pvs[1].length > 0 && targetMoveIdx < this.moves.length) {
-        this.setPv2(targetMoveIdx, payload.pvs[1])
+      if (payload.pvs[1] && payload.pvs[1].length > 0) {
+        this.setPv2(moveIdx, payload.pvs[1])
       }
     }
   }
@@ -797,24 +782,13 @@ export function integratePvsIntoMoveList(moveList: MoveList, pvs: Record<number,
   Object.entries(pvs).forEach(([indexStr, pvMoves]) => {
     const index = parseInt(indexStr)
     if (pvMoves && pvMoves.length > 0) {
-      // PVs for move N should be stored at move N+1
-      const targetMoveIdx = index + 1
-      // Only extend the move list if we have a valid move to add
-      if (targetMoveIdx >= result.moves.length) {
-        if (pvMoves[0] && pvMoves[0][0]) {
-          result.moves.push(new MoveListItem(pvMoves[0][0]))
-        } else {
-          // No valid move to add, skip
-          // Optionally, log a warning here
+      if (index >= 0 && index < result.moves.length) {
+        if (pvMoves[0] && pvMoves[0].length > 0) {
+          result.setPv1(index, pvMoves[0])
         }
-      }
-      // Handle the first PV line (pv1)
-      if (pvMoves[0] && pvMoves[0].length > 0 && targetMoveIdx < result.moves.length) {
-        result.setPv1(targetMoveIdx, pvMoves[0])
-      }
-      // Handle the second PV line (pv2) if it exists
-      if (pvMoves[1] && pvMoves[1].length > 0 && targetMoveIdx < result.moves.length) {
-        result.setPv2(targetMoveIdx, pvMoves[1])
+        if (pvMoves[1] && pvMoves[1].length > 0) {
+          result.setPv2(index, pvMoves[1])
+        }
       }
     }
   })

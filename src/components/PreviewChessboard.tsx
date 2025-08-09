@@ -3,10 +3,10 @@ import { Chessboard } from 'react-chessboard'
 import { useGameState } from '../contexts/GameStateContext'
 import { Chess, Square } from 'chess.js'
 import { Move } from '@/types/chess/Move'
+import { useSquareFit } from '@/hooks/useSquareFit'
 
-const PADDING_PX = 16
-const MIN_BOARD_SIZE = 300
-const FIXED_BOARD_SIZE = 300
+const MIN_BOARD_SIZE = 240
+const BOARD_PADDING = 8
 
 /**
  * PreviewChessboard Component
@@ -21,44 +21,9 @@ const PreviewChessboard = () => {
   const [boardWidth, setBoardWidth] = useState<number>(0)
   const [currentPosition, setCurrentPosition] = useState<string>('start')
   const parentRef = useRef<HTMLDivElement>(null)
+  const boardSize = useSquareFit(parentRef, { padding: BOARD_PADDING, min: MIN_BOARD_SIZE })
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (parentRef.current) {
-        // Check if we're in a fixed-width container (smaller screens)
-        const containerWidth = parentRef.current.clientWidth
-        const containerHeight = parentRef.current.clientHeight
-        
-        // Use fixed size for smaller screens or when container is constrained
-        if (containerWidth <= FIXED_BOARD_SIZE + 32) { // 32px for padding
-          setBoardWidth(FIXED_BOARD_SIZE - 2 * PADDING_PX)
-        } else {
-          // Use responsive sizing for larger screens
-          const width = Math.max(
-            containerHeight - 2 * PADDING_PX,
-            MIN_BOARD_SIZE
-          )
-          setBoardWidth(width)
-        }
-      }
-    }
-    
-    // Use a debounced resize handler to prevent excessive updates
-    let resizeTimeout: NodeJS.Timeout
-    const debouncedHandleResize = () => {
-      clearTimeout(resizeTimeout)
-      resizeTimeout = setTimeout(handleResize, 100)
-    }
-    
-    handleResize()
-    
-    // Add resize listener for responsive behavior
-    window.addEventListener('resize', debouncedHandleResize)
-    return () => {
-      window.removeEventListener('resize', debouncedHandleResize)
-      clearTimeout(resizeTimeout)
-    }
-  }, [])
+  // Sizing handled by useSquareFit
 
   // Get the current position based on mode
   const getCurrentPosition = () => {
@@ -91,10 +56,10 @@ const PreviewChessboard = () => {
     try {
       // Use chess.js to validate and create the move
       const chess = new Chess(currentPosition)
-      
+
       // Let chess.js handle all validation - it will reject invalid moves automatically
       const moveResult = chess.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
-      
+
       if (!moveResult) {
         console.log('Move was rejected by chess.js')
         return false
@@ -115,7 +80,7 @@ const PreviewChessboard = () => {
         // Not in preview mode
         const mainlineMoves = manager.getMainlineMovesList()
         const nextMove = mainlineMoves[currentMoveIndex + 1]
-        
+
         if (nextMove && newMove.position === nextMove.position) {
           // Move matches the next mainline move - just advance
           manager.moveNext()
@@ -130,7 +95,7 @@ const PreviewChessboard = () => {
         // Already in preview mode
         const previewMovesList = previewMoves.getMainlineMoves()
         const nextPreviewMove = previewMovesList[previewMoveIndex + 1]
-        
+
         if (nextPreviewMove && newMove.position === nextPreviewMove.position) {
           // Move matches the next preview move - just advance
           manager.moveNext()
@@ -155,17 +120,17 @@ const PreviewChessboard = () => {
   const blackCapturesString = manager.formatCapturesForDisplay(displayCaptures.capturedByBlack, false)
 
   return (
-    <div ref={parentRef} className="flex flex-col w-full items-center p-4 border-r mx-auto">
+    <div ref={parentRef} className="flex flex-col w-full items-center px-2 py-2 border-r">
       {isLoaded && (
         <div className="text-center mt-2">
           <p className="text-sm text-gray-600">Captured: {blackCapturesString}</p>
         </div>
       )}
-      {boardWidth > 0 && (
-        <div className={`align-center justify-center ${previewMode ? 'selected-shadow' : ''}`}>
+      {boardSize > 0 && (
+        <div className={`align-center justify-center ${previewMode ? 'selected-shadow' : ''}`} style={{ width: boardSize, height: boardSize }}>
           <Chessboard
             position={currentPosition}
-            boardWidth={boardWidth}
+            boardWidth={boardSize}
             customDarkSquareStyle={{ backgroundColor: 'var(--dark-gray)' }}
             customLightSquareStyle={{ backgroundColor: 'var(--lightest-gray)' }}
             customNotationStyle={{ color: 'var(--darkest-gray)' }}

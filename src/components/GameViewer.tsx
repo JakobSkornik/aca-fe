@@ -33,10 +33,10 @@ const GameViewer = () => {
   // Get PV1 (best variation) for reference and comment generation
   const getCurrentPv1 = () => {
     if (previewMode) {
-      const pv1Moves = previewMoves.getPv1(previewMoveIndex + 1)
+      const pv1Moves = previewMoves.getPv1(previewMoveIndex)
       return pv1Moves.length > 0 ? pv1Moves : []
     } else {
-      const pv1Moves = manager.getPv1(currentMoveIndex + 1)
+      const pv1Moves = manager.getPv1(currentMoveIndex)
       return pv1Moves.length > 0 ? pv1Moves : []
     }
   }
@@ -44,10 +44,10 @@ const GameViewer = () => {
   // Get PV2 (second-best variation) for reference and comment generation
   const getCurrentPv2 = () => {
     if (previewMode) {
-      const pv2Moves = previewMoves.getPv2(previewMoveIndex + 1)
+      const pv2Moves = previewMoves.getPv2(previewMoveIndex)
       return pv2Moves.length > 0 ? pv2Moves : []
     } else {
-      const pv2Moves = manager.getPv2(currentMoveIndex + 1)
+      const pv2Moves = manager.getPv2(currentMoveIndex)
       return pv2Moves.length > 0 ? pv2Moves : []
     }
   }
@@ -65,7 +65,7 @@ const GameViewer = () => {
 
   const handlePv1Click = (pv1MoveIdx: number) => {
     // Clicking on PV1 loads it to preview row up to the clicked move index
-    const pv1Moves = manager.getPv1(currentMoveIndex + 1)
+    const pv1Moves = manager.getPv1(currentMoveIndex)
     if (pv1Moves && pv1Moves.length > pv1MoveIdx) {
       const pvSequence = pv1Moves.slice(0, pv1MoveIdx + 1)
       if (!previewMode) {
@@ -79,7 +79,7 @@ const GameViewer = () => {
 
   const handlePv2Click = (pv2MoveIdx: number) => {
     // Clicking on PV2 loads it to preview row up to the clicked move index
-    const pv2Moves = manager.getPv2(currentMoveIndex + 1)
+    const pv2Moves = manager.getPv2(currentMoveIndex)
     if (pv2Moves && pv2Moves.length > pv2MoveIdx) {
       const pvSequence = pv2Moves.slice(0, pv2MoveIdx + 1)
       if (!previewMode) {
