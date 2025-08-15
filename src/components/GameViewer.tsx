@@ -22,6 +22,7 @@ const GameViewer = () => {
     blackName: '',
     blackElo: '',
   }
+  const [backendStatus, setBackendStatus] = useState<string>('')
   const [animatedScore, setAnimatedScore] = useState(-1)
 
   // Always derive the mainline move for score display
@@ -106,6 +107,21 @@ const GameViewer = () => {
     setAnimatedScore(normalizedScore)
   }, [score])
 
+  useEffect(() => {
+    // Fetch backend status once on mount
+    const fetchStatus = async () => {
+      try {
+        const base = process.env.NEXT_PUBLIC_API_URL || ''
+        const res = await fetch(`${base}/evaluator/status`)
+        const json = await res.json()
+        setBackendStatus(`BE: ok=${json.ok} sessions=${json.active_sessions}`)
+      } catch (e) {
+        setBackendStatus('BE: offline')
+      }
+    }
+    fetchStatus()
+  }, [])
+
   return (
     <div className="relative flex flex-col w-full h-full rounded-md">
       {/* Top Section: Game Information */}
@@ -131,6 +147,7 @@ const GameViewer = () => {
             <p className="text-sm">
               <strong>Opening:</strong> {opening || 'Unknown'}
             </p>
+            <p className="text-xs text-gray-500">{backendStatus}</p>
           </div>
         </div>
       </div>

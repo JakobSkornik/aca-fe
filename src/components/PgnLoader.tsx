@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 import Dropdown from './ui/Dropdown'
 import { UIHelpers } from '@/helpers/uiHelpers'
@@ -11,6 +11,7 @@ const PgnLoader = () => {
   const [error, setError] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [processingInfo, setProcessingInfo] = useState<string>('')
+  const [backendOk, setBackendOk] = useState<boolean | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const staticPgns = [
@@ -207,19 +208,50 @@ const PgnLoader = () => {
         throw new Error(`Validation failed: ${validation.issues.join(', ')}`)
       }
 
-      const response = await fetch('/api/submit_pgn', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tempPgn }),
-      })
+      const maxAttempts = 5
+      const delayMs = 3000
+      let response: Response | null = null
 
-      if (!response.ok) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          response = await fetch('/api/submit_pgn', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ tempPgn }),
+          })
+
+          if (response.ok) break
+
+          // Retry only on 500; break on other errors
+          if (response.status === 500 && attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, delayMs))
+            continue
+          } else {
+            break
+          }
+        } catch (e) {
+          // Network error: retry similarly up to maxAttempts
+          if (attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, delayMs))
+            continue
+          } else {
+            throw e
+          }
+        }
+      }
+
+      if (!response || !response.ok) {
+        const status = response?.status
+        const text = response ? await response.text() : 'No response'
         throw new Error(
-          `Analyze API returned ${response.status}: ${await response.text()}`
+          status === 500
+            ? `Backend error 500 after ${maxAttempts} attempts.`
+            : `Analyze API returned ${status}: ${text}`
         )
       }
+
       const data = await response.json()
       if (data.session_id) {
         manager.connectToSession(data.session_id)
@@ -231,6 +263,19 @@ const PgnLoader = () => {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const res = await fetch('/api/status')
+        const json = await res.json()
+        setBackendOk(Boolean(json?.ok))
+      } catch (e) {
+        setBackendOk(false)
+      }
+    }
+    checkStatus()
+  }, [])
 
   const handleCustomButtonClick = () => {
     fileInputRef.current?.click()
@@ -314,6 +359,11 @@ const PgnLoader = () => {
           'Load PGN / Analysis'
         )}
       </button>
+
+      {/* Backend status indicator */}
+      <div className="mt-2 flex justify-end items-center">
+        <span className={`inline-block w-2 h-2 rounded-full ${backendOk === null ? 'bg-gray-400' : backendOk ? 'bg-green-500' : 'bg-red-500'}`}></span>
+      </div>
 
       {error && <p className="text-red-500 mt-4">{error}</p>}
     </div>

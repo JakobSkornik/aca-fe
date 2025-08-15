@@ -16,6 +16,8 @@ export enum ServerWsMessageType {
   ANALYSIS_UPDATE = 'ANALYSIS_UPDATE',
   ANALYSIS_PROGRESS = 'ANALYSIS_PROGRESS',
   FULL_ANALYSIS_COMPLETE = 'FULL_ANALYSIS_COMPLETE',
+  COMMENT_UPDATE = 'COMMENT_UPDATE',
+  COMMENT_HISTORY = 'COMMENT_HISTORY',
 }
 
 // --- Client Message Payloads ---
@@ -60,6 +62,20 @@ export interface FullAnalysisCompleteServerPayload {
   pvs: Record<number, Move[][]>
 }
 
+export interface CommentUpdateServerPayload {
+  moveId: number
+  context: 'mainline' | 'preview'
+  text: string
+  featuresUsed: string[]
+  hiddenFeatures?: Record<string, unknown>
+  analysisVersion?: number
+  generatedAt?: string
+}
+
+export interface CommentHistoryServerPayload {
+  items: CommentUpdateServerPayload[]
+}
+
 // --- Generic Message Structures ---
 export interface ClientWsMessage {
   type: ClientWsMessageType
@@ -77,4 +93,6 @@ export interface ServerWsMessage {
     | NodeAnalysisUpdatePayload
     | AnalysisProgressServerPayload
     | FullAnalysisCompleteServerPayload
+    | CommentUpdateServerPayload
+    | CommentHistoryServerPayload
 }

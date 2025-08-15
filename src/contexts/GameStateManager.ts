@@ -3,7 +3,7 @@ import webSocketService from '../services/WebSocketService'
 import { Move } from '../types/chess/Move'
 import { PgnHeaders } from '../types/chess/PgnHeaders'
 import { MoveList, createMoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList, getNextAvailableId } from '../helpers/moveListUtils'
-import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload } from '../types/WebSocketMessages'
+import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, CommentUpdateServerPayload } from '../types/WebSocketMessages'
 import { CaptureCount } from '../types/chess/CaptureCount'
 import { chessPositionManager } from '../helpers/ChessPositionManager'
 
@@ -22,6 +22,9 @@ export type GameStateSnapshot = {
   previewMode: boolean
   previewMoves: MoveList
   previewMoveIndex: number
+  commentsMainline: { moveId: number; moveIndex: number; text: string }[]
+  commentsPreview: { moveId: number; moveIndex: number; text: string }[]
+  pendingComments: { moveId: number; context: 'mainline' | 'preview'; text: string }[]
 }
 
 export class GameStateManager {
@@ -43,6 +46,9 @@ export class GameStateManager {
       previewMode: false,
       previewMoves: new MoveList(),
       previewMoveIndex: 0,
+      commentsMainline: [],
+      commentsPreview: [],
+      pendingComments: [],
     }
   }
 
@@ -213,6 +219,8 @@ export class GameStateManager {
     this.state.previewMode = false
     this.state.previewMoves = new MoveList() // Clear preview moves
     this.state.previewMoveIndex = 0
+    // Clear preview comments when exiting preview
+    this.state.commentsPreview = []
     if (notify) this.notify()
   }
 
@@ -368,6 +376,7 @@ export class GameStateManager {
   }
 
   private handleWsMessage = (srvMsg: ServerWsMessage) => {
+    // message dispatch
     switch (srvMsg.type) {
       case ServerWsMessageType.ERROR:
         const errorPayload = srvMsg.payload as ErrorServerPayload
@@ -391,11 +400,14 @@ export class GameStateManager {
         this.state.moves.handleWsMoveListPayload(moveListPayload)
         this.state.isLoaded = true
         this.state.wsError = null
+        // Try to resolve any pending comments now that moves exist
+        this._flushPendingComments()
         this.notify()
         break
 
       case ServerWsMessageType.ANALYSIS_UPDATE:
         const analysisPayload = srvMsg.payload as NodeAnalysisUpdatePayload
+        // analysis update
 
         if (analysisPayload.move.context == "mainline") {
           // Update mainline moves (annotation is now handled in MoveList)
@@ -405,6 +417,8 @@ export class GameStateManager {
           this.state.previewMoves.handleWsNodeAnalysisUpdatePayload(analysisPayload)
         }
 
+        // Try to resolve any pending comments
+        this._flushPendingComments()
         this.notify()
         break
 
@@ -416,6 +430,7 @@ export class GameStateManager {
 
       case ServerWsMessageType.FULL_ANALYSIS_COMPLETE:
         const completePayload = srvMsg.payload as FullAnalysisCompleteServerPayload
+        // full analysis complete
         const convertedMoves = convertMoveArrayToMoveList(completePayload.moves)
         const finalMoves = completePayload.pvs ? integratePvsIntoMoveList(convertedMoves, completePayload.pvs) : convertedMoves
 
@@ -426,7 +441,28 @@ export class GameStateManager {
         this.state.isAnalysisInProgress = false
         this.state.analysisProgress = 100
         this.state.isFullyAnalyzed = true
+        this._flushPendingComments()
         this.notify()
+        break
+
+      case ServerWsMessageType.COMMENT_UPDATE:
+        const commentPayload = srvMsg.payload as CommentUpdateServerPayload
+        // comment update
+        // Map moveId to moveIndex
+        const moveIndex = this.state.moves.findMoveIndexById(commentPayload.moveId)
+        //
+        if (moveIndex !== -1) {
+          const commentItem = { moveId: commentPayload.moveId, moveIndex, text: commentPayload.text }
+          if (commentPayload.context === 'preview') {
+            this.state.commentsPreview = [...this.state.commentsPreview, commentItem]
+          } else {
+            this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
+          }
+          this.notify()
+        } else {
+          // Buffer until moves are available
+          this.state.pendingComments.push({ moveId: commentPayload.moveId, context: commentPayload.context, text: commentPayload.text })
+        }
         break
 
       default:
@@ -458,6 +494,17 @@ export class GameStateManager {
   }
 
   // --- Utility accessors for UI ---
+  getCommentsForDisplay() {
+    return this.state.previewMode ? this.state.commentsPreview : this.state.commentsMainline
+  }
+
+  getCommentsMainline() {
+    return this.state.commentsMainline
+  }
+
+  getCommentsPreview() {
+    return this.state.commentsPreview
+  }
   getMainlineMovesList() {
     return this.state.moves.getMainlineMoves()
   }
@@ -552,6 +599,26 @@ export class GameStateManager {
   // --- ID Management ---
   getNextId(): number {
     return getNextAvailableId(this.state.moves, this.state.previewMoves)
+  }
+
+  // Resolve buffered comments that arrived before moves were present
+  private _flushPendingComments() {
+    if (this.state.pendingComments.length === 0) return
+    const remaining: typeof this.state.pendingComments = []
+    for (const pending of this.state.pendingComments) {
+      const idx = this.state.moves.findMoveIndexById(pending.moveId)
+      if (idx !== -1) {
+        const commentItem = { moveId: pending.moveId, moveIndex: idx, text: pending.text }
+        if (pending.context === 'preview') {
+          this.state.commentsPreview = [...this.state.commentsPreview, commentItem]
+        } else {
+          this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
+        }
+      } else {
+        remaining.push(pending)
+      }
+    }
+    this.state.pendingComments = remaining
   }
 
   enterPreviewModeWithPvSequence(pvSequence: Move[], startIndex: number = 0) {

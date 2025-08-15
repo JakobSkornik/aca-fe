@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
-import { generateComments, Comment } from '@/helpers/commentator/commentGenerator'
 import { Move } from '@/types/chess/Move'
+import CommentItem from './CommentItem'
 
 const initialDelay = 500 // Delay before starting typewriter
 const typewriterSpeed = 25 // ms per character
@@ -14,6 +14,7 @@ const pieceMapper = {
 
 interface CommentHistoryItem {
   id: string
+  moveId: number
   title: string
   text: string
   isMainline: boolean
@@ -25,8 +26,9 @@ interface CommentHistoryItem {
 
 const Comments: React.FC = () => {
   const { state, manager } = useGameState()
-  const { currentMoveIndex, previewMode, previewMoveIndex, previewMoves, isLoaded } = state
+  const { currentMoveIndex, previewMode, previewMoveIndex, previewMoves, isLoaded, commentsMainline, commentsPreview } = state
   const containerRef = useRef<HTMLDivElement>(null)
+  const uniqueSeqRef = useRef<number>(0)
 
   // Comment history state
   const [commentHistory, setCommentHistory] = useState<CommentHistoryItem[]>([])
@@ -58,152 +60,45 @@ const Comments: React.FC = () => {
     }
   }
 
-  // Process new comments when move changes
+  // Sync backend comments into local animated history
   useEffect(() => {
-    if (currentMoveKey === lastProcessedMoveKey) return
+    const backendComments = previewMode ? commentsPreview : commentsMainline
+    if (!backendComments) return
 
-    const currentMove = manager.getCurrentMove()
-    if (!currentMove) return
+    setCommentHistory(prev => {
+      const seenMoveIds = new Set(prev.map(p => p.moveId))
+      const seenInThisBatch = new Set<number>()
+      const additions: CommentHistoryItem[] = []
 
-    // Check if we already have a comment for this move key
-    const existingComment = commentHistory.find(item => 
-      item.id.startsWith(currentMoveKey.split('-')[0]) // Match the move key part (without timestamp)
-    )
+      backendComments.forEach(item => {
+        if (seenMoveIds.has(item.moveId) || seenInThisBatch.has(item.moveId)) {
+          return
+        }
+        const move: Move | null = previewMode
+          ? previewMoves.getMoveAtIndex(item.moveIndex)
+          : manager.getMainlineMove(item.moveIndex)
+        if (!move) return
+        const timestamp = Date.now()
+        uniqueSeqRef.current += 1
+        additions.push({
+          id: `${item.moveId}-${timestamp}-${uniqueSeqRef.current}`,
+          moveId: item.moveId,
+          title: generateMoveTitle(item.moveIndex, move),
+          text: item.text,
+          isMainline: !previewMode,
+          isComplete: false,
+          displayedText: '',
+          isAnimating: false,
+          timestamp
+        })
+        seenInThisBatch.add(item.moveId)
+      })
 
-    if (existingComment) {      
-      // Mark the comment as complete if it wasn't already
-      if (!existingComment.isComplete) {
-        setCommentHistory(prev => 
-          prev.map(item => 
-            item.id === existingComment.id 
-              ? { ...item, isComplete: true, displayedText: item.text, isAnimating: false }
-              : item
-          )
-        )
-      }
-      
-      setLastProcessedMoveKey(currentMoveKey)
-      return
-    }
+      return additions.length > 0 ? [...prev, ...additions] : prev
+    })
+  }, [commentsMainline.length, commentsPreview.length, previewMode, manager, previewMoves])
 
-    // Get previous move based on mode
-    let previousMove: Move | null = null
-    if (previewMode) {
-      // In preview mode, previous move is the mainline move at currentMoveIndex
-      previousMove = manager.getMainlineMove(currentMoveIndex)
-    } else {
-      // In normal mode, previous move is the mainline move at currentMoveIndex - 1
-      previousMove = currentMoveIndex > 0 ? manager.getMainlineMove(currentMoveIndex - 1) : null
-    }
-
-    // Get PV moves based on mode
-    let pv1Moves: Move[] = []
-    let pv2Moves: Move[] = []
-    
-    if (previewMode) {
-      // In preview mode, get PV moves from preview moves
-      pv1Moves = previewMoves.getPv1(previewMoveIndex) || []
-      pv2Moves = previewMoves.getPv2(previewMoveIndex) || []
-    } else {
-      // In normal mode, get PV moves from mainline moves
-      pv1Moves = manager.getPv1(currentMoveIndex) || []
-      pv2Moves = manager.getPv2(currentMoveIndex) || []
-    }
-
-    // Determine if this is a white move
-    const isWhiteMove = currentMoveIndex % 2 === 0
-
-    // Generate comments
-    const commentContext = {
-      currentMove,
-      previousMove,
-      moveIndex: currentMoveIndex,
-      pv1Moves,
-      pv2Moves,
-      isWhiteMove
-    }
-
-    const comments: Comment[] = generateComments(commentContext)
-    const commentTexts = comments.map(comment => comment.text)
-
-    if (commentTexts.length === 0) return
-
-    // Create new comment history item with unique timestamp-based ID
-    const timestamp = Date.now()
-    const newCommentItem: CommentHistoryItem = {
-      id: `${currentMoveKey}-${timestamp}`,
-      title: generateMoveTitle(currentMoveIndex, currentMove),
-      text: commentTexts.join('\n'),
-      isMainline: !previewMode,
-      isComplete: false,
-      displayedText: '',
-      isAnimating: false,
-      timestamp
-    }
-
-    // Add to history
-    setCommentHistory(prev => [...prev, newCommentItem])
-    setLastProcessedMoveKey(currentMoveKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMoveKey, lastProcessedMoveKey, manager, currentMoveIndex, previewMode, previewMoveIndex, commentHistory])
-
-  // Animate the latest comment
-  useEffect(() => {
-    if (commentHistory.length === 0) return
-
-    const latestComment = commentHistory[commentHistory.length - 1]
-    if (latestComment.isComplete) return
-
-    const timeouts: number[] = []
-    let charIndex = 0
-    let displayText = ''
-
-    const startAnimation = () => {
-      setCommentHistory(prev => 
-        prev.map(item => 
-          item.id === latestComment.id 
-            ? { ...item, isAnimating: true }
-            : item
-        )
-      )
-      animateNextCharacter()
-    }
-
-    const animateNextCharacter = () => {
-      if (charIndex >= latestComment.text.length) {
-        setCommentHistory(prev => 
-          prev.map(item => 
-            item.id === latestComment.id 
-              ? { ...item, isComplete: true, isAnimating: false }
-              : item
-          )
-        )
-        return
-      }
-
-      displayText += latestComment.text[charIndex]
-      
-      setCommentHistory(prev => 
-        prev.map(item => 
-          item.id === latestComment.id 
-            ? { ...item, displayedText: displayText }
-            : item
-        )
-      )
-
-      charIndex++
-      timeouts.push(window.setTimeout(animateNextCharacter, typewriterSpeed))
-    }
-
-    // Start animation after initial delay
-    timeouts.push(window.setTimeout(startAnimation, initialDelay))
-
-    // Cleanup timeouts on unmount or dependency change
-    return () => {
-      timeouts.forEach(timeout => clearTimeout(timeout))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commentHistory.length, manager.getCurrentMove()])
+  // Remove component-level animation (moved into CommentItem)
 
   // Scroll to bottom when new comments are added
   useEffect(() => {
@@ -222,7 +117,7 @@ const Comments: React.FC = () => {
 
   // Filter comments based on preview mode
   const displayedComments = previewMode 
-    ? commentHistory 
+    ? commentHistory.filter(item => !item.isMainline) 
     : commentHistory.filter(item => item.isMainline)
 
   // Determine which comment corresponds to the current move
@@ -263,8 +158,15 @@ const Comments: React.FC = () => {
         {displayedComments.map((item, index) => {
           const isSelected = index === currentCommentIndex
           return (
-            <div 
+            <CommentItem
               key={item.id}
+              id={item.id}
+              title={item.title}
+              text={item.text}
+              highlighted={isSelected}
+              initialDelay={initialDelay}
+              typewriterSpeed={typewriterSpeed}
+              finalizeIfNotHighlighted={true}
               className={`mb-2 pb-2 transition-all duration-200 rounded-md ${
                 index < displayedComments.length - 1 ? 'border-b border-gray-200' : ''
               } ${
@@ -272,19 +174,9 @@ const Comments: React.FC = () => {
               } ${
                 isSelected ? 'selected-shadow p-4' : ''
               }`}
-            >
-              <div className={`font-bold mb-1 ${
-                isSelected ? 'text-base' : 'text-gray-800'
-              }`}>
-                {item.title}
-              </div>
-              <div className={`${
-                isSelected ? 'text-base' : 'text-gray-700'
-              }`}>
-                {item.displayedText}
-                {item.isAnimating && <span className="animate-pulse">|</span>}
-              </div>
-            </div>
+              titleClassName={`${isSelected ? 'font-bold mb-1 text-base' : 'font-bold mb-1 text-gray-800'}`}
+              textClassName={`${isSelected ? 'text-base' : 'text-gray-700'}`}
+            />
           )
         })}
       </div>

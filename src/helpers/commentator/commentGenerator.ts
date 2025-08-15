@@ -398,7 +398,6 @@ function getPositionContext(score: number, isWhiteMove: boolean): string {
   // For Black moves, we need to invert the perspective since scores are from White's perspective
   const effectiveScore = isWhiteMove ? scoreInPawns : -scoreInPawns
   const absScore = Math.abs(effectiveScore)
-  console.log(absScore, effectiveScore, scoreInPawns, isWhiteMove, score)
   if (absScore <= 0.5) {
     return 'neutral'
   } else if (absScore > 3.0) {
