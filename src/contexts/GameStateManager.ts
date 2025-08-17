@@ -3,7 +3,7 @@ import webSocketService from '../services/WebSocketService'
 import { Move } from '../types/chess/Move'
 import { PgnHeaders } from '../types/chess/PgnHeaders'
 import { MoveList, createMoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList, getNextAvailableId } from '../helpers/moveListUtils'
-import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, CommentUpdateServerPayload } from '../types/WebSocketMessages'
+import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, CommentUpdateServerPayload, AiCommentUpdateServerPayload } from '../types/WebSocketMessages'
 import { CaptureCount } from '../types/chess/CaptureCount'
 import { chessPositionManager } from '../helpers/ChessPositionManager'
 
@@ -25,6 +25,7 @@ export type GameStateSnapshot = {
   commentsMainline: { moveId: number; moveIndex: number; text: string }[]
   commentsPreview: { moveId: number; moveIndex: number; text: string }[]
   pendingComments: { moveId: number; context: 'mainline' | 'preview'; text: string }[]
+  aiComments: { moveId: number; moveIndex: number; context: 'mainline' | 'preview'; data: Record<string, unknown> }[]
 }
 
 export class GameStateManager {
@@ -49,6 +50,7 @@ export class GameStateManager {
       commentsMainline: [],
       commentsPreview: [],
       pendingComments: [],
+      aiComments: [],
     }
   }
 
@@ -408,7 +410,6 @@ export class GameStateManager {
       case ServerWsMessageType.ANALYSIS_UPDATE:
         const analysisPayload = srvMsg.payload as NodeAnalysisUpdatePayload
         // analysis update
-
         if (analysisPayload.move.context == "mainline") {
           // Update mainline moves (annotation is now handled in MoveList)
           this.state.moves.handleWsNodeAnalysisUpdatePayload(analysisPayload)
@@ -447,7 +448,6 @@ export class GameStateManager {
 
       case ServerWsMessageType.COMMENT_UPDATE:
         const commentPayload = srvMsg.payload as CommentUpdateServerPayload
-        // comment update
         // Map moveId to moveIndex
         const moveIndex = this.state.moves.findMoveIndexById(commentPayload.moveId)
         //
@@ -462,6 +462,29 @@ export class GameStateManager {
         } else {
           // Buffer until moves are available
           this.state.pendingComments.push({ moveId: commentPayload.moveId, context: commentPayload.context, text: commentPayload.text })
+        }
+        break
+
+      case ServerWsMessageType.AI_COMMENT_UPDATE:
+        const aiPayload = srvMsg.payload as AiCommentUpdateServerPayload
+        {
+          const idx = this.state.moves.findMoveIndexById(aiPayload.moveId)
+          if (idx !== -1) {
+            this.state.aiComments = [...this.state.aiComments, { moveId: aiPayload.moveId, moveIndex: idx, context: aiPayload.context, data: aiPayload.data }]
+            // Build a text string from AI JSON
+            try {
+              const summary = String(aiPayload.data?.summary || '')
+              const bullets = Array.isArray(aiPayload.data?.bullets) ? (aiPayload.data.bullets as unknown[]).map(String) : []
+              const text = [summary, ...bullets.map(b => `- ${b}`)].filter(Boolean).join('\n')
+              const commentItem = { moveId: aiPayload.moveId, moveIndex: idx, text }
+              if (aiPayload.context === 'preview') {
+                this.state.commentsPreview = [...this.state.commentsPreview, commentItem]
+              } else {
+                this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
+              }
+            } catch {}
+            this.notify()
+          }
         }
         break
 

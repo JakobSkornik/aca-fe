@@ -15,4 +15,5 @@ export interface Move {
   capturedByBlack?: CaptureCount
   piece?: string | null
   trace?: Record<string, string | TraceFeature>
+  hiddenFeatures?: Record<string, unknown>
 }

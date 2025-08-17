@@ -18,6 +18,7 @@ export enum ServerWsMessageType {
   FULL_ANALYSIS_COMPLETE = 'FULL_ANALYSIS_COMPLETE',
   COMMENT_UPDATE = 'COMMENT_UPDATE',
   COMMENT_HISTORY = 'COMMENT_HISTORY',
+  AI_COMMENT_UPDATE = 'AI_COMMENT_UPDATE',
 }
 
 // --- Client Message Payloads ---
@@ -76,6 +77,12 @@ export interface CommentHistoryServerPayload {
   items: CommentUpdateServerPayload[]
 }
 
+export interface AiCommentUpdateServerPayload {
+  moveId: number
+  context: 'mainline' | 'preview'
+  data: Record<string, unknown>
+}
+
 // --- Generic Message Structures ---
 export interface ClientWsMessage {
   type: ClientWsMessageType
@@ -95,4 +102,5 @@ export interface ServerWsMessage {
     | FullAnalysisCompleteServerPayload
     | CommentUpdateServerPayload
     | CommentHistoryServerPayload
+    | AiCommentUpdateServerPayload
 }

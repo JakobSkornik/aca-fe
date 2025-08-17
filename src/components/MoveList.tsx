@@ -154,6 +154,8 @@ const MoveList = () => {
     }
   }, [displayedMoves, manager])
 
+  const [showDebug, setShowDebug] = React.useState<boolean>(false)
+
   return (
     <div className="w-full h-full flex flex-col">
       {/* Navigation Controls */}
@@ -271,15 +273,26 @@ const MoveList = () => {
                   </div>
                 </Tooltip>
               ) : (
-                <Tooltip content="Run full game analysis">
-                  <button
-                    onClick={() => manager.requestFullGameAnalysis()}
-                    className={UIHelpers.getPrimaryButtonClasses(isAnalysisInProgress)}
-                    disabled={isAnalysisInProgress}
-                  >
-                    Run Full Analysis
-                  </button>
-                </Tooltip>
+                <div className="flex items-center space-x-2">
+                  <Tooltip content="Run full game analysis">
+                    <button
+                      onClick={() => manager.requestFullGameAnalysis()}
+                      className={UIHelpers.getPrimaryButtonClasses(isAnalysisInProgress)}
+                      disabled={isAnalysisInProgress}
+                    >
+                      Run Full Analysis
+                    </button>
+                  </Tooltip>
+                  <Tooltip content={(() => {
+                    const move = previewMode ? manager.getCurrentMove() : manager.getMainlineMove(currentMoveIndex)
+                    const hf = move?.hiddenFeatures
+                    return hf ? JSON.stringify(hf, null, 2) : 'No hidden features available.'
+                  })()}>
+                    <button className={UIHelpers.getButtonClasses()}>
+                      Debug Features
+                    </button>
+                  </Tooltip>
+                </div>
               )}
             </div>
           )}
@@ -288,6 +301,10 @@ const MoveList = () => {
 
       {/* Move List Grid */}
       <div ref={listRef} className={`${UIHelpers.getMoveListContainerClasses()} w-full flex-1`}>
+        {/* Invisible debug panel under grid (occupied space only when visible) */}
+        <div className="p-2" style={{ display: showDebug ? 'block' : 'none' }}>
+          {React.createElement(require('./HiddenFeaturesDebug').default, { visible: showDebug })}
+        </div>
         <div className="grid" style={{ gridTemplateColumns: `80px repeat(${displayLength}, 100px)`, gridTemplateRows: 'repeat(4, 4vh)', columnGap: '8px', rowGap: '8px' }}>
           {/* Row 1: Move numbers + label */}
           <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 1, gridColumn: 1 }}>
