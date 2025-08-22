@@ -14,7 +14,7 @@ export default async function handler(
     const backendResponse = await fetch(`${httpUrl}/evaluator/status`)
     const json = await backendResponse.json()
     return res.status(200).json(json)
-  } catch (e) {
+  } catch {
     return res.status(200).json({ ok: false })
   }
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
 import { Move } from '@/types/chess/Move'
 import CommentItem from './CommentItem'
@@ -26,39 +26,36 @@ interface CommentHistoryItem {
 
 const Comments: React.FC = () => {
   const { state, manager } = useGameState()
-  const { currentMoveIndex, previewMode, previewMoveIndex, previewMoves, isLoaded, commentsMainline, commentsPreview } = state
+  const { currentMoveIndex, previewMode, previewMoveIndex, previewMoves, commentsMainline, commentsPreview } = state
   const containerRef = useRef<HTMLDivElement>(null)
   const uniqueSeqRef = useRef<number>(0)
 
   // Comment history state
   const [commentHistory, setCommentHistory] = useState<CommentHistoryItem[]>([])
-  const [lastProcessedMoveKey, setLastProcessedMoveKey] = useState<string>('')
-
-  // Create a key to track when moves change
-  const currentMoveKey = `${currentMoveIndex}-${previewMode}-${previewMoveIndex}`
+  // Removed unused lastProcessedMoveKey and currentMoveKey
 
   // Format move with piece symbol (e.g., "♟f4")
-  const formatMoveWithPiece = (move: Move): string => {
+  const formatMoveWithPiece = useCallback((move: Move): string => {
     if (!move.move || !move.piece) return move.move || ''
-    
+
     const piece = move.piece.toLowerCase()
     const pieceSymbol = pieceMapper[piece as keyof typeof pieceMapper] || piece
     const destination = move.move.slice(2) // Extract destination from move string
-    
+
     return `${pieceSymbol}${destination}`
-  }
+  }, [])
 
   // Generate title for a move
-  const generateMoveTitle = (moveIndex: number, move: Move): string => {
+  const generateMoveTitle = useCallback((moveIndex: number, move: Move): string => {
     const moveNumber = Math.floor(moveIndex / 2) + 1
     const isWhite = moveIndex % 2 === 0
-    
+
     if (isWhite) {
       return `${moveNumber}. ${formatMoveWithPiece(move)}`
     } else {
       return `${moveNumber}... ${formatMoveWithPiece(move)}`
     }
-  }
+  }, [formatMoveWithPiece])
 
   // Sync backend comments into local animated history
   useEffect(() => {
@@ -96,7 +93,7 @@ const Comments: React.FC = () => {
 
       return additions.length > 0 ? [...prev, ...additions] : prev
     })
-  }, [commentsMainline.length, commentsPreview.length, previewMode, manager, previewMoves])
+  }, [commentsMainline, commentsPreview, previewMode, manager, previewMoves, generateMoveTitle])
 
   // Remove component-level animation (moved into CommentItem)
 
@@ -107,31 +104,25 @@ const Comments: React.FC = () => {
     }
   }, [commentHistory])
 
-  // Trigger comment generation when game is first loaded
-  useEffect(() => {
-    if (isLoaded && currentMoveIndex === 0 && commentHistory.length === 0) {
-      // Force a comment generation for the first move
-      setLastProcessedMoveKey('') // Reset to trigger comment generation
-    }
-  }, [isLoaded, currentMoveIndex, commentHistory.length])
+  // Initial load behavior handled by backend comments syncing
 
   // Filter comments based on preview mode
-  const displayedComments = previewMode 
-    ? commentHistory.filter(item => !item.isMainline) 
+  const displayedComments = previewMode
+    ? commentHistory.filter(item => !item.isMainline)
     : commentHistory.filter(item => item.isMainline)
 
   // Determine which comment corresponds to the current move
   const getCurrentCommentIndex = () => {
     if (displayedComments.length === 0) return -1
-    
+
     // Find the comment that matches the current move
     // We need to match based on the move index in the title
     const currentMoveNumber = previewMode ? previewMoveIndex : currentMoveIndex
-    
+
     for (let i = 0; i < displayedComments.length; i++) {
       const comment = displayedComments[i]
       const title = comment.title.toLowerCase()
-      
+
       // Check if this comment corresponds to the current move
       // Look for move numbers in the title (e.g., "1. e4", "2... Nf6")
       const moveMatch = title.match(/(\d+)\.?\s*\.\.\.?\s*[a-h]?[1-8]?[x]?[a-h][1-8]/)
@@ -142,7 +133,7 @@ const Comments: React.FC = () => {
         }
       }
     }
-    
+
     // If no exact match, return the last comment as fallback
     return displayedComments.length - 1
   }
@@ -151,7 +142,7 @@ const Comments: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full">
-      <div 
+      <div
         ref={containerRef}
         className="text-sm text-gray-700 whitespace-pre-wrap flex-1 overflow-y-auto p-4"
       >
@@ -167,13 +158,10 @@ const Comments: React.FC = () => {
               initialDelay={initialDelay}
               typewriterSpeed={typewriterSpeed}
               finalizeIfNotHighlighted={true}
-              className={`mb-2 pb-2 transition-all duration-200 rounded-md ${
-                index < displayedComments.length - 1 ? 'border-b border-gray-200' : ''
-              } ${
-                !item.isMainline ? 'bg-gray-100 p-2 rounded' : ''
-              } ${
-                isSelected ? 'selected-shadow p-4' : ''
-              }`}
+              className={`mb-2 pb-2 transition-all duration-200 rounded-md ${index < displayedComments.length - 1 ? 'border-b border-gray-200' : ''
+                } ${!item.isMainline ? 'bg-gray-100 p-2 rounded' : ''
+                } ${isSelected ? 'selected-shadow p-4' : ''
+                }`}
               titleClassName={`${isSelected ? 'font-bold mb-1 text-base' : 'font-bold mb-1 text-gray-800'}`}
               textClassName={`${isSelected ? 'text-base' : 'text-gray-700'}`}
             />

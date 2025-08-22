@@ -4,6 +4,7 @@ import { useGameState } from '@/contexts/GameStateContext'
 import { UIHelpers } from '@/helpers/uiHelpers'
 import { Move } from '@/types/chess/Move'
 import Tooltip from './ui/Tooltip'
+import HiddenFeaturesDebug from './HiddenFeaturesDebug'
 
 const MoveList = () => {
   const listRef = useRef<HTMLDivElement>(null)
@@ -154,7 +155,7 @@ const MoveList = () => {
     }
   }, [displayedMoves, manager])
 
-  const [showDebug, setShowDebug] = React.useState<boolean>(false)
+  const [showDebug] = React.useState<boolean>(false)
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -303,7 +304,7 @@ const MoveList = () => {
       <div ref={listRef} className={`${UIHelpers.getMoveListContainerClasses()} w-full flex-1`}>
         {/* Invisible debug panel under grid (occupied space only when visible) */}
         <div className="p-2" style={{ display: showDebug ? 'block' : 'none' }}>
-          {React.createElement(require('./HiddenFeaturesDebug').default, { visible: showDebug })}
+          <HiddenFeaturesDebug visible={showDebug} />
         </div>
         <div className="grid" style={{ gridTemplateColumns: `80px repeat(${displayLength}, 100px)`, gridTemplateRows: 'repeat(4, 4vh)', columnGap: '8px', rowGap: '8px' }}>
           {/* Row 1: Move numbers + label */}

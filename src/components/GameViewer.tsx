@@ -115,7 +115,7 @@ const GameViewer = () => {
         const res = await fetch(`${base}/evaluator/status`)
         const json = await res.json()
         setBackendStatus(`BE: ok=${json.ok} sessions=${json.active_sessions}`)
-      } catch (e) {
+      } catch {
         setBackendStatus('BE: offline')
       }
     }

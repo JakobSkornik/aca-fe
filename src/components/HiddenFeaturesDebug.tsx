@@ -7,7 +7,7 @@ type Props = {
 
 const HiddenFeaturesDebug: React.FC<Props> = ({ visible }) => {
   const { state, manager } = useGameState()
-  const { currentMoveIndex, previewMode, previewMoveIndex } = state
+  const { currentMoveIndex, previewMode } = state
   const move = previewMode
     ? manager.getCurrentMove()
     : manager.getMainlineMove(currentMoveIndex)

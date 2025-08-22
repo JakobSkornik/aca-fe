@@ -270,7 +270,7 @@ const PgnLoader = () => {
         const res = await fetch('/api/status')
         const json = await res.json()
         setBackendOk(Boolean(json?.ok))
-      } catch (e) {
+      } catch {
         setBackendOk(false)
       }
     }

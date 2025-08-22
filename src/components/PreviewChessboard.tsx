@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { useGameState } from '../contexts/GameStateContext'
 import { Chess, Square } from 'chess.js'
@@ -18,7 +18,6 @@ const BOARD_PADDING = 8
 const PreviewChessboard = () => {
   const { state, manager } = useGameState()
   const { previewMode, previewMoves, previewMoveIndex, currentMoveIndex, isLoaded } = state
-  const [boardWidth, setBoardWidth] = useState<number>(0)
   const [currentPosition, setCurrentPosition] = useState<string>('start')
   const parentRef = useRef<HTMLDivElement>(null)
   const boardSize = useSquareFit(parentRef, { padding: BOARD_PADDING, min: MIN_BOARD_SIZE })
@@ -26,13 +25,13 @@ const PreviewChessboard = () => {
   // Sizing handled by useSquareFit
 
   // Get the current position based on mode
-  const getCurrentPosition = () => {
+  const getCurrentPosition = useCallback(() => {
     if (previewMode) {
       return manager.getPreviewPosition(previewMoveIndex)
     } else {
       return manager.getCurrentPosition(currentMoveIndex)
     }
-  }
+  }, [previewMode, previewMoveIndex, currentMoveIndex, manager])
 
   // Get the current captures based on mode
   const getCurrentCaptures = () => {
@@ -44,12 +43,14 @@ const PreviewChessboard = () => {
   }
 
   // Update current position when the display position changes
+  const previewLength = previewMoves.getLength()
+
   useEffect(() => {
     const position = getCurrentPosition()
     if (position) {
       setCurrentPosition(position)
     }
-  }, [previewMode, previewMoveIndex, currentMoveIndex, previewMoves.getLength()])
+  }, [getCurrentPosition, previewMode, previewMoveIndex, currentMoveIndex, previewLength])
 
   // Handle making a move on the chessboard
   const handleDrop = (sourceSquare: Square, targetSquare: Square) => {
