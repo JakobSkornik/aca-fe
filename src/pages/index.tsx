@@ -3,6 +3,7 @@ import MainlineChessboard from '@/components/MainlineChessboard'
 import PreviewChessboard from '@/components/PreviewChessboard'
 import ControlPanel from '@/components/ControlPanel'
 import MoveList from '@/components/MoveList'
+import ModelForm from '@/components/ModelForm'
 import PgnLoader from '@/components/PgnLoader'
 import FeatureTable from '@/components/FeatureTable'
 
@@ -79,8 +80,15 @@ const AnnotatePGN = () => {
             </div>
           </div>
           
-          <div className="flex-shrink-0 h-[30vh] min-h-[220px] overflow-y-auto z-index-100 pb-4">
-            <MoveList />
+          <div className="flex-shrink-0 h-[30vh] min-h-[220px] overflow-hidden z-index-100 pb-4">
+            <div className="flex flex-row h-full w-full">
+              <div className="w-[80%] h-full overflow-y-auto pr-2">
+                <MoveList />
+              </div>
+              <div className="w-[20%] h-full border-l pl-2">
+                <ModelForm />
+              </div>
+            </div>
           </div>
         </>
       )}

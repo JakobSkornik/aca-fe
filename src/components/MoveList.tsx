@@ -162,7 +162,7 @@ const MoveList = () => {
       {/* Navigation Controls */}
       <div className="p-2 border-b">
         {/* First Row: Navigation buttons */}
-        <div className="flex justify-end items-center space-x-2 mb-2">
+        <div className="flex justify-start items-center space-x-2 mb-2">
           <Tooltip content="Go to first move">
             <button
               onClick={() => handleMoveNavigation('first')}
@@ -250,7 +250,7 @@ const MoveList = () => {
         </div>
 
         {/* Second Row: Analysis button */}
-        <div className="flex justify-end">
+        <div className="flex justify-start">
           {!isFullyAnalyzed && (
             <div className="text-center">
               {isAnalysisInProgress ? (
@@ -275,6 +275,7 @@ const MoveList = () => {
                 </Tooltip>
               ) : (
                 <div className="flex items-center space-x-2">
+                  {/*
                   <Tooltip content="Run full game analysis">
                     <button
                       onClick={() => manager.requestFullGameAnalysis()}
@@ -293,6 +294,7 @@ const MoveList = () => {
                       Debug Features
                     </button>
                   </Tooltip>
+                  */}
                 </div>
               )}
             </div>

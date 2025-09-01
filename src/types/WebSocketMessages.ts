@@ -7,6 +7,7 @@ export enum ClientWsMessageType {
   GET_DETAILED_ANALYSIS = 'GET_DETAILED_ANALYSIS',
   GET_MOVE_LIST = 'GET_MOVE_LIST',
   GET_GAME_ANALYSIS = 'GET_GAME_ANALYSIS',
+  SET_MODEL_PARAMS = 'SET_MODEL_PARAMS',
 }
 
 export enum ServerWsMessageType {
@@ -19,6 +20,8 @@ export enum ServerWsMessageType {
   COMMENT_UPDATE = 'COMMENT_UPDATE',
   COMMENT_HISTORY = 'COMMENT_HISTORY',
   AI_COMMENT_UPDATE = 'AI_COMMENT_UPDATE',
+  AI_GENERATION_STATUS = 'AI_GENERATION_STATUS',
+  MODEL_PARAMS_UPDATED = 'MODEL_PARAMS_UPDATED',
 }
 
 // --- Client Message Payloads ---
@@ -28,6 +31,13 @@ export interface GetSessionMetadataClientPayload {
 
 export interface RequestAnalysisClientPayload {
   move: Move
+}
+
+export interface SetModelParamsClientPayload {
+  model?: 'gpt-5-mini' | 'gpt-5'
+  effort?: 'low' | 'medium' | 'high'
+  temperature?: number
+  maxTokens?: number
 }
 
 // --- Server Message Payloads ---
@@ -83,24 +93,44 @@ export interface AiCommentUpdateServerPayload {
   data: Record<string, unknown>
 }
 
+export interface AiGenerationStatusServerPayload {
+  moveId: number
+  context: 'mainline' | 'preview'
+  status: 'start' | 'end'
+  startedAt?: number
+  endedAt?: number
+  model?: string
+  effort?: string
+}
+
+export interface ModelParamsUpdatedServerPayload {
+  model: 'gpt-5-mini' | 'gpt-5'
+  effort: 'low' | 'medium' | 'high'
+  temperature?: number
+  maxTokens?: number
+}
+
 // --- Generic Message Structures ---
 export interface ClientWsMessage {
   type: ClientWsMessageType
   payload?:
-    | GetSessionMetadataClientPayload
-    | RequestAnalysisClientPayload
+  | GetSessionMetadataClientPayload
+  | RequestAnalysisClientPayload
+  | SetModelParamsClientPayload
 }
 
 export interface ServerWsMessage {
   type: ServerWsMessageType
   payload:
-    | ErrorServerPayload
-    | SessionMetadataServerPayload
-    | MoveListServerPayload
-    | NodeAnalysisUpdatePayload
-    | AnalysisProgressServerPayload
-    | FullAnalysisCompleteServerPayload
-    | CommentUpdateServerPayload
-    | CommentHistoryServerPayload
-    | AiCommentUpdateServerPayload
+  | ErrorServerPayload
+  | SessionMetadataServerPayload
+  | MoveListServerPayload
+  | NodeAnalysisUpdatePayload
+  | AnalysisProgressServerPayload
+  | FullAnalysisCompleteServerPayload
+  | CommentUpdateServerPayload
+  | CommentHistoryServerPayload
+  | AiCommentUpdateServerPayload
+  | AiGenerationStatusServerPayload
+  | ModelParamsUpdatedServerPayload
 }

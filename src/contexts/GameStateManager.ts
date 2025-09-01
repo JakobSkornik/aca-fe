@@ -3,7 +3,7 @@ import webSocketService from '../services/WebSocketService'
 import { Move } from '../types/chess/Move'
 import { PgnHeaders } from '../types/chess/PgnHeaders'
 import { MoveList, createMoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList, getNextAvailableId } from '../helpers/moveListUtils'
-import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, CommentUpdateServerPayload, AiCommentUpdateServerPayload } from '../types/WebSocketMessages'
+import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, CommentUpdateServerPayload, AiCommentUpdateServerPayload, AiGenerationStatusServerPayload, ModelParamsUpdatedServerPayload, SetModelParamsClientPayload } from '../types/WebSocketMessages'
 import { CaptureCount } from '../types/chess/CaptureCount'
 import { chessPositionManager } from '../helpers/ChessPositionManager'
 
@@ -26,6 +26,8 @@ export type GameStateSnapshot = {
   commentsPreview: { moveId: number; moveIndex: number; text: string }[]
   pendingComments: { moveId: number; context: 'mainline' | 'preview'; text: string }[]
   aiComments: { moveId: number; moveIndex: number; context: 'mainline' | 'preview'; data: Record<string, unknown> }[]
+  modelParams: { model: 'gpt-5-mini' | 'gpt-5'; effort: 'low' | 'medium' | 'high'; temperature?: number; maxTokens?: number }
+  aiGeneration: Record<number, { context: 'mainline' | 'preview'; startedAt: number; model?: string; effort?: string }>
 }
 
 export class GameStateManager {
@@ -51,6 +53,8 @@ export class GameStateManager {
       commentsPreview: [],
       pendingComments: [],
       aiComments: [],
+      modelParams: { model: 'gpt-5-mini', effort: 'low', temperature: 0.2, maxTokens: 120 },
+      aiGeneration: {},
     }
   }
 
@@ -482,10 +486,47 @@ export class GameStateManager {
               } else {
                 this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
               }
-            } catch {}
+            } catch { }
+            // Clear generation status if lingering (immutable update)
+            if (this.state.aiGeneration[aiPayload.moveId]) {
+              const nextGen = { ...this.state.aiGeneration }
+              delete nextGen[aiPayload.moveId]
+              this.state.aiGeneration = nextGen
+            }
             this.notify()
           }
         }
+        break
+
+      case ServerWsMessageType.AI_GENERATION_STATUS:
+        const genPayload = srvMsg.payload as AiGenerationStatusServerPayload
+        if (genPayload.status === 'start') {
+          this.state.aiGeneration = {
+            ...this.state.aiGeneration,
+            [genPayload.moveId]: {
+              context: genPayload.context,
+              startedAt: genPayload.startedAt || Date.now() / 1000,
+              model: genPayload.model,
+              effort: genPayload.effort,
+            },
+          }
+        } else if (genPayload.status === 'end') {
+          const nextGen = { ...this.state.aiGeneration }
+          delete nextGen[genPayload.moveId]
+          this.state.aiGeneration = nextGen
+        }
+        this.notify()
+        break
+
+      case ServerWsMessageType.MODEL_PARAMS_UPDATED:
+        const paramsPayload = srvMsg.payload as ModelParamsUpdatedServerPayload
+        this.state.modelParams = {
+          model: paramsPayload.model,
+          effort: paramsPayload.effort,
+          temperature: paramsPayload.temperature,
+          maxTokens: paramsPayload.maxTokens,
+        }
+        this.notify()
         break
 
       default:
@@ -514,6 +555,15 @@ export class GameStateManager {
 
   requestMoveList() {
     webSocketService.sendMessage({ type: ClientWsMessageType.GET_MOVE_LIST })
+  }
+
+  // --- Model Params Controls ---
+  setModelParams(params: Partial<SetModelParamsClientPayload>) {
+    webSocketService.sendMessage({ type: ClientWsMessageType.SET_MODEL_PARAMS, payload: params })
+  }
+
+  getModelParams() {
+    return this.state.modelParams
   }
 
   // --- Utility accessors for UI ---
@@ -570,14 +620,14 @@ export class GameStateManager {
 
   getCurrentPosition(index: number) {
     const position = this.state.moves.getCurrentPosition(index)
-    
+
     // Update chess position manager with the current position
     if (position) {
       chessPositionManager.updatePositionFromFen(position)
     } else {
       chessPositionManager.resetToStart()
     }
-    
+
     return position
   }
 
