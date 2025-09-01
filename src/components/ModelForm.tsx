@@ -4,7 +4,7 @@ import { useGameState } from '@/contexts/GameStateContext'
 const ModelForm: React.FC = () => {
   const { manager, state } = useGameState()
   const current = state.modelParams
-  const [model, setModel] = useState<'gpt-5-mini' | 'gpt-5'>(current.model as any)
+  const [model, setModel] = useState<'gpt-5-mini' | 'gpt-5'>(current.model)
   const [effort, setEffort] = useState<'low' | 'medium' | 'high'>(current.effort)
   const [temperature, setTemperature] = useState<number>(current.temperature ?? 0.2)
   const [maxTokens, setMaxTokens] = useState<number>(current.maxTokens ?? 120)
@@ -48,7 +48,7 @@ const ModelForm: React.FC = () => {
           <select
             className="w-full border rounded px-2 py-1"
             value={model}
-            onChange={(e) => setModel(e.target.value as any)}
+            onChange={(e) => setModel(e.target.value as 'gpt-5-mini' | 'gpt-5')}
           >
             <option value="gpt-5-mini">gpt-5-mini</option>
             <option value="gpt-5">gpt-5</option>
