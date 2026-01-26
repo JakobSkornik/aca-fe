@@ -5,6 +5,8 @@ import { UIHelpers } from '@/helpers/uiHelpers'
 import { Move } from '@/types/chess/Move'
 import Tooltip from './ui/Tooltip'
 import HiddenFeaturesDebug from './HiddenFeaturesDebug'
+import { jobService } from '@/services/JobService'
+import { useRouter } from 'next/router'
 
 const MoveList = () => {
   const listRef = useRef<HTMLDivElement>(null)
@@ -19,6 +21,8 @@ const MoveList = () => {
     analysisProgress,
     isFullyAnalyzed
   } = state
+  const router = useRouter();
+  const { id } = router.query;
 
   // Get displayed moves from manager
   const displayedMoves = manager.getDisplayedMovesList()
@@ -56,6 +60,25 @@ const MoveList = () => {
       manager.enterPreviewMode()
     }
   }
+
+  const handleDownload = async () => {
+    if (!id || typeof id !== 'string') return;
+    try {
+      const gameJson = await jobService.getGameJson(id);
+      const blob = new Blob([JSON.stringify(gameJson, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `game_${id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Failed to download game JSON", e);
+      alert("Failed to download game JSON");
+    }
+  };
 
   // Keyboard navigation listener
   useEffect(() => {
@@ -162,91 +185,111 @@ const MoveList = () => {
       {/* Navigation Controls */}
       <div className="p-2 border-b">
         {/* First Row: Navigation buttons */}
-        <div className="flex justify-start items-center space-x-2 mb-2">
-          <Tooltip content="Go to first move">
-            <button
-              onClick={() => handleMoveNavigation('first')}
-              className={UIHelpers.getButtonClasses()}
-            >
-              <Image
-                src="/icons/fast_back.svg"
-                alt="First"
-                width={16}
-                height={16}
-                className="w-4 h-4"
-              />
-            </button>
-          </Tooltip>
-          <Tooltip content="Previous move">
-            <button
-              onClick={() => handleMoveNavigation('prev')}
-              className={UIHelpers.getButtonClasses()}
-            >
-              <Image 
-                src="/icons/back.svg" 
-                alt="Previous" 
-                width={16}
-                height={16}
-                className="w-4 h-4" 
-              />
-            </button>
-          </Tooltip>
-          <Tooltip content="Next move">
-            <button
-              onClick={() => handleMoveNavigation('next')}
-              className={UIHelpers.getButtonClasses()}
-            >
-              <Image 
-                src="/icons/forward.svg" 
-                alt="Next" 
-                width={16}
-                height={16}
-                className="w-4 h-4" 
-              />
-            </button>
-          </Tooltip>
-          <Tooltip content="Go to last move">
-            <button
-              onClick={() => handleMoveNavigation('last')}
-              className={UIHelpers.getButtonClasses()}
-            >
-              <Image
-                src="/icons/fast_forward.svg"
-                alt="Last"
-                width={16}
-                height={16}
-                className="w-4 h-4"
-              />
-            </button>
-          </Tooltip>
-          <Tooltip content={previewMode ? "Exit preview mode" : "Enter preview mode"}>
-            <button
-              onClick={handlePvButton}
-              className={UIHelpers.getButtonClasses()}
-            >
-              <Image
-                src={previewMode ? "/icons/up.svg" : "/icons/down.svg"}
-                alt={previewMode ? "Exit Preview" : "Enter Preview"}
-                width={16}
-                height={16}
-                className="w-4 h-4"
-              />
-            </button>
-          </Tooltip>
-          <Tooltip content="Close analysis session">
-            <button
-              onClick={() => manager.disconnectSession()}
-              className={UIHelpers.getIconButtonClasses()}
-            >
-              <Image 
-                src="/icons/close.svg" 
-                alt="Close" 
-                width={16}
-                height={16}
-                className="w-4 h-4" 
-              />
-            </button>
-          </Tooltip>
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-start items-center space-x-2">
+            <Tooltip content="Go to first move">
+              <button
+                onClick={() => handleMoveNavigation('first')}
+                className={UIHelpers.getButtonClasses()}
+              >
+                <Image
+                  src="/icons/fast_back.svg"
+                  alt="First"
+                  width={16}
+                  height={16}
+                  className="w-4 h-4"
+                />
+              </button>
+            </Tooltip>
+            <Tooltip content="Previous move">
+              <button
+                onClick={() => handleMoveNavigation('prev')}
+                className={UIHelpers.getButtonClasses()}
+              >
+                <Image 
+                  src="/icons/back.svg" 
+                  alt="Previous" 
+                  width={16}
+                  height={16}
+                  className="w-4 h-4" 
+                />
+              </button>
+            </Tooltip>
+            <Tooltip content="Next move">
+              <button
+                onClick={() => handleMoveNavigation('next')}
+                className={UIHelpers.getButtonClasses()}
+              >
+                <Image 
+                  src="/icons/forward.svg" 
+                  alt="Next" 
+                  width={16}
+                  height={16}
+                  className="w-4 h-4" 
+                />
+              </button>
+            </Tooltip>
+            <Tooltip content="Go to last move">
+              <button
+                onClick={() => handleMoveNavigation('last')}
+                className={UIHelpers.getButtonClasses()}
+              >
+                <Image
+                  src="/icons/fast_forward.svg"
+                  alt="Last"
+                  width={16}
+                  height={16}
+                  className="w-4 h-4"
+                />
+              </button>
+            </Tooltip>
+            <Tooltip content={previewMode ? "Exit preview mode" : "Enter preview mode"}>
+              <button
+                onClick={handlePvButton}
+                className={UIHelpers.getButtonClasses()}
+              >
+                <Image
+                  src={previewMode ? "/icons/up.svg" : "/icons/down.svg"}
+                  alt={previewMode ? "Exit Preview" : "Enter Preview"}
+                  width={16}
+                  height={16}
+                  className="w-4 h-4"
+                />
+              </button>
+            </Tooltip>
+            <Tooltip content="Close analysis session">
+              <button
+                onClick={() => router.push('/')}
+                className={UIHelpers.getIconButtonClasses()}
+              >
+                <Image 
+                  src="/icons/close.svg" 
+                  alt="Close" 
+                  width={16}
+                  height={16}
+                  className="w-4 h-4" 
+                />
+              </button>
+            </Tooltip>
+          </div>
+          
+          {/* Download Button */}
+          {id && typeof id === 'string' && (
+             <Tooltip content="Download Analysis JSON">
+                <button
+                  onClick={handleDownload}
+                  className={UIHelpers.getButtonClasses()}
+                >
+                  <Image 
+                    src="/icons/upload.svg" 
+                    alt="Download" 
+                    width={16}
+                    height={16}
+                    className="w-4 h-4 transform rotate-180" 
+                  />
+                </button>
+             </Tooltip>
+          )}
         </div>
 
         {/* Second Row: Analysis button */}

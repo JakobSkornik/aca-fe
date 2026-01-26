@@ -6,6 +6,7 @@ import { MoveList, createMoveList, formatCapturesForDisplay, convertMoveArrayToM
 import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, CommentUpdateServerPayload, AiCommentUpdateServerPayload, AiGenerationStatusServerPayload, ModelParamsUpdatedServerPayload, SetModelParamsClientPayload } from '../types/WebSocketMessages'
 import { CaptureCount } from '../types/chess/CaptureCount'
 import { chessPositionManager } from '../helpers/ChessPositionManager'
+import { GameJson, GameMove } from '../types/GameJson'
 
 export type GameStateSnapshot = {
   game: Chess
@@ -28,6 +29,23 @@ export type GameStateSnapshot = {
   aiComments: { moveId: number; moveIndex: number; context: 'mainline' | 'preview'; data: Record<string, unknown> }[]
   modelParams: { model: 'gpt-5-mini' | 'gpt-5'; effort: 'low' | 'medium' | 'high'; temperature?: number; maxTokens?: number }
   aiGeneration: Record<number, { context: 'mainline' | 'preview'; startedAt: number; model?: string; effort?: string }>
+}
+
+const getPieceFromSan = (san: string, color: 'w' | 'b'): string => {
+  // Common piece letters in SAN (English)
+  // N = Knight, B = Bishop, R = Rook, Q = Queen, K = King
+  // If no letter, it's a Pawn (P)
+  const firstChar = san.charAt(0);
+  let pieceChar = 'P';
+  if (['N', 'B', 'R', 'Q', 'K'].includes(firstChar)) {
+    pieceChar = firstChar;
+  }
+  // Check for castling
+  if (san.startsWith('O-O')) {
+    pieceChar = 'K';
+  }
+  
+  return `${color}${pieceChar}`;
 }
 
 export class GameStateManager {
@@ -73,6 +91,121 @@ export class GameStateManager {
   // --- State access ---
   getState(): GameStateSnapshot {
     return { ...this.state }
+  }
+
+  // --- Move Index Helper ---
+  findMoveIndexById(id: number): number {
+    return this.state.moves.getMoveIdxById(id)
+  }
+
+  // --- Load from JSON ---
+  loadGameFromJson(data: GameJson) {
+    this.state.isLoaded = false;
+    this.state.isAnalysisInProgress = false;
+    this.state.isFullyAnalyzed = true;
+    this.state.analysisProgress = 100;
+    this.state.wsError = null;
+    this.state.commentsMainline = [];
+    this.state.commentsPreview = [];
+    
+    // Set headers
+    this.state.pgnHeaders = {
+      whiteName: data.metadata.white,
+      blackName: data.metadata.black,
+      whiteElo: data.metadata.whiteElo?.toString() || '',
+      blackElo: data.metadata.blackElo?.toString() || '',
+      result: data.metadata.result,
+      opening: data.metadata.opening || '',
+      event: data.metadata.eventId || ''
+    };
+
+    // Reconstruct Moves
+    const moveList = new MoveList();
+    const chess = new Chess(); // Used to replay game and PVs for FEN generation
+
+    data.moves.forEach((gm: GameMove, index: number) => {
+        // Mainline move
+        const move: Move = {
+            id: index + 1, // Simple ID
+            depth: data.analysis_info.depth, // Use global depth for now
+            position: gm.fen,
+            move: gm.san, // Use SAN for display
+            isAnalyzed: true,
+            context: 'mainline',
+            score: gm.score ? (gm.score.mate ? (gm.score.mate > 0 ? 100000 - gm.score.mate : -100000 - gm.score.mate) : gm.score.cp || 0) : undefined,
+            annotation: gm.comment || undefined,
+            piece: getPieceFromSan(gm.san, gm.color),
+            // Map hiddenFeatures if available in JSON (currently not in schema explicitly, but if added later)
+            // Or assume some features need to be calculated/mocked if they are missing
+            hiddenFeatures: {} 
+        };
+
+        // Populate comments
+        if (gm.comment) {
+            this.state.commentsMainline.push({
+                moveId: move.id,
+                moveIndex: index, // In MoveList, indices start from 0 (move 1 white)
+                text: gm.comment
+            });
+        }
+
+        // PVs
+        const pvs: Move[][] = [];
+        
+        gm.variations.forEach(variation => {
+             const pvLine: Move[] = [];
+             const pvChess = new Chess(chess.fen()); // Clone state before move
+             
+             variation.line.forEach((pvMoveStr, pvIndex) => {
+                 try {
+                     // pvMoveStr is SAN from backend
+                     const result = pvChess.move(pvMoveStr);
+                     if (result) {
+                         const pvMove: Move = {
+                             id: (index + 1) * 1000 + pvIndex,
+                             depth: data.analysis_info.depth,
+                             position: pvChess.fen(),
+                             move: result.san, // Store SAN
+                             isAnalyzed: true,
+                             context: `pv${variation.rank}`,
+                             score: pvIndex === 0 ? (variation.score ? (variation.score.mate ? (variation.score.mate > 0 ? 100000 : -100000) : variation.score.cp || 0) : undefined) : undefined,
+                             piece: getPieceFromSan(result.san, result.color)
+                         };
+                         pvLine.push(pvMove);
+                     }
+                 } catch (e) {
+                     console.warn("Failed to replay PV move", pvMoveStr, e);
+                 }
+             });
+             if (pvLine.length > 0) {
+                pvs.push(pvLine);
+             }
+        });
+
+        const pv1 = pvs.length > 0 ? pvs[0] : [];
+        const pv2 = pvs.length > 1 ? pvs[1] : [];
+
+        moveList.addMove(move, pv1, pv2);
+        
+        // Advance internal chess state
+        try {
+            chess.move(gm.san); 
+        } catch {
+             // Fallback if SAN fails
+             try {
+                chess.move(gm.uci);
+             } catch (e) {
+                 console.error("Failed to make move", gm.san, gm.uci, e);
+             }
+        }
+    });
+    
+    // Apply classifications
+    moveList.applyClassificationsToAllMoves();
+
+    this.state.moves = moveList;
+    this.state.isLoaded = true;
+    this.notify();
   }
 
   // --- Unified Move Analysis ---
@@ -733,4 +866,4 @@ export class GameStateManager {
 
     this.notify()
   }
-} 
+}

@@ -4,6 +4,34 @@
 
 @import '@fontsource/montserrat';
 
+html {
+  font-size: 16px;
+}
+
+@media (max-width: 1024px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  html {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  html {
+    font-size: 12px;
+  }
+}
+
 :root {
   --transparent-orange: #c7711a44;
   --orange: #c7711a;
