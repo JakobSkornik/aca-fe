@@ -15,11 +15,10 @@ const Chart: React.FC<ChartProps> = ({
   compareNode,
 }) => {
   const { state } = useGameState()
-  const { moves, previewMode, previewMoves, currentMoveIndex } = state
+  const { moves, currentMoveIndex } = state
 
-  const shownMoveList = previewMode ? previewMoves : moves
-  const shownMoves = shownMoveList.getMainlineMoves()
-  const shownPvs = shownMoveList.getPvsAsRecord()
+  const shownMoves = moves.getMainlineMoves()
+  const shownPvs = moves.getPvsAsRecord()
 
   const rootNode = useMemo(
     () => (shownMoves.length > 0 && currentMoveIndex >= 0 && currentMoveIndex < shownMoves.length 

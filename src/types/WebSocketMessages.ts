@@ -20,6 +20,8 @@ export enum ServerWsMessageType {
   COMMENT_UPDATE = 'COMMENT_UPDATE',
   COMMENT_HISTORY = 'COMMENT_HISTORY',
   AI_COMMENT_UPDATE = 'AI_COMMENT_UPDATE',
+  EPISODE_NARRATIVE = 'EPISODE_NARRATIVE',
+  GAME_NARRATIVE = 'GAME_NARRATIVE',
   AI_GENERATION_STATUS = 'AI_GENERATION_STATUS',
   MODEL_PARAMS_UPDATED = 'MODEL_PARAMS_UPDATED',
 }
@@ -87,10 +89,53 @@ export interface CommentHistoryServerPayload {
   items: CommentUpdateServerPayload[]
 }
 
+/** Optional structured PV for hover boards in commentary (from job analysis). */
+export interface AiCommentPvLineEntry {
+  san: string
+  fen: string
+}
+
+/** Backend-resolved inline annotation token (see annotation_tokens.py). */
+export interface ResolvedAnnotationToken {
+  type: string
+  raw: string
+  content: string
+  start: number
+  end: number
+  data: Record<string, unknown> | null
+}
+
+/** Chroma RAG reference (master-game position + snippet) streamed with AI commentary. */
+export interface AiCommentRagRef {
+  source: string
+  fen: string
+  text: string
+  score: number
+  san?: string
+  phase?: string
+}
+
 export interface AiCommentUpdateServerPayload {
   moveId: number
   context: 'mainline' | 'preview'
-  data: Record<string, unknown>
+  data: Record<string, unknown> & {
+    summary?: string
+    commentary?: string
+    bullets?: string[]
+    pv_line?: AiCommentPvLineEntry[]
+    resolved_tokens?: ResolvedAnnotationToken[]
+    rag_refs?: AiCommentRagRef[]
+  }
+}
+
+export interface EpisodeNarrativeServerPayload {
+  episode_index: number
+  title: string
+  narrative: string
+}
+
+export interface GameNarrativeServerPayload {
+  narrative: string
 }
 
 export interface AiGenerationStatusServerPayload {
@@ -131,6 +176,8 @@ export interface ServerWsMessage {
   | CommentUpdateServerPayload
   | CommentHistoryServerPayload
   | AiCommentUpdateServerPayload
+  | EpisodeNarrativeServerPayload
+  | GameNarrativeServerPayload
   | AiGenerationStatusServerPayload
   | ModelParamsUpdatedServerPayload
 }

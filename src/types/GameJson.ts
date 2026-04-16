@@ -20,6 +20,11 @@ export interface GameMove {
   variations: Variation[];
   comment: string | null;
   classification: string | null;
+  move_quality: string | null;
+  event_type: string | null;
+  tactical_motifs: string[];
+  is_critical: boolean;
+  episode_index: number | null;
 }
 
 export interface GameMetadata {
@@ -41,11 +46,21 @@ export interface AnalysisInfo {
   timestamp: number;
 }
 
+export interface EpisodeSummary {
+  episode_index: number;
+  title: string;
+  start_move: number;
+  end_move: number;
+  narrative: string | null;
+  dominant_theme: string;
+}
+
 export interface GameJson {
   metadata: GameMetadata;
   moves: GameMove[];
+  episodes?: EpisodeSummary[];
+  game_narrative?: string | null;
   analysis_info: AnalysisInfo;
 }
-
 
 

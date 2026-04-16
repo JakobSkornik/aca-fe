@@ -1,142 +1,73 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useMemo, useRef } from 'react'
 import { Chessboard } from 'react-chessboard'
+import type { CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
 import { useGameState } from '../contexts/GameStateContext'
-import { Chess, Square } from 'chess.js'
-import { Move } from '@/types/chess/Move'
 import { useSquareFit } from '@/hooks/useSquareFit'
 
-const MIN_BOARD_SIZE = 240
+const MIN_BOARD_SIZE = 200
 const BOARD_PADDING = 8
 
+const BEST_FROM_STYLE = { backgroundColor: 'rgba(0, 128, 255, 0.45)' }
+const BEST_TO_STYLE = { backgroundColor: 'rgba(0, 128, 255, 0.60)', borderRadius: '50%' }
+
 /**
- * PreviewChessboard Component
- * 
- * Displays either preview moves or falls back to mainline moves.
- * Uses elegant helper functions for safe access to move data.
- * Automatically handles MoveList structure for both preview and mainline moves.
+ * Shows the engine's best continuation (PV1 first move) for the current mainline position.
+ * Uses square highlights instead of arrows to avoid SVG marker-id collisions
+ * with the main board (react-chessboard renders global arrowhead-N ids).
  */
 const PreviewChessboard = () => {
   const { state, manager } = useGameState()
-  const { previewMode, previewMoves, previewMoveIndex, currentMoveIndex, isLoaded } = state
-  const [currentPosition, setCurrentPosition] = useState<string>('start')
+  const { currentMoveIndex, isLoaded } = state
   const parentRef = useRef<HTMLDivElement>(null)
   const boardSize = useSquareFit(parentRef, { padding: BOARD_PADDING, min: MIN_BOARD_SIZE })
 
-  // Sizing handled by useSquareFit
+  const best = manager.getBestMoveForIndex(currentMoveIndex)
 
-  // Get the current position based on mode
-  const getCurrentPosition = useCallback(() => {
-    if (previewMode) {
-      return manager.getPreviewPosition(previewMoveIndex)
-    } else {
-      return manager.getCurrentPosition(currentMoveIndex)
-    }
-  }, [previewMode, previewMoveIndex, currentMoveIndex, manager])
+  const mainlineFen = manager.getCurrentPosition(currentMoveIndex)
+  const displayFen = best?.fen || mainlineFen || 'start'
 
-  // Get the current captures based on mode
-  const getCurrentCaptures = () => {
-    if (previewMode) {
-      return manager.getPreviewCaptures(previewMoveIndex)
-    } else {
-      return manager.getCapturesForMove(currentMoveIndex)
-    }
-  }
+  const squareStyles = useMemo((): CustomSquareStyles => {
+    if (!best?.from || !best?.to) return {}
+    return {
+      [best.from]: BEST_FROM_STYLE,
+      [best.to]: BEST_TO_STYLE,
+    } as CustomSquareStyles
+  }, [best])
 
-  // Update current position when the display position changes
-  const previewLength = previewMoves.getLength()
+  const { capturedByWhite: whiteCaptures, capturedByBlack: blackCaptures } =
+    manager.getCapturesForMove(currentMoveIndex)
 
-  useEffect(() => {
-    const position = getCurrentPosition()
-    if (position) {
-      setCurrentPosition(position)
-    }
-  }, [getCurrentPosition, previewMode, previewMoveIndex, currentMoveIndex, previewLength])
+  const whiteCapturesString = manager.formatCapturesForDisplay(whiteCaptures, true)
+  const blackCapturesString = manager.formatCapturesForDisplay(blackCaptures, false)
 
-  // Handle making a move on the chessboard
-  const handleDrop = (sourceSquare: Square, targetSquare: Square) => {
-    try {
-      // Use chess.js to validate and create the move
-      const chess = new Chess(currentPosition)
-
-      // Let chess.js handle all validation - it will reject invalid moves automatically
-      const moveResult = chess.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
-
-      if (!moveResult) {
-        console.log('Move was rejected by chess.js')
-        return false
-      }
-
-      // Create the new move object
-      const newMove: Move = {
-        id: manager.getNextId(),
-        depth: -1,
-        position: moveResult.after,
-        move: moveResult.from + moveResult.to,
-        isAnalyzed: false,
-        context: 'preview',
-        piece: `${moveResult.color}${moveResult.piece}`
-      }
-
-      if (!previewMode) {
-        // Not in preview mode
-        const mainlineMoves = manager.getMainlineMovesList()
-        const nextMove = mainlineMoves[currentMoveIndex + 1]
-
-        if (nextMove && newMove.position === nextMove.position) {
-          // Move matches the next mainline move - just advance
-          manager.moveNext()
-          return true
-        } else {
-          // First advance to the next position, then enter preview mode
-          manager.moveNext()
-          manager.enterPreviewModeWithMove(newMove)
-          return true
-        }
-      } else {
-        // Already in preview mode
-        const previewMovesList = previewMoves.getMainlineMoves()
-        const nextPreviewMove = previewMovesList[previewMoveIndex + 1]
-
-        if (nextPreviewMove && newMove.position === nextPreviewMove.position) {
-          // Move matches the next preview move - just advance
-          manager.moveNext()
-          return true
-        } else {
-          manager.clearPreviewMovesFromIndex(previewMoveIndex + 1)
-          manager.addPreviewMove(newMove)
-          return true
-        }
-      }
-    } catch (error) {
-      console.error('Error making move:', error)
-      return false
-    }
-  }
-
-  // Get current position and captures
-  const displayCaptures = getCurrentCaptures()
-
-  // Format captures for display
-  const whiteCapturesString = manager.formatCapturesForDisplay(displayCaptures.capturedByWhite, true)
-  const blackCapturesString = manager.formatCapturesForDisplay(displayCaptures.capturedByBlack, false)
+  const label = best ? `Best: ${best.san}` : 'No engine line'
 
   return (
     <div ref={parentRef} className="flex flex-col w-full items-center px-2 py-2 border-r">
       {isLoaded && (
-        <div className="text-center mt-2">
+        <div className="text-center">
           <p className="text-sm text-gray-600">Captured: {blackCapturesString}</p>
         </div>
       )}
       {boardSize > 0 && (
-        <div className={`align-center justify-center ${previewMode ? 'selected-shadow' : ''}`} style={{ width: boardSize, height: boardSize }}>
+        <div className="align-center justify-center ring-1 ring-offset-1 ring-blue-200/80 rounded" style={{ width: boardSize, height: boardSize }}>
           <Chessboard
-            position={currentPosition}
+            position={displayFen}
             boardWidth={boardSize}
             customDarkSquareStyle={{ backgroundColor: 'var(--dark-gray)' }}
             customLightSquareStyle={{ backgroundColor: 'var(--lightest-gray)' }}
             customNotationStyle={{ color: 'var(--darkest-gray)' }}
-            onPieceDrop={handleDrop}
+            customSquareStyles={Object.keys(squareStyles).length > 0 ? squareStyles : undefined}
+            arePiecesDraggable={false}
+            boardOrientation="white"
+            showBoardNotation={true}
+            snapToCursor={false}
           />
+        </div>
+      )}
+      {isLoaded && (
+        <div className="text-center mt-2 mb-1">
+          <p className="text-sm font-semibold text-darkest-gray">{label}</p>
         </div>
       )}
       {isLoaded && (

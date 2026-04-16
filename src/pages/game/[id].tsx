@@ -4,10 +4,10 @@ import { useGameState } from '@/contexts/GameStateContext';
 import { jobService } from '@/services/JobService';
 import MainlineChessboard from '@/components/MainlineChessboard';
 import PreviewChessboard from '@/components/PreviewChessboard';
-import FeatureTable from '@/components/FeatureTable';
-import ControlPanel from '@/components/ControlPanel';
 import MoveList from '@/components/MoveList';
 import ModelForm from '@/components/ModelForm';
+import Comments from '@/components/Comments';
+import GameViewer from '@/components/GameViewer';
 
 const GamePage = () => {
   const router = useRouter();
@@ -24,6 +24,9 @@ const GamePage = () => {
         setLoading(true);
         const gameJson = await jobService.getGameJson(id);
         manager.loadGameFromJson(gameJson);
+        if (gameJson.game_narrative == null) {
+          manager.connectToJobCommentaryWs(id);
+        }
       } catch (e) {
         console.error(e);
         setError('Failed to load game');
@@ -43,81 +46,42 @@ const GamePage = () => {
     return <div className="flex items-center justify-center h-screen bg-light-gray text-red-500">{error}</div>;
   }
 
-  // Use state.isLoaded to prevent rendering empty components if something went wrong but no error caught
   if (!state.isLoaded) {
-      return <div className="flex items-center justify-center h-screen bg-light-gray text-darkest-gray">Initializing game state...</div>;
+    return <div className="flex items-center justify-center h-screen bg-light-gray text-darkest-gray">Initializing game state...</div>;
   }
 
   return (
-    <div className="flex flex-col h-screen bg-light-gray p-4 space-y-4 min-w-[1024px] overflow-x-auto">
-      <h1 className="text-2xl font-bold darkest-gray text-center">
+    <div className="flex flex-col h-screen bg-light-gray p-4 gap-3 min-w-[1024px] overflow-x-auto">
+      <h1 className="text-2xl font-bold darkest-gray text-center shrink-0">
         Automatic Chess Annotator
       </h1>
-      
-      {/* Large screens (1920px and above) - Original layout */}
-      <div className="hidden 2xl:flex flex-row bg-lightest-gray justify-between shadow-md rounded-md overflow-hidden space-x-4 relative z-10 h-[60vh]">
-        <div className="flex-none max-w-[25vw] w-[25vw]">
-          <MainlineChessboard />
-        </div>
-        <div className="flex-none max-w-[25vw] w-[25vw]">
-          <PreviewChessboard />
-        </div>
-        <div className="flex-none max-w-[15vw] w-[15vw]">
-          <FeatureTable />
-        </div>
-        <div className="flex-none max-w-[30vw] w-[30vw]">
-          <ControlPanel />
-        </div>
-      </div>
-      
-      {/* Medium screens (below 1920px) - Reduced chessboard size */}
-      <div className="hidden xl:flex 2xl:hidden flex-row bg-lightest-gray justify-between shadow-md rounded-md overflow-hidden space-x-4 relative z-10 h-[35vh]">
-        <div className="flex-none w-[300px]">
-          <MainlineChessboard />
-        </div>
-        <div className="flex-none w-[300px]">
-          <PreviewChessboard />
-        </div>
-        <div className="flex-none max-w-[20vw] w-[20vw]">
-          <FeatureTable />
-        </div>
-        <div className="flex-1">
-          <ControlPanel />
-        </div>
-      </div>
-      
-      {/* Small screens (below 1280px) - Stacked layout */}
-      <div className="xl:hidden flex flex-col bg-lightest-gray shadow-md rounded-md overflow-hidden space-y-4 relative z-10">
-        {/* Top row: Chessboards */}
-        <div className="flex flex-row justify-center space-x-4 p-4 h-[400px]">
-          <div className="w-[300px]">
+
+      {/* Row 1: main board | preview | game info (PVs, scores) | AI model settings */}
+      <div className="flex flex-col xl:flex-row flex-shrink-0 bg-lightest-gray shadow-md rounded-md overflow-hidden min-h-[260px] max-h-[46vh] border border-gray-200">
+        <div className="flex flex-row justify-center gap-4 xl:gap-6 flex-shrink-0 px-3 py-3 xl:py-4 xl:border-r border-gray-200">
+          <div className="flex-none w-[min(22vw,320px)] min-w-[200px] max-w-[320px]">
             <MainlineChessboard />
           </div>
-          <div className="w-[300px]">
+          <div className="flex-none w-[min(22vw,320px)] min-w-[200px] max-w-[320px]">
             <PreviewChessboard />
           </div>
         </div>
-        
-        {/* Bottom row: Feature table and game viewer */}
-        <div className="flex flex-row space-x-4 p-4 h-[300px]">
-          <div className="w-1/2">
-            <FeatureTable />
-          </div>
-          <div className="w-1/2">
-            <ControlPanel />
-          </div>
+        <div className="flex-1 min-w-0 min-h-[200px] flex flex-col border-t xl:border-t-0 xl:border-l border-gray-200 overflow-hidden">
+          <GameViewer />
+        </div>
+        <div className="w-full xl:w-[280px] xl:max-w-[300px] flex-shrink-0 border-t xl:border-t-0 xl:border-l border-gray-200 min-h-0 overflow-y-auto bg-lightest-gray">
+          <ModelForm />
         </div>
       </div>
-      
-      <div className="flex-shrink-0 h-[30vh] min-h-[220px] overflow-hidden z-index-100 pb-4">
-        <div className="flex flex-row h-full w-full">
-          <div className="w-[80%] h-full overflow-y-auto pr-2">
-            <MoveList />
-          </div>
-          <div className="w-[20%] h-full border-l pl-2">
-            <ModelForm />
-          </div>
-        </div>
+
+      {/* Row 2: commentary */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-md border border-gray-200 bg-lightest-gray shadow-sm">
+        <Comments />
+      </div>
+
+      {/* Row 3: navigation (movelist) */}
+      <div className="flex-shrink-0 h-[26vh] min-h-[200px] max-h-[340px] overflow-hidden border-t border-gray-200 pt-2">
+        <MoveList />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react'
+import React, { useRef, useEffect, useCallback, useMemo } from 'react'
 import Image from 'next/image'
 import { useGameState } from '@/contexts/GameStateContext'
 import { UIHelpers } from '@/helpers/uiHelpers'
@@ -12,27 +12,23 @@ const MoveList = () => {
   const listRef = useRef<HTMLDivElement>(null)
   const activeItemRef = useRef<HTMLDivElement>(null)
   const { state, manager } = useGameState()
-  const {
-    currentMoveIndex,
-    previewMode,
-    previewMoves,
-    previewMoveIndex,
-    isAnalysisInProgress,
-    analysisProgress,
-    isFullyAnalyzed
-  } = state
-  const router = useRouter();
-  const { id } = router.query;
+  const { currentMoveIndex, isAnalysisInProgress, analysisProgress, isFullyAnalyzed, commentsMainline, aiGeneration } =
+    state
 
-  // Get displayed moves from manager
+  const moveIdsWithAiComment = useMemo(() => {
+    const s = new Set<number>()
+    for (const c of commentsMainline) {
+      s.add(c.moveId)
+    }
+    return s
+  }, [commentsMainline])
+  const router = useRouter()
+  const { id } = router.query
+
   const displayedMoves = manager.getDisplayedMovesList()
-  const displayedPreviewMoves = manager.getDisplayedPreviewMovesList()
   const displayLength = 300
+  const scrollFollowIndex = currentMoveIndex
 
-  // Get the index to follow for scrolling (previewMoveIndex in preview mode, currentMoveIndex otherwise)
-  const scrollFollowIndex = previewMode ? (currentMoveIndex + previewMoveIndex) : currentMoveIndex
-
-  // Navigation handlers
   const handleMoveNavigation = useCallback(
     (action: 'first' | 'prev' | 'next' | 'last') => {
       switch (action) {
@@ -53,41 +49,28 @@ const MoveList = () => {
     [manager]
   )
 
-  const handlePvButton = () => {
-    if (previewMode) {
-      manager.exitPreviewMode()
-    } else {
-      manager.enterPreviewMode()
+  const handleDownload = async () => {
+    if (!id || typeof id !== 'string') return
+    try {
+      const gameJson = await jobService.getGameJson(id)
+      const blob = new Blob([JSON.stringify(gameJson, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `game_${id}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Failed to download game JSON', e)
+      alert('Failed to download game JSON')
     }
   }
 
-  const handleDownload = async () => {
-    if (!id || typeof id !== 'string') return;
-    try {
-      const gameJson = await jobService.getGameJson(id);
-      const blob = new Blob([JSON.stringify(gameJson, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `game_${id}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error("Failed to download game JSON", e);
-      alert("Failed to download game JSON");
-    }
-  };
-
-  // Keyboard navigation listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp') {
-        manager.exitPreviewMode()
-      } else if (e.key === 'ArrowDown') {
-        manager.enterPreviewMode()
-      } else if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowLeft') {
         manager.movePrev()
       } else if (e.key === 'ArrowRight') {
         manager.moveNext()
@@ -99,77 +82,27 @@ const MoveList = () => {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [previewMode, previewMoveIndex, currentMoveIndex, manager, displayedMoves.length, previewMoves])
+  }, [manager, displayedMoves.length])
 
   const handleRowClick = (index: number) => {
-    if (previewMode) {
-      // In preview mode, convert grid index to preview move index
-      const previewIndex = index - currentMoveIndex
-      if (previewIndex >= 0 && previewIndex < displayedPreviewMoves.length) {
-        manager.setPreviewMoveIndex(previewIndex)
-      }
-    } else {
-      manager.goToMove(index)
-    }
+    manager.goToMove(index)
   }
 
-  const handlePvClick = (index: number, pvType: 'pv1' | 'pv2') => {
-    if (!previewMode) {
-      // Not in preview mode - enter preview mode with PV sequence
-      const pvMoves = pvType === 'pv1' ? manager.getPv1(index) : manager.getPv2(index)
-      if (pvMoves && pvMoves.length > 0) {
-        manager.enterPreviewModeWithPvSequence(pvMoves, index)
-      }
-    } else {
-      // Already in preview mode - add PV sequence to current preview
-      const pvMoves = pvType === 'pv1' ? manager.getPv1(index) : manager.getPv2(index)
-      if (pvMoves && pvMoves.length > 0) {
-        manager.addPvSequenceToPreview(pvMoves, index)
-      }
-    }
-  }
+  const VALID_ANNOTATIONS = new Set(['??', '?', '?!', '!?', '!', '!!'])
 
-  const getPieceImg = (piece: string | undefined | null) => {
-    if (!piece) return ''
-    else return `/icons/pieces/${piece.toLowerCase()}.svg`
-  }
-
-  // Get annotation for a move
   const getMoveAnnotation = (index: number): string | undefined => {
-    if (previewMode) {
-      // In preview mode, get annotation from preview moves
-      if (index >= currentMoveIndex && index < currentMoveIndex + displayedPreviewMoves.length) {
-        const previewIndex = index - currentMoveIndex
-        return displayedPreviewMoves[previewIndex]?.annotation
-      }
-    } else {
-      // In normal mode, get annotation from mainline moves
-      return displayedMoves[index]?.annotation
-    }
-    return undefined
+    const raw = displayedMoves[index]?.annotation
+    return raw && VALID_ANNOTATIONS.has(raw) ? raw : undefined
   }
 
   useEffect(() => {
     if (listRef.current && displayedMoves?.length) {
-      let activeItem: HTMLElement | null = null
-
-      if (previewMode) {
-        // In preview mode, look for the selected preview move in Row 4
-        activeItem = listRef.current.querySelector(
-          `.preview-item-${scrollFollowIndex}`
-        ) as HTMLElement
-      } else {
-        // In normal mode, look for the selected mainline move in Row 3
-        activeItem = listRef.current.querySelector(
-          `.move-item-${scrollFollowIndex}`
-        ) as HTMLElement
-      }
-
+      const activeItem = listRef.current.querySelector(`.move-item-${scrollFollowIndex}`) as HTMLElement
       if (activeItem) {
         UIHelpers.scrollIntoView(activeItem, listRef.current)
       }
     }
-  }, [scrollFollowIndex, displayedMoves?.length, previewMode])
+  }, [scrollFollowIndex, displayedMoves?.length])
 
   useEffect(() => {
     const firstMove = manager.getMainlineMove(0)
@@ -180,128 +113,65 @@ const MoveList = () => {
 
   const [showDebug] = React.useState<boolean>(false)
 
+  const getPieceImg = (piece: string | undefined | null) => {
+    if (!piece) return ''
+    return `/icons/pieces/${piece.toLowerCase()}.svg`
+  }
+
   return (
     <div className="w-full h-full flex flex-col">
-      {/* Navigation Controls */}
       <div className="p-2 border-b">
-        {/* First Row: Navigation buttons */}
         <div className="flex justify-between items-center mb-2">
           <div className="flex justify-start items-center space-x-2">
             <Tooltip content="Go to first move">
-              <button
-                onClick={() => handleMoveNavigation('first')}
-                className={UIHelpers.getButtonClasses()}
-              >
-                <Image
-                  src="/icons/fast_back.svg"
-                  alt="First"
-                  width={16}
-                  height={16}
-                  className="w-4 h-4"
-                />
+              <button onClick={() => handleMoveNavigation('first')} className={UIHelpers.getButtonClasses()}>
+                <Image src="/icons/fast_back.svg" alt="First" width={16} height={16} className="w-4 h-4" />
               </button>
             </Tooltip>
             <Tooltip content="Previous move">
-              <button
-                onClick={() => handleMoveNavigation('prev')}
-                className={UIHelpers.getButtonClasses()}
-              >
-                <Image 
-                  src="/icons/back.svg" 
-                  alt="Previous" 
-                  width={16}
-                  height={16}
-                  className="w-4 h-4" 
-                />
+              <button onClick={() => handleMoveNavigation('prev')} className={UIHelpers.getButtonClasses()}>
+                <Image src="/icons/back.svg" alt="Previous" width={16} height={16} className="w-4 h-4" />
               </button>
             </Tooltip>
             <Tooltip content="Next move">
-              <button
-                onClick={() => handleMoveNavigation('next')}
-                className={UIHelpers.getButtonClasses()}
-              >
-                <Image 
-                  src="/icons/forward.svg" 
-                  alt="Next" 
-                  width={16}
-                  height={16}
-                  className="w-4 h-4" 
-                />
+              <button onClick={() => handleMoveNavigation('next')} className={UIHelpers.getButtonClasses()}>
+                <Image src="/icons/forward.svg" alt="Next" width={16} height={16} className="w-4 h-4" />
               </button>
             </Tooltip>
             <Tooltip content="Go to last move">
-              <button
-                onClick={() => handleMoveNavigation('last')}
-                className={UIHelpers.getButtonClasses()}
-              >
-                <Image
-                  src="/icons/fast_forward.svg"
-                  alt="Last"
-                  width={16}
-                  height={16}
-                  className="w-4 h-4"
-                />
-              </button>
-            </Tooltip>
-            <Tooltip content={previewMode ? "Exit preview mode" : "Enter preview mode"}>
-              <button
-                onClick={handlePvButton}
-                className={UIHelpers.getButtonClasses()}
-              >
-                <Image
-                  src={previewMode ? "/icons/up.svg" : "/icons/down.svg"}
-                  alt={previewMode ? "Exit Preview" : "Enter Preview"}
-                  width={16}
-                  height={16}
-                  className="w-4 h-4"
-                />
+              <button onClick={() => handleMoveNavigation('last')} className={UIHelpers.getButtonClasses()}>
+                <Image src="/icons/fast_forward.svg" alt="Last" width={16} height={16} className="w-4 h-4" />
               </button>
             </Tooltip>
             <Tooltip content="Close analysis session">
-              <button
-                onClick={() => router.push('/')}
-                className={UIHelpers.getIconButtonClasses()}
-              >
-                <Image 
-                  src="/icons/close.svg" 
-                  alt="Close" 
-                  width={16}
-                  height={16}
-                  className="w-4 h-4" 
-                />
+              <button onClick={() => router.push('/')} className={UIHelpers.getIconButtonClasses()}>
+                <Image src="/icons/close.svg" alt="Close" width={16} height={16} className="w-4 h-4" />
               </button>
             </Tooltip>
           </div>
-          
-          {/* Download Button */}
+
           {id && typeof id === 'string' && (
-             <Tooltip content="Download Analysis JSON">
-                <button
-                  onClick={handleDownload}
-                  className={UIHelpers.getButtonClasses()}
-                >
-                  <Image 
-                    src="/icons/upload.svg" 
-                    alt="Download" 
-                    width={16}
-                    height={16}
-                    className="w-4 h-4 transform rotate-180" 
-                  />
-                </button>
-             </Tooltip>
+            <Tooltip content="Download Analysis JSON">
+              <button onClick={handleDownload} className={UIHelpers.getButtonClasses()}>
+                <Image
+                  src="/icons/upload.svg"
+                  alt="Download"
+                  width={16}
+                  height={16}
+                  className="w-4 h-4 transform rotate-180"
+                />
+              </button>
+            </Tooltip>
           )}
         </div>
 
-        {/* Second Row: Analysis button */}
         <div className="flex justify-start">
           {!isFullyAnalyzed && (
             <div className="text-center">
               {isAnalysisInProgress ? (
                 <Tooltip content="Analysis in progress">
                   <div>
-                    <p className="text-sm text-gray-600">
-                      Analyzing...
-                    </p>
+                    <p className="text-sm text-gray-600">Analyzing...</p>
                     <div className="relative h-4 bg-darkest-gray rounded-full" style={{ width: '400px' }}>
                       <div
                         className="absolute h-full bg-light-gray transition-[width] duration-500 rounded-full"
@@ -309,7 +179,9 @@ const MoveList = () => {
                       />
                       <div
                         className="absolute inset-0 flex items-center justify-center text-sm font-bold"
-                        style={{ color: analysisProgress < 50 ? 'var(--lightest-gray)' : 'var(--darkest-gray)' }}
+                        style={{
+                          color: analysisProgress < 50 ? 'var(--lightest-gray)' : 'var(--darkest-gray)',
+                        }}
                       >
                         {analysisProgress.toFixed(0)}%
                       </div>
@@ -317,45 +189,27 @@ const MoveList = () => {
                   </div>
                 </Tooltip>
               ) : (
-                <div className="flex items-center space-x-2">
-                  {/*
-                  <Tooltip content="Run full game analysis">
-                    <button
-                      onClick={() => manager.requestFullGameAnalysis()}
-                      className={UIHelpers.getPrimaryButtonClasses(isAnalysisInProgress)}
-                      disabled={isAnalysisInProgress}
-                    >
-                      Run Full Analysis
-                    </button>
-                  </Tooltip>
-                  <Tooltip content={(() => {
-                    const move = previewMode ? manager.getCurrentMove() : manager.getMainlineMove(currentMoveIndex)
-                    const hf = move?.hiddenFeatures
-                    return hf ? JSON.stringify(hf, null, 2) : 'No hidden features available.'
-                  })()}>
-                    <button className={UIHelpers.getButtonClasses()}>
-                      Debug Features
-                    </button>
-                  </Tooltip>
-                  */}
-                </div>
+                <div className="flex items-center space-x-2" />
               )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Move List Grid */}
       <div ref={listRef} className={`${UIHelpers.getMoveListContainerClasses()} w-full flex-1`}>
-        {/* Invisible debug panel under grid (occupied space only when visible) */}
         <div className="p-2" style={{ display: showDebug ? 'block' : 'none' }}>
           <HiddenFeaturesDebug visible={showDebug} />
         </div>
-        <div className="grid" style={{ gridTemplateColumns: `80px repeat(${displayLength}, 100px)`, gridTemplateRows: 'repeat(4, 4vh)', columnGap: '8px', rowGap: '8px' }}>
-          {/* Row 1: Move numbers + label */}
-          <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 1, gridColumn: 1 }}>
-            {/* Empty for alignment */}
-          </div>
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `80px repeat(${displayLength}, 100px)`,
+            gridTemplateRows: 'repeat(4, 4vh)',
+            columnGap: '8px',
+            rowGap: '8px',
+          }}
+        >
+          <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 1, gridColumn: 1 }} />
           {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
             const moveNum = Math.floor(colIndex / 2) + 1
             const isWhite = colIndex % 2 === 0
@@ -370,24 +224,33 @@ const MoveList = () => {
             )
           })}
 
-          {/* Row 2: Annotations */}
           <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 2, gridColumn: 1 }}>
             Tags:
           </div>
           {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
             const annotation = getMoveAnnotation(colIndex)
+            const move = displayedMoves[colIndex]
+            const moveId = move?.id
+            const hasAiComment = moveId != null && moveIdsWithAiComment.has(moveId)
+            const isGeneratingAi = moveId != null && aiGeneration[moveId] != null
             return (
               <div
                 key={`row2-col${colIndex}`}
-                className="w-[100px] h-[4vh] flex items-center justify-center text-xs font-bold text-red-600"
+                className="w-[100px] h-[4vh] flex items-center justify-center gap-0.5 text-xs font-bold text-red-600"
                 style={{ gridRow: 2, gridColumn: colIndex + 2 }}
               >
-                {annotation || ''}
+                {annotation ? <span>{annotation}</span> : null}
+                {hasAiComment ? <span className="text-blue-700 font-semibold">*</span> : null}
+                {isGeneratingAi ? (
+                  <span
+                    className="inline-block h-3 w-3 border-2 border-red-600 border-t-transparent rounded-full animate-spin shrink-0"
+                    aria-label="Commentary generating"
+                  />
+                ) : null}
               </div>
             )
           })}
 
-          {/* Row 3: Mainline moves */}
           <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 3, gridColumn: 1 }}>
             Mainline:
           </div>
@@ -405,9 +268,7 @@ const MoveList = () => {
             const isWhite = colIndex % 2 === 0
             const isCurrent = colIndex === currentMoveIndex
             const moveRef = isCurrent ? activeItemRef : undefined
-            const moveCellClass = isWhite
-              ? 'bg-lightest-gray text-darkest-gray'
-              : 'bg-darkest-gray text-lightest-gray'
+            const moveCellClass = isWhite ? 'bg-lightest-gray text-darkest-gray' : 'bg-darkest-gray text-lightest-gray'
             return (
               <div
                 ref={moveRef}
@@ -416,48 +277,26 @@ const MoveList = () => {
                 style={isCurrent ? { fontSize: '1.15rem', gridRow: 3, gridColumn: colIndex + 2 } : { gridRow: 3, gridColumn: colIndex + 2 }}
                 onClick={() => handleRowClick(colIndex)}
               >
-                <div className='flex items-center'>
-                  <Image alt={move.piece ?? ''}
-                    width={20}
-                    height={20}
-                    src={getPieceImg(move.piece)} />
-                  <span className="font-semibold text-sm">{move.move.slice(2)}</span>
+                <div className="flex items-center">
+                  <Image alt={move.piece ?? ''} width={20} height={20} src={getPieceImg(move.piece)} />
+                  <span className="font-semibold text-sm">{move.move}</span>
                 </div>
-                {move.score !== undefined && (
-                  <span className="text-xs ml-2">{(move.score / 100).toFixed(2)}</span>
-                )}
+                {move.score !== undefined && <span className="text-xs ml-2">{(move.score / 100).toFixed(2)}</span>}
               </div>
             )
           })}
 
-          {/* Row 4: Preview moves (PVs in normal mode, preview moves in preview mode) */}
           <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 4, gridColumn: 1 }}>
-            Preview:
+            Best:
           </div>
           {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
-            let move = null
-            let isSelected = false
-            let pvType: 'pv1' | 'pv2' | null = null
-
-            if (previewMode) {
-              // In preview mode, show preview moves starting at currentMoveIndex
-              if (colIndex >= currentMoveIndex && colIndex < currentMoveIndex + displayedPreviewMoves.length) {
-                const previewIndex = colIndex - currentMoveIndex
-                move = displayedPreviewMoves[previewIndex] || null
-                isSelected = colIndex === (currentMoveIndex + previewMoveIndex)
-              }
-            } else {
-              // In normal mode, show PV moves (first PV1, then PV2 if available)
-              const pv1Moves = manager.getPv1(colIndex)
-              const pv2Moves = manager.getPv2(colIndex)
-
-              if (pv1Moves && pv1Moves.length > 0) {
-                move = pv1Moves[0]
-                pvType = 'pv1'
-              } else if (pv2Moves && pv2Moves.length > 0) {
-                move = pv2Moves[0]
-                pvType = 'pv2'
-              }
+            const pv1Moves = manager.getPv1(colIndex)
+            const pv2Moves = manager.getPv2(colIndex)
+            let move: Move | null = null
+            if (pv1Moves && pv1Moves.length > 0) {
+              move = pv1Moves[0]
+            } else if (pv2Moves && pv2Moves.length > 0) {
+              move = pv2Moves[0]
             }
 
             if (!move || !move.move) {
@@ -471,36 +310,18 @@ const MoveList = () => {
             }
 
             const isWhite = colIndex % 2 === 0
-            const moveCellClass = isWhite
-              ? 'bg-lightest-gray text-darkest-gray'
-              : 'bg-darkest-gray text-lightest-gray'
-            const selectedStyle = isSelected ? 'hvr-shadow text-base font-bold z-10 ring-2 selected-shadow' : ''
-
+            const moveCellClass = isWhite ? 'bg-lightest-gray text-darkest-gray' : 'bg-darkest-gray text-lightest-gray'
             return (
               <div
                 key={`row4-col${colIndex}`}
-                className={`w-[100px] h-[4vh] rounded-[8px] flex items-center hvr-shadow justify-between px-2 text-xs ${moveCellClass} ${selectedStyle} ${isSelected ? `preview-item-${colIndex}` : ''}`}
-                style={isSelected ? { fontSize: '1.15rem', gridRow: 4, gridColumn: colIndex + 2 } : { gridRow: 4, gridColumn: colIndex + 2 }}
-                onClick={() => {
-                  if (previewMode) {
-                    handleRowClick(colIndex)
-                  } else if (pvType) {
-                    handlePvClick(colIndex, pvType)
-                  }
-                }}
+                className={`w-[100px] h-[4vh] rounded-[8px] flex items-center hvr-shadow justify-between px-2 text-xs ${moveCellClass}`}
+                style={{ gridRow: 4, gridColumn: colIndex + 2 }}
               >
-                <div className='flex items-center'>
-                  <Image
-                    alt={move.piece ?? ''}
-                    width={20}
-                    height={20}
-                    src={getPieceImg(move.piece)}
-                  />
-                  <span className="font-semibold text-sm">{move.move.slice(2)}</span>
+                <div className="flex items-center">
+                  <Image alt={move.piece ?? ''} width={20} height={20} src={getPieceImg(move.piece)} />
+                  <span className="font-semibold text-sm">{move.move}</span>
                 </div>
-                {move.score !== undefined && (
-                  <span className="text-xs ml-2">{(move.score / 100).toFixed(2)}</span>
-                )}
+                {move.score !== undefined && <span className="text-xs ml-2">{(move.score / 100).toFixed(2)}</span>}
               </div>
             )
           })}

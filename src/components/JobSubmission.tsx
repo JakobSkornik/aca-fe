@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { jobService } from '@/services/JobService';
 import { useRouter } from 'next/router';
+import { useGameState } from '@/contexts/GameStateContext';
 import Dropdown from './ui/Dropdown';
 
 const JobSubmission: React.FC = () => {
@@ -8,6 +9,7 @@ const JobSubmission: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { manager } = useGameState();
 
   const staticPgns = [
     { value: '', label: 'Select Example PGN' },
@@ -33,7 +35,11 @@ const JobSubmission: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const job = await jobService.submitJob(pgn);
+      const mp = manager.getModelParams();
+      const job = await jobService.submitJob(pgn, {
+        llm_model: mp.model,
+        llm_effort: mp.effort,
+      });
       router.push(`/job/${job.job_id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Submission failed');

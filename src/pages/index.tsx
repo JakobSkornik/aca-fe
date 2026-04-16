@@ -50,9 +50,6 @@ const Home = () => {
             </div>
 
             <div className="mt-6">
-              <label className="block text-sm font-medium text-darkest-gray">
-                Load JSON File
-              </label>
               <input
                 type="file"
                 accept=".json"

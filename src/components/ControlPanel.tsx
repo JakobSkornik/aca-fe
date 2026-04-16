@@ -8,8 +8,8 @@ const ControlPanel = () => {
 
   return (
     <div className="p-4 overflow-y-hidden h-full w-full">
-      {!state.isLoaded && !state.previewMode && <PgnLoader />}
-      {(state.isLoaded || state.previewMode) && (
+      {!state.isLoaded && <PgnLoader />}
+      {state.isLoaded && (
         <GameViewer />
       )}
     </div>

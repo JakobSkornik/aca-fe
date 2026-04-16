@@ -18,11 +18,10 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
         const status = await jobService.getJobStatus(jobId);
         setJob(status);
 
-        if (status.status === 'completed') {
-          // Redirect to game view after a brief pause
+        if (status.status === 'engine_complete' || status.status === 'completed') {
           setTimeout(() => {
             router.push(`/game/${jobId}`);
-          }, 1000);
+          }, status.status === 'engine_complete' ? 500 : 1000);
         }
       } catch (e) {
         console.error(e); // Log error for debugging
@@ -53,6 +52,11 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
       </div>
 
       {job.message && <p className="text-dark-gray">{job.message}</p>}
+      {job.status === 'engine_complete' && (
+        <p className="text-sm text-dark-gray max-w-md text-center">
+          Engine analysis done — opening the board while commentary streams in.
+        </p>
+      )}
 
       <div className="w-full max-w-md bg-light-gray rounded-full h-4 overflow-hidden border border-dark-gray">
         <div 
@@ -62,7 +66,7 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
       </div>
       <div className="text-sm text-dark-gray">{Math.round(job.progress || 0)}%</div>
 
-      {job.status === 'completed' && (
+      {(job.status === 'engine_complete' || job.status === 'completed') && (
          <button 
            onClick={() => router.push(`/game/${jobId}`)}
            className="mt-4 px-4 py-2 bg-darkest-gray text-white rounded hover:bg-dark-gray"
@@ -81,6 +85,7 @@ const getStatusColor = (status: string) => {
   switch (status) {
     case 'waiting': return 'text-yellow-600';
     case 'processing': return 'text-blue-600';
+    case 'engine_complete': return 'text-teal-600';
     case 'completed': return 'text-green-600';
     case 'failed': return 'text-red-600';
     default: return 'text-gray-600';

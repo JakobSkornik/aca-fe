@@ -3,12 +3,29 @@ import { GameJson } from '@/types/GameJson';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+function apiUrlToWsBase(apiUrl: string): string {
+  if (apiUrl.startsWith('https://')) {
+    return `wss://${apiUrl.slice('https://'.length)}`;
+  }
+  if (apiUrl.startsWith('http://')) {
+    return `ws://${apiUrl.slice('http://'.length)}`;
+  }
+  return apiUrl;
+}
+
 class JobService {
-  async submitJob(pgn: string): Promise<JobResponse> {
+  async submitJob(
+    pgn: string,
+    opts?: { llm_model?: string; llm_effort?: string }
+  ): Promise<JobResponse> {
     const res = await fetch(`${API_URL}/jobs/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pgn_string: pgn }),
+      body: JSON.stringify({
+        pgn_string: pgn,
+        llm_model: opts?.llm_model,
+        llm_effort: opts?.llm_effort,
+      }),
     });
     if (!res.ok) {
       throw new Error(`Submission failed: ${res.statusText}`);
@@ -30,6 +47,14 @@ class JobService {
       throw new Error(`Failed to get game JSON: ${res.statusText}`);
     }
     return res.json();
+  }
+
+  /** WebSocket URL for streaming LLM commentary after engine phase (`/jobs/{id}/ws`). */
+  getCommentaryWsUrl(jobId: string): string {
+    const wsBase =
+      process.env.NEXT_PUBLIC_WS_URL || apiUrlToWsBase(API_URL);
+    const base = wsBase.replace(/\/$/, '');
+    return `${base}/jobs/${jobId}/ws`;
   }
 }
 

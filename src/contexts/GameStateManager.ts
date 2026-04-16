@@ -2,11 +2,42 @@ import { Chess } from 'chess.js'
 import webSocketService from '../services/WebSocketService'
 import { Move } from '../types/chess/Move'
 import { PgnHeaders } from '../types/chess/PgnHeaders'
-import { MoveList, createMoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList, getNextAvailableId } from '../helpers/moveListUtils'
-import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, CommentUpdateServerPayload, AiCommentUpdateServerPayload, AiGenerationStatusServerPayload, ModelParamsUpdatedServerPayload, SetModelParamsClientPayload } from '../types/WebSocketMessages'
+import { MoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList } from '../helpers/moveListUtils'
+import { applyCaptureFromMoveResult, cloneCaptureCount, emptyCaptureCount } from '../helpers/captureUtils'
+import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, AiCommentUpdateServerPayload, AiGenerationStatusServerPayload, ModelParamsUpdatedServerPayload, SetModelParamsClientPayload, EpisodeNarrativeServerPayload, GameNarrativeServerPayload } from '../types/WebSocketMessages'
+import { jobService } from '../services/JobService'
 import { CaptureCount } from '../types/chess/CaptureCount'
 import { chessPositionManager } from '../helpers/ChessPositionManager'
 import { GameJson, GameMove } from '../types/GameJson'
+import { isEngineKeyMomentScoreComment } from '../helpers/commentaryText'
+import type { ResolvedAnnotationToken } from '../types/WebSocketMessages'
+import type { Arrow, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
+
+/** Retrieved master-game annotation reference (Chroma RAG). */
+export type RagRef = {
+  source: string
+  fen: string
+  text: string
+  score: number
+  san?: string
+  phase?: string
+}
+
+/** Commentary for a mainline move; optional PV line for hover boards (from AI payload). */
+export type MainlineComment = {
+  moveId: number
+  moveIndex: number
+  text: string
+  pvLine?: { san: string; fen: string }[]
+  resolvedTokens?: ResolvedAnnotationToken[]
+  ragRefs?: RagRef[]
+}
+
+/** Transient highlights on the main board from annotation hover (arrows + square tint). */
+export type CommentaryBoardOverlay = {
+  arrows: Arrow[]
+  squareStyles: CustomSquareStyles
+} | null
 
 export type GameStateSnapshot = {
   game: Chess
@@ -20,15 +51,16 @@ export type GameStateSnapshot = {
   // Move state
   moves: MoveList
   currentMoveIndex: number
-  previewMode: boolean
-  previewMoves: MoveList
-  previewMoveIndex: number
-  commentsMainline: { moveId: number; moveIndex: number; text: string }[]
-  commentsPreview: { moveId: number; moveIndex: number; text: string }[]
+  commentsMainline: MainlineComment[]
   pendingComments: { moveId: number; context: 'mainline' | 'preview'; text: string }[]
   aiComments: { moveId: number; moveIndex: number; context: 'mainline' | 'preview'; data: Record<string, unknown> }[]
   modelParams: { model: 'gpt-5-mini' | 'gpt-5'; effort: 'low' | 'medium' | 'high'; temperature?: number; maxTokens?: number }
   aiGeneration: Record<number, { context: 'mainline' | 'preview'; startedAt: number; model?: string; effort?: string }>
+  episodeNarratives: { episodeIndex: number; title: string; narrative: string }[]
+  gameNarrative: string | null
+  commentaryComplete: boolean
+  /** Hover-driven overlay from inline commentary tokens (merged in MainlineChessboard). */
+  commentaryBoardOverlay: CommentaryBoardOverlay
 }
 
 const getPieceFromSan = (san: string, color: 'w' | 'b'): string => {
@@ -51,6 +83,7 @@ const getPieceFromSan = (san: string, color: 'w' | 'b'): string => {
 export class GameStateManager {
   private state: GameStateSnapshot
   private listeners: (() => void)[] = []
+  private jobCommentaryWs: WebSocket | null = null
 
   constructor() {
     this.state = {
@@ -64,15 +97,15 @@ export class GameStateManager {
       analysisProgress: 0,
       moves: new MoveList(),
       currentMoveIndex: 0,
-      previewMode: false,
-      previewMoves: new MoveList(),
-      previewMoveIndex: 0,
       commentsMainline: [],
-      commentsPreview: [],
       pendingComments: [],
       aiComments: [],
       modelParams: { model: 'gpt-5-mini', effort: 'low', temperature: 0.2, maxTokens: 120 },
       aiGeneration: {},
+      episodeNarratives: [],
+      gameNarrative: null,
+      commentaryComplete: true,
+      commentaryBoardOverlay: null,
     }
   }
 
@@ -100,20 +133,30 @@ export class GameStateManager {
 
   // --- Load from JSON ---
   loadGameFromJson(data: GameJson) {
+    this.disconnectJobCommentaryWs()
     this.state.isLoaded = false;
     this.state.isAnalysisInProgress = false;
     this.state.isFullyAnalyzed = true;
     this.state.analysisProgress = 100;
     this.state.wsError = null;
     this.state.commentsMainline = [];
-    this.state.commentsPreview = [];
-    
+    this.state.commentaryBoardOverlay = null;
+    this.state.episodeNarratives = (data.episodes || [])
+      .filter((e) => e.narrative)
+      .map((e) => ({
+        episodeIndex: e.episode_index,
+        title: e.title,
+        narrative: e.narrative as string,
+      }));
+    this.state.gameNarrative = data.game_narrative ?? null;
+    this.state.commentaryComplete = !!data.game_narrative;
+
     // Set headers
     this.state.pgnHeaders = {
       whiteName: data.metadata.white,
       blackName: data.metadata.black,
-      whiteElo: data.metadata.whiteElo?.toString() || '',
-      blackElo: data.metadata.blackElo?.toString() || '',
+      whiteElo: data.metadata.whiteElo ?? 0,
+      blackElo: data.metadata.blackElo ?? 0,
       result: data.metadata.result,
       opening: data.metadata.opening || '',
       event: data.metadata.eventId || ''
@@ -121,7 +164,9 @@ export class GameStateManager {
 
     // Reconstruct Moves
     const moveList = new MoveList();
-    const chess = new Chess(); // Used to replay game and PVs for FEN generation
+    const chess = new Chess(); // Replay mainline; PVs use position before each move
+    let capW = emptyCaptureCount()
+    let capB = emptyCaptureCount()
 
     data.moves.forEach((gm: GameMove, index: number) => {
         // Mainline move
@@ -135,21 +180,19 @@ export class GameStateManager {
             score: gm.score ? (gm.score.mate ? (gm.score.mate > 0 ? 100000 - gm.score.mate : -100000 - gm.score.mate) : gm.score.cp || 0) : undefined,
             annotation: gm.comment || undefined,
             piece: getPieceFromSan(gm.san, gm.color),
-            // Map hiddenFeatures if available in JSON (currently not in schema explicitly, but if added later)
-            // Or assume some features need to be calculated/mocked if they are missing
-            hiddenFeatures: {} 
+            hiddenFeatures: {}
         };
 
-        // Populate comments
-        if (gm.comment) {
+        // AI commentary list only (exclude engine key-moment + score lines)
+        if (gm.comment && !isEngineKeyMomentScoreComment(gm.comment)) {
             this.state.commentsMainline.push({
                 moveId: move.id,
-                moveIndex: index, // In MoveList, indices start from 0 (move 1 white)
-                text: gm.comment
-            });
+                moveIndex: index,
+                text: gm.comment,
+            })
         }
 
-        // PVs
+        // PVs (from position before this mainline move)
         const pvs: Move[][] = [];
         
         gm.variations.forEach(variation => {
@@ -185,19 +228,26 @@ export class GameStateManager {
         const pv1 = pvs.length > 0 ? pvs[0] : [];
         const pv2 = pvs.length > 1 ? pvs[1] : [];
 
-        moveList.addMove(move, pv1, pv2);
-        
-        // Advance internal chess state
+        // Advance mainline and track material captured
+        let last: ReturnType<Chess['move']> | null = null
         try {
-            chess.move(gm.san); 
+            last = chess.move(gm.san)
         } catch {
-             // Fallback if SAN fails
              try {
-                chess.move(gm.uci);
+                last = chess.move(gm.uci)
              } catch (e) {
                  console.error("Failed to make move", gm.san, gm.uci, e);
              }
         }
+        if (last?.captured) {
+          const u = applyCaptureFromMoveResult(capW, capB, last.captured, last.color)
+          capW = u.capW
+          capB = u.capB
+        }
+        move.capturedByWhite = cloneCaptureCount(capW)
+        move.capturedByBlack = cloneCaptureCount(capB)
+
+        moveList.addMove(move, pv1, pv2);
     });
     
     // Apply classifications
@@ -226,238 +276,75 @@ export class GameStateManager {
 
   // --- Unified Navigation ---
   goToMove(index: number) {
-    if (this.state.previewMode) {
-      // In preview mode, navigate within preview moves
-      // Convert grid index to preview move index
-      const previewIndex = index - this.state.currentMoveIndex
-      if (previewIndex >= 0 && previewIndex < this.state.previewMoves.getLength()) {
-        this.state.previewMoveIndex = previewIndex
-        this.checkAndRequestCurrentMoveAnalysis()
-        this.notify()
-      }
-    } else {
-      // In mainline mode, navigate within mainline moves
-      if (index >= 0 && index < this.state.moves.getMainlineMoveCount()) {
-        this.state.currentMoveIndex = index
-        this.checkAndRequestCurrentMoveAnalysis()
-        this.notify()
-      }
-    }
-  }
-
-  moveNext() {
-    if (this.state.previewMode) {
-      // In preview mode, move to next preview move
-      const nextIndex = this.state.previewMoveIndex + 1
-      if (nextIndex < this.state.previewMoves.getLength()) {
-        this.state.previewMoveIndex = nextIndex
-        this.checkAndRequestCurrentMoveAnalysis()
-        this.notify()
-      }
-    } else {
-      // In mainline mode, move to next mainline move
-      const nextIndex = this.state.currentMoveIndex + 1
-      if (nextIndex < this.state.moves.getMainlineMoveCount()) {
-        this.state.currentMoveIndex = nextIndex
-        this.checkAndRequestCurrentMoveAnalysis()
-        this.notify()
-      }
-    }
-  }
-
-  movePrev() {
-    if (this.state.previewMode) {
-      // In preview mode, move to previous preview move
-      const prevIndex = this.state.previewMoveIndex - 1
-      if (prevIndex >= 0) {
-        this.state.previewMoveIndex = prevIndex
-        this.checkAndRequestCurrentMoveAnalysis()
-        this.notify()
-      }
-    } else {
-      // In mainline mode, move to previous mainline move
-      const prevIndex = this.state.currentMoveIndex - 1
-      if (prevIndex >= 0) {
-        this.state.currentMoveIndex = prevIndex
-        this.checkAndRequestCurrentMoveAnalysis()
-        this.notify()
-      }
-    }
-  }
-
-  goToFirst() {
-    if (this.state.previewMode) {
-      this.state.previewMoveIndex = 0
-    } else {
-      this.state.currentMoveIndex = 0
-    }
-    this.checkAndRequestCurrentMoveAnalysis()
-    this.notify()
-  }
-
-  goToLast() {
-    if (this.state.previewMode) {
-      this.state.previewMoveIndex = this.state.previewMoves.getLength() - 1
-    } else {
-      this.state.currentMoveIndex = this.state.moves.getMainlineMoveCount() - 1
-    }
-    this.checkAndRequestCurrentMoveAnalysis()
-    this.notify()
-  }
-
-  // --- Current Move Access (works in both modes) ---
-  getCurrentMove(): Move | null {
-    if (this.state.previewMode) {
-      return this.state.previewMoves.getMoveAtIndex(this.state.previewMoveIndex)
-    } else {
-      return this.state.moves.getMoveAtIndex(this.state.currentMoveIndex)
-    }
-  }
-
-  getCurrentPositionUnified(): string | null {
-    if (this.state.previewMode) {
-      return this.state.previewMoves.getCurrentPosition(this.state.previewMoveIndex)
-    } else {
-      return this.state.moves.getCurrentPosition(this.state.currentMoveIndex)
-    }
-  }
-
-  getCurrentCaptures() {
-    if (this.state.previewMode) {
-      return this.state.previewMoves.getCapturesForMove(this.state.previewMoveIndex)
-    } else {
-      return this.state.moves.getCapturesForMove(this.state.currentMoveIndex)
-    }
-  }
-
-  // --- Preview Mode Management ---
-  enterPreviewMode(index?: number) {
-    if (this.state.previewMode) return
-    // Use provided index or current move index
-    const targetIndex = index !== undefined ? index : this.state.currentMoveIndex
-    // Load whole PV1 starting at target index into preview moves
-    const pv1Moves = this.state.moves.getPv1(targetIndex)
-    if (pv1Moves && pv1Moves.length > 0) {
-      // Create new preview moves list
-      this.state.previewMoves = new MoveList()
-
-      // Add all PV1 moves
-      pv1Moves.forEach(move => {
-        this.state.previewMoves.addMove(move)
-      })
-
-      this.state.previewMode = true
-      this.state.previewMoveIndex = 0 // Start at 0 for the first PV move
+    if (index >= 0 && index < this.state.moves.getMainlineMoveCount()) {
+      this.state.currentMoveIndex = index
+      this.state.commentaryBoardOverlay = null
       this.checkAndRequestCurrentMoveAnalysis()
       this.notify()
     }
   }
 
-  exitPreviewMode(notify = true) {
-    if (!this.state.previewMode) return
-    this.state.previewMode = false
-    this.state.previewMoves = new MoveList() // Clear preview moves
-    this.state.previewMoveIndex = 0
-    // Clear preview comments when exiting preview
-    this.state.commentsPreview = []
-    if (notify) this.notify()
-  }
-
-  // --- Preview Move Management ---
-  addPreviewMove(move: Move) {
-    if (!this.state.previewMode) {
-      // If not in preview mode, enter it first
-      this.enterPreviewMode()
-    }
-
-    // Add move to preview moves
-    this.state.previewMoves.addMove(move)
-
-    // Set preview move index to the newly added move
-    this.state.previewMoveIndex = this.state.previewMoves.getLength() - 1
-
-    // Request analysis for the new move
-    if (!move.isAnalyzed) {
-      this.requestMoveAnalysis(move)
-    }
-
-    this.notify()
-  }
-
-  enterPreviewModeWithMove(move: Move) {
-    // Create new preview moves list with ONLY the new move
-    this.state.previewMoves = new MoveList()
-
-    // Add only the new move (not the entire mainline)
-    this.state.previewMoves.addMove(move)
-
-    // Enter preview mode
-    this.state.previewMode = true
-    this.state.previewMoveIndex = 0 // Show the played move (first and only move)
-
-    // Request analysis for the new move
-    if (!move.isAnalyzed) {
-      this.requestMoveAnalysis(move)
-    }
-
-    this.notify()
-  }
-
-  clearPreviewMovesFromIndex(index: number) {
-    if (!this.state.previewMode) return
-
-    // Get current preview moves
-    const currentMoves = this.state.previewMoves.getMainlineMoves()
-
-    // Keep only moves up to the specified index
-    const movesToKeep = currentMoves.slice(0, index)
-
-    // Create new preview moves list
-    this.state.previewMoves = new MoveList()
-    movesToKeep.forEach(move => {
-      this.state.previewMoves.addMove(move)
-    })
-
-    // Ensure preview move index is within bounds
-    if (this.state.previewMoveIndex >= this.state.previewMoves.getLength()) {
-      this.state.previewMoveIndex = this.state.previewMoves.getLength() - 1
-    }
-
-    this.notify()
-  }
-
-  loadPvToPreview(pvMoves: Move[], upToIndex: number) {
-    if (!this.state.previewMode) {
-      // If not in preview mode, enter it first
-      this.enterPreviewMode()
-    }
-
-    // Create new preview moves list
-    this.state.previewMoves = new MoveList()
-
-    // Add mainline moves up to current index
-    const mainlineMoves = this.state.moves.getMainlineMoves().slice(0, this.state.currentMoveIndex)
-    mainlineMoves.forEach(move => {
-      this.state.previewMoves.addMove(move)
-    })
-
-    // Add PV moves up to the specified index
-    const pvMovesToAdd = pvMoves.slice(0, upToIndex + 1)
-    pvMovesToAdd.forEach(move => {
-      this.state.previewMoves.addMove(move)
-    })
-
-    // Set preview move index to current move index (doesn't change)
-    this.state.previewMoveIndex = this.state.currentMoveIndex
-
-    this.notify()
-  }
-
-  setPreviewMoveIndex(index: number) {
-    if (this.state.previewMode && index >= 0 && index < this.state.previewMoves.getLength()) {
-      this.state.previewMoveIndex = index
+  moveNext() {
+    const nextIndex = this.state.currentMoveIndex + 1
+    if (nextIndex < this.state.moves.getMainlineMoveCount()) {
+      this.state.currentMoveIndex = nextIndex
+      this.state.commentaryBoardOverlay = null
+      this.checkAndRequestCurrentMoveAnalysis()
       this.notify()
     }
+  }
+
+  movePrev() {
+    const prevIndex = this.state.currentMoveIndex - 1
+    if (prevIndex >= 0) {
+      this.state.currentMoveIndex = prevIndex
+      this.state.commentaryBoardOverlay = null
+      this.checkAndRequestCurrentMoveAnalysis()
+      this.notify()
+    }
+  }
+
+  goToFirst() {
+    this.state.currentMoveIndex = 0
+    this.state.commentaryBoardOverlay = null
+    this.checkAndRequestCurrentMoveAnalysis()
+    this.notify()
+  }
+
+  goToLast() {
+    this.state.currentMoveIndex = this.state.moves.getMainlineMoveCount() - 1
+    this.state.commentaryBoardOverlay = null
+    this.checkAndRequestCurrentMoveAnalysis()
+    this.notify()
+  }
+
+  getCurrentMove(): Move | null {
+    return this.state.moves.getMoveAtIndex(this.state.currentMoveIndex)
+  }
+
+  getCurrentPositionUnified(): string | null {
+    return this.state.moves.getCurrentPosition(this.state.currentMoveIndex)
+  }
+
+  getCurrentCaptures() {
+    return this.state.moves.getCapturesForMove(this.state.currentMoveIndex)
+  }
+
+  /** FEN after the move at `index` (start position when `index` is 0 or negative). */
+  getPositionForIndex(index: number): string {
+    return this.state.moves.getPositionForIndex(index)
+  }
+
+  /** First PV move at index (engine best line) for the preview board. */
+  getBestMoveForIndex(index: number): { fen: string; san: string; from: string; to: string } | null {
+    const pv1 = this.state.moves.getPv1(index)
+    if (!pv1 || pv1.length === 0) return null
+    const m = pv1[0]
+    const fenBefore = index <= 0 ? new Chess().fen() : this.state.moves.getPositionForIndex(index - 1)
+    const board = new Chess(fenBefore)
+    const r = board.move(m.move)
+    if (!r) return { fen: m.position, san: m.move, from: '', to: '' }
+    return { fen: m.position, san: m.move, from: r.from, to: r.to }
   }
 
   // --- Backend interaction ---
@@ -466,9 +353,6 @@ export class GameStateManager {
     this.state.pgnHeaders = null
     this.state.moves = new MoveList()
     this.state.currentMoveIndex = 0
-    this.state.previewMode = false
-    this.state.previewMoves = new MoveList()
-    this.state.previewMoveIndex = 0
     this.state.wsError = null
     this.notify()
     webSocketService.connect(sessionId, {
@@ -480,6 +364,7 @@ export class GameStateManager {
   }
 
   disconnectSession() {
+    this.disconnectJobCommentaryWs()
     webSocketService.disconnect()
     this.state.isWsConnected = false
     this.state.isLoaded = false
@@ -488,10 +373,7 @@ export class GameStateManager {
     this.state.isFullyAnalyzed = false
     this.state.pgnHeaders = null
     this.state.moves = new MoveList()
-    this.state.previewMoves = new MoveList()
     this.state.currentMoveIndex = 0
-    this.state.previewMode = false
-    this.state.previewMoveIndex = 0
     this.notify()
   }
 
@@ -503,6 +385,127 @@ export class GameStateManager {
     webSocketService.sendMessage({
       type: ClientWsMessageType.GET_GAME_ANALYSIS,
     })
+  }
+
+  private applyAiCommentUpdatePayload(aiPayload: AiCommentUpdateServerPayload) {
+    const idx = this.state.moves.findMoveIndexById(aiPayload.moveId)
+    if (idx === -1) return
+    this.state.aiComments = [
+      ...this.state.aiComments,
+      {
+        moveId: aiPayload.moveId,
+        moveIndex: idx,
+        context: aiPayload.context,
+        data: aiPayload.data,
+      },
+    ]
+    try {
+      const raw = aiPayload.data as Record<string, unknown>
+      const summary = String(raw?.summary || raw?.commentary || '')
+      const bullets = Array.isArray(raw?.bullets) ? (raw.bullets as unknown[]).map(String) : []
+      const text = [summary, ...bullets.map((b) => `- ${b}`)].filter(Boolean).join('\n')
+      const commentItem: MainlineComment = { moveId: aiPayload.moveId, moveIndex: idx, text }
+      const pvRaw = raw?.pv_line
+      if (Array.isArray(pvRaw)) {
+        const parsed = pvRaw.filter(
+          (x): x is { san: string; fen: string } =>
+            typeof x === 'object' &&
+            x !== null &&
+            typeof (x as { san?: string }).san === 'string' &&
+            typeof (x as { fen?: string }).fen === 'string'
+        )
+        if (parsed.length > 0) commentItem.pvLine = parsed
+      }
+      const rtRaw = raw?.resolved_tokens
+      if (Array.isArray(rtRaw) && rtRaw.length > 0) {
+        commentItem.resolvedTokens = rtRaw as ResolvedAnnotationToken[]
+      }
+      const ragRaw = raw?.rag_refs
+      if (Array.isArray(ragRaw) && ragRaw.length > 0) {
+        const parsed: RagRef[] = ragRaw
+          .filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
+          .map((x) => {
+            const sc = x.score
+            const score = typeof sc === 'number' && !Number.isNaN(sc) ? sc : 0
+            return {
+              source: String(x.source ?? ''),
+              fen: String(x.fen ?? ''),
+              text: String(x.text ?? ''),
+              score,
+              san: typeof x.san === 'string' ? x.san : undefined,
+              phase: typeof x.phase === 'string' ? x.phase : undefined,
+            }
+          })
+          .filter((r) => r.source && r.fen && r.text)
+        if (parsed.length > 0) commentItem.ragRefs = parsed
+      }
+      this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
+    } catch {
+      /* ignore */
+    }
+    if (this.state.aiGeneration[aiPayload.moveId]) {
+      const nextGen = { ...this.state.aiGeneration }
+      delete nextGen[aiPayload.moveId]
+      this.state.aiGeneration = nextGen
+    }
+    this.notify()
+  }
+
+  /** Streamed LLM commentary for job-based analysis (`/jobs/{id}/ws`). */
+  connectToJobCommentaryWs(jobId: string) {
+    if (this.state.commentaryComplete) return
+    this.disconnectJobCommentaryWs()
+    const url = jobService.getCommentaryWsUrl(jobId)
+    const ws = new WebSocket(url)
+    this.jobCommentaryWs = ws
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data as string) as { type: string; payload: unknown }
+        this.handleJobCommentaryMessage(msg)
+      } catch {
+        /* ignore */
+      }
+    }
+    ws.onerror = () => {
+      console.warn('Job commentary WebSocket error')
+    }
+    ws.onclose = () => {
+      this.jobCommentaryWs = null
+    }
+  }
+
+  disconnectJobCommentaryWs() {
+    if (this.jobCommentaryWs) {
+      this.jobCommentaryWs.close()
+      this.jobCommentaryWs = null
+    }
+  }
+
+  private handleJobCommentaryMessage(msg: { type: string; payload: unknown }) {
+    switch (msg.type) {
+      case 'AI_COMMENT_UPDATE':
+        this.applyAiCommentUpdatePayload(msg.payload as AiCommentUpdateServerPayload)
+        break
+      case 'EPISODE_NARRATIVE': {
+        const p = msg.payload as EpisodeNarrativeServerPayload
+        this.state.episodeNarratives = [
+          ...this.state.episodeNarratives.filter((e) => e.episodeIndex !== p.episode_index),
+          { episodeIndex: p.episode_index, title: p.title, narrative: p.narrative },
+        ]
+        this.notify()
+        break
+      }
+      case 'GAME_NARRATIVE': {
+        const p = msg.payload as GameNarrativeServerPayload
+        this.state.gameNarrative = p.narrative
+        this.state.commentaryComplete = true
+        this.disconnectJobCommentaryWs()
+        this.notify()
+        break
+      }
+      default:
+        break
+    }
   }
 
   // --- WebSocket Handlers ---
@@ -546,16 +549,9 @@ export class GameStateManager {
 
       case ServerWsMessageType.ANALYSIS_UPDATE:
         const analysisPayload = srvMsg.payload as NodeAnalysisUpdatePayload
-        // analysis update
         if (analysisPayload.move.context == "mainline") {
-          // Update mainline moves (annotation is now handled in MoveList)
           this.state.moves.handleWsNodeAnalysisUpdatePayload(analysisPayload)
-        } else {
-          // Update preview moves (annotation is now handled in MoveList)
-          this.state.previewMoves.handleWsNodeAnalysisUpdatePayload(analysisPayload)
         }
-
-        // Try to resolve any pending comments
         this._flushPendingComments()
         this.notify()
         break
@@ -584,51 +580,11 @@ export class GameStateManager {
         break
 
       case ServerWsMessageType.COMMENT_UPDATE:
-        const commentPayload = srvMsg.payload as CommentUpdateServerPayload
-        // Map moveId to moveIndex
-        const moveIndex = this.state.moves.findMoveIndexById(commentPayload.moveId)
-        //
-        if (moveIndex !== -1) {
-          const commentItem = { moveId: commentPayload.moveId, moveIndex, text: commentPayload.text }
-          if (commentPayload.context === 'preview') {
-            this.state.commentsPreview = [...this.state.commentsPreview, commentItem]
-          } else {
-            this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
-          }
-          this.notify()
-        } else {
-          // Buffer until moves are available
-          this.state.pendingComments.push({ moveId: commentPayload.moveId, context: commentPayload.context, text: commentPayload.text })
-        }
+        // Engine/heuristic comments from commenting_service; list is AI-only (AI_COMMENT_UPDATE).
         break
 
       case ServerWsMessageType.AI_COMMENT_UPDATE:
-        const aiPayload = srvMsg.payload as AiCommentUpdateServerPayload
-        {
-          const idx = this.state.moves.findMoveIndexById(aiPayload.moveId)
-          if (idx !== -1) {
-            this.state.aiComments = [...this.state.aiComments, { moveId: aiPayload.moveId, moveIndex: idx, context: aiPayload.context, data: aiPayload.data }]
-            // Build a text string from AI JSON
-            try {
-              const summary = String(aiPayload.data?.summary || '')
-              const bullets = Array.isArray(aiPayload.data?.bullets) ? (aiPayload.data.bullets as unknown[]).map(String) : []
-              const text = [summary, ...bullets.map(b => `- ${b}`)].filter(Boolean).join('\n')
-              const commentItem = { moveId: aiPayload.moveId, moveIndex: idx, text }
-              if (aiPayload.context === 'preview') {
-                this.state.commentsPreview = [...this.state.commentsPreview, commentItem]
-              } else {
-                this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
-              }
-            } catch { }
-            // Clear generation status if lingering (immutable update)
-            if (this.state.aiGeneration[aiPayload.moveId]) {
-              const nextGen = { ...this.state.aiGeneration }
-              delete nextGen[aiPayload.moveId]
-              this.state.aiGeneration = nextGen
-            }
-            this.notify()
-          }
-        }
+        this.applyAiCommentUpdatePayload(srvMsg.payload as AiCommentUpdateServerPayload)
         break
 
       case ServerWsMessageType.AI_GENERATION_STATUS:
@@ -659,6 +615,13 @@ export class GameStateManager {
           temperature: paramsPayload.temperature,
           maxTokens: paramsPayload.maxTokens,
         }
+        // New model settings invalidate existing AI-generated commentary
+        this.state.commentsMainline = []
+        this.state.aiComments = []
+        this.state.pendingComments = []
+        this.state.episodeNarratives = []
+        this.state.gameNarrative = null
+        this.state.commentaryComplete = false
         this.notify()
         break
 
@@ -701,38 +664,22 @@ export class GameStateManager {
 
   // --- Utility accessors for UI ---
   getCommentsForDisplay() {
-    return this.state.previewMode ? this.state.commentsPreview : this.state.commentsMainline
+    return this.state.commentsMainline
   }
 
   getCommentsMainline() {
     return this.state.commentsMainline
-  }
-
-  getCommentsPreview() {
-    return this.state.commentsPreview
   }
   getMainlineMovesList() {
     return this.state.moves.getMainlineMoves()
   }
 
   getDisplayedMovesList() {
-    if (this.state.previewMode) {
-      // In preview mode, show mainline moves up to current index
-      return this.state.moves.getMainlineMoves().slice(0, this.state.currentMoveIndex + 1)
-    } else {
-      // In normal mode, show all mainline moves
-      return this.state.moves.getMainlineMoves()
-    }
+    return this.state.moves.getMainlineMoves()
   }
 
   getDisplayedPreviewMovesList() {
-    if (this.state.previewMode) {
-      // In preview mode, show preview moves
-      return this.state.previewMoves.getMainlineMoves()
-    } else {
-      // In normal mode, return empty array since MoveList handles PV display directly
-      return []
-    }
+    return []
   }
 
   getMainlineMove(index: number) {
@@ -788,13 +735,15 @@ export class GameStateManager {
     return formatCapturesForDisplay(captures, isWhitePerspective)
   }
 
-  // --- Preview accessors ---
-  getPreviewPosition(index: number) {
-    return this.state.previewMoves.getCurrentPosition(index)
+  setCommentaryBoardOverlay(overlay: CommentaryBoardOverlay) {
+    this.state.commentaryBoardOverlay = overlay
+    this.notify()
   }
 
-  getPreviewCaptures(index: number) {
-    return this.state.previewMoves.getCapturesForMove(index)
+  clearCommentaryBoardOverlay() {
+    if (this.state.commentaryBoardOverlay === null) return
+    this.state.commentaryBoardOverlay = null
+    this.notify()
   }
 
   updateMoveAnnotations(updatedMoves: MoveList) {
@@ -804,7 +753,7 @@ export class GameStateManager {
 
   // --- ID Management ---
   getNextId(): number {
-    return getNextAvailableId(this.state.moves, this.state.previewMoves)
+    return this.state.moves.getNextId()
   }
 
   // Resolve buffered comments that arrived before moves were present
@@ -814,12 +763,8 @@ export class GameStateManager {
     for (const pending of this.state.pendingComments) {
       const idx = this.state.moves.findMoveIndexById(pending.moveId)
       if (idx !== -1) {
-        const commentItem = { moveId: pending.moveId, moveIndex: idx, text: pending.text }
-        if (pending.context === 'preview') {
-          this.state.commentsPreview = [...this.state.commentsPreview, commentItem]
-        } else {
-          this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
-        }
+        const commentItem: MainlineComment = { moveId: pending.moveId, moveIndex: idx, text: pending.text }
+        this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
       } else {
         remaining.push(pending)
       }
@@ -827,43 +772,4 @@ export class GameStateManager {
     this.state.pendingComments = remaining
   }
 
-  enterPreviewModeWithPvSequence(pvSequence: Move[], startIndex: number = 0) {
-    // Create new preview moves list with mainline moves up to start index
-    this.state.previewMoves = createMoveList()
-
-    // Add the entire PV sequence
-    pvSequence.forEach(move => {
-      this.state.previewMoves.addMove(move)
-    })
-
-    // Enter preview mode
-    this.state.previewMode = true
-    this.state.previewMoveIndex = startIndex // Point to the first PV move
-
-    this.notify()
-  }
-
-  addPvSequenceToPreview(pvSequence: Move[], startIndex: number) {
-    if (!this.state.previewMode) return
-
-    // Clear any moves after the start index
-    this.clearPreviewMovesFromIndex(startIndex + 1)
-
-    // Add the entire PV sequence
-    pvSequence.forEach(move => {
-      this.state.previewMoves.addMove(move)
-    })
-
-    // Set preview move index to the first PV move
-    this.state.previewMoveIndex = startIndex + 1
-
-    // Request analysis for all PV moves
-    pvSequence.forEach(move => {
-      if (!move.isAnalyzed) {
-        this.requestMoveAnalysis(move)
-      }
-    })
-
-    this.notify()
-  }
 }

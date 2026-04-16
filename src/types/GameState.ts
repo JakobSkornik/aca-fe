@@ -14,8 +14,4 @@ export type GameState = {
   isAnalysisInProgress: boolean
   isFullyAnalyzed: boolean
   analysisProgress: number
-
-  previewMode: boolean
-  previewMoves: MoveList
-  previewMoveIndex: number
 }
