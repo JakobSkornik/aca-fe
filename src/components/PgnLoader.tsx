@@ -275,6 +275,8 @@ const PgnLoader = () => {
       }
     }
     checkStatus()
+    const id = window.setInterval(checkStatus, 30_000)
+    return () => window.clearInterval(id)
   }, [])
 
   const handleCustomButtonClick = () => {
@@ -361,8 +363,16 @@ const PgnLoader = () => {
       </button>
 
       {/* Backend status indicator */}
-      <div className="mt-2 flex justify-end items-center">
-        <span className={`inline-block w-2 h-2 rounded-full ${backendOk === null ? 'bg-gray-400' : backendOk ? 'bg-green-500' : 'bg-red-500'}`}></span>
+      <div className="mt-3 flex justify-end items-center gap-2 text-xs">
+        <span
+          className={`inline-block w-3 h-3 shrink-0 rounded-full ring-2 ring-offset-1 ring-offset-lightest-gray ${
+            backendOk === null ? 'bg-gray-400 ring-gray-300' : backendOk ? 'bg-green-500 ring-green-600/40' : 'bg-red-500 ring-red-600/40'
+          }`}
+          aria-hidden
+        />
+        <span className="text-gray-600 font-medium">
+          API: {backendOk === null ? 'checking…' : backendOk ? 'online' : 'offline'}
+        </span>
       </div>
 
       {error && <p className="text-red-500 mt-4">{error}</p>}

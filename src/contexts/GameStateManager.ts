@@ -483,6 +483,26 @@ export class GameStateManager {
 
   private handleJobCommentaryMessage(msg: { type: string; payload: unknown }) {
     switch (msg.type) {
+      case 'AI_GENERATION_STATUS': {
+        const p = msg.payload as AiGenerationStatusServerPayload
+        if (p.status === 'start') {
+          this.state.aiGeneration = {
+            ...this.state.aiGeneration,
+            [p.moveId]: {
+              context: p.context,
+              startedAt: p.startedAt || Date.now() / 1000,
+              model: p.model,
+              effort: p.effort,
+            },
+          }
+        } else if (p.status === 'end') {
+          const nextGen = { ...this.state.aiGeneration }
+          delete nextGen[p.moveId]
+          this.state.aiGeneration = nextGen
+        }
+        this.notify()
+        break
+      }
       case 'AI_COMMENT_UPDATE':
         this.applyAiCommentUpdatePayload(msg.payload as AiCommentUpdateServerPayload)
         break

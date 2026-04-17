@@ -204,7 +204,7 @@ const MoveList = () => {
           className="grid"
           style={{
             gridTemplateColumns: `80px repeat(${displayLength}, 100px)`,
-            gridTemplateRows: 'repeat(4, 4vh)',
+            gridTemplateRows: 'repeat(3, 4vh)',
             columnGap: '8px',
             rowGap: '8px',
           }}
@@ -276,46 +276,6 @@ const MoveList = () => {
                 className={`w-[100px] h-[4vh] rounded-[8px] flex items-center hvr-shadow justify-between px-2 text-xs ${moveCellClass} ${isCurrent ? 'selected-shadow text-l z-10' : ''} move-item-${colIndex}`}
                 style={isCurrent ? { fontSize: '1.15rem', gridRow: 3, gridColumn: colIndex + 2 } : { gridRow: 3, gridColumn: colIndex + 2 }}
                 onClick={() => handleRowClick(colIndex)}
-              >
-                <div className="flex items-center">
-                  <Image alt={move.piece ?? ''} width={20} height={20} src={getPieceImg(move.piece)} />
-                  <span className="font-semibold text-sm">{move.move}</span>
-                </div>
-                {move.score !== undefined && <span className="text-xs ml-2">{(move.score / 100).toFixed(2)}</span>}
-              </div>
-            )
-          })}
-
-          <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 4, gridColumn: 1 }}>
-            Best:
-          </div>
-          {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
-            const pv1Moves = manager.getPv1(colIndex)
-            const pv2Moves = manager.getPv2(colIndex)
-            let move: Move | null = null
-            if (pv1Moves && pv1Moves.length > 0) {
-              move = pv1Moves[0]
-            } else if (pv2Moves && pv2Moves.length > 0) {
-              move = pv2Moves[0]
-            }
-
-            if (!move || !move.move) {
-              return (
-                <div
-                  key={`row4-col${colIndex}`}
-                  className="w-[100px] h-[4vh] invisible"
-                  style={{ gridRow: 4, gridColumn: colIndex + 2 }}
-                />
-              )
-            }
-
-            const isWhite = colIndex % 2 === 0
-            const moveCellClass = isWhite ? 'bg-lightest-gray text-darkest-gray' : 'bg-darkest-gray text-lightest-gray'
-            return (
-              <div
-                key={`row4-col${colIndex}`}
-                className={`w-[100px] h-[4vh] rounded-[8px] flex items-center hvr-shadow justify-between px-2 text-xs ${moveCellClass}`}
-                style={{ gridRow: 4, gridColumn: colIndex + 2 }}
               >
                 <div className="flex items-center">
                   <Image alt={move.piece ?? ''} width={20} height={20} src={getPieceImg(move.piece)} />
