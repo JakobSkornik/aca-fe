@@ -55,7 +55,7 @@ export type GameStateSnapshot = {
   commentsMainline: MainlineComment[]
   pendingComments: { moveId: number; context: 'mainline' | 'preview'; text: string }[]
   aiComments: { moveId: number; moveIndex: number; context: 'mainline' | 'preview'; data: Record<string, unknown> }[]
-  modelParams: { model: 'gpt-5-mini' | 'gpt-5'; effort: 'low' | 'medium' | 'high'; temperature?: number; maxTokens?: number }
+  modelParams: { model: 'gpt-5.4-mini' | 'gpt-5.4'; effort: 'low' | 'medium' | 'high'; temperature?: number; maxTokens?: number }
   aiGeneration: Record<number, { context: 'mainline' | 'preview'; startedAt: number; model?: string; effort?: string }>
   episodeNarratives: { episodeIndex: number; title: string; narrative: string }[]
   gameNarrative: string | null
@@ -103,7 +103,7 @@ export class GameStateManager {
       commentsMainline: [],
       pendingComments: [],
       aiComments: [],
-      modelParams: { model: 'gpt-5', effort: 'medium', temperature: 0.2, maxTokens: 120 },
+      modelParams: { model: 'gpt-5.4', effort: 'medium', temperature: 0.2, maxTokens: 120 },
       aiGeneration: {},
       episodeNarratives: [],
       gameNarrative: null,

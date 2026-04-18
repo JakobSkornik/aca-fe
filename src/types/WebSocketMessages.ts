@@ -37,7 +37,7 @@ export interface RequestAnalysisClientPayload {
 }
 
 export interface SetModelParamsClientPayload {
-  model?: 'gpt-5-mini' | 'gpt-5'
+  model?: 'gpt-5.4-mini' | 'gpt-5.4'
   effort?: 'low' | 'medium' | 'high'
   temperature?: number
   maxTokens?: number
@@ -178,7 +178,7 @@ export interface AiGenerationStatusServerPayload {
 }
 
 export interface ModelParamsUpdatedServerPayload {
-  model: 'gpt-5-mini' | 'gpt-5'
+  model: 'gpt-5.4-mini' | 'gpt-5.4'
   effort: 'low' | 'medium' | 'high'
   temperature?: number
   maxTokens?: number
