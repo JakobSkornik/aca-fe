@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react'
 import InlinePvMoves, { PvLineEntry } from './InlinePvMoves'
 import AnnotatedText from './AnnotatedText'
 import RagRefChips from './RagRefChips'
-import type { ResolvedAnnotationToken } from '@/types/WebSocketMessages'
+import LlmDebugPanel from './LlmDebugPanel'
+import type { AiCommentLlmDebug, ResolvedAnnotationToken } from '@/types/WebSocketMessages'
 import type { RagRef } from '@/contexts/GameStateManager'
 
 // Badge colors/labels for key moment types
@@ -38,6 +39,7 @@ type Props = {
   pvLine?: PvLineEntry[]
   resolvedTokens?: ResolvedAnnotationToken[] | null
   ragRefs?: RagRef[]
+  llmDebug?: AiCommentLlmDebug
 }
 
 const CommentItem: React.FC<Props> = ({
@@ -55,6 +57,7 @@ const CommentItem: React.FC<Props> = ({
   pvLine,
   resolvedTokens,
   ragRefs,
+  llmDebug,
 }) => {
   const hasInlineAnnotations =
     (resolvedTokens && resolvedTokens.length > 0) || /\[(\w+):[^\]]+\]/.test(text)
@@ -140,6 +143,7 @@ const CommentItem: React.FC<Props> = ({
       </div>
       {pvLine && pvLine.length > 0 && <InlinePvMoves pvLine={pvLine} />}
       {ragRefs && ragRefs.length > 0 && <RagRefChips ragRefs={ragRefs} />}
+      {llmDebug && <LlmDebugPanel debug={llmDebug} />}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 
 import Dropdown from './ui/Dropdown'
 import { UIHelpers } from '@/helpers/uiHelpers'
@@ -11,7 +11,6 @@ const PgnLoader = () => {
   const [error, setError] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [processingInfo, setProcessingInfo] = useState<string>('')
-  const [backendOk, setBackendOk] = useState<boolean | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const staticPgns = [
@@ -264,21 +263,6 @@ const PgnLoader = () => {
     }
   }
 
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const res = await fetch('/api/status')
-        const json = await res.json()
-        setBackendOk(Boolean(json?.ok))
-      } catch {
-        setBackendOk(false)
-      }
-    }
-    checkStatus()
-    const id = window.setInterval(checkStatus, 30_000)
-    return () => window.clearInterval(id)
-  }, [])
-
   const handleCustomButtonClick = () => {
     fileInputRef.current?.click()
   }
@@ -361,19 +345,6 @@ const PgnLoader = () => {
           'Load PGN / Analysis'
         )}
       </button>
-
-      {/* Backend status indicator */}
-      <div className="mt-3 flex justify-end items-center gap-2 text-xs">
-        <span
-          className={`inline-block w-3 h-3 shrink-0 rounded-full ring-2 ring-offset-1 ring-offset-lightest-gray ${
-            backendOk === null ? 'bg-gray-400 ring-gray-300' : backendOk ? 'bg-green-500 ring-green-600/40' : 'bg-red-500 ring-red-600/40'
-          }`}
-          aria-hidden
-        />
-        <span className="text-gray-600 font-medium">
-          API: {backendOk === null ? 'checking…' : backendOk ? 'online' : 'offline'}
-        </span>
-      </div>
 
       {error && <p className="text-red-500 mt-4">{error}</p>}
     </div>

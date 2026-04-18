@@ -97,6 +97,7 @@ const Comments: React.FC = () => {
               pvLine={activeComment.pvLine}
               resolvedTokens={activeComment.resolvedTokens}
               ragRefs={activeComment.ragRefs}
+              llmDebug={activeComment.llmDebug}
             />
           ) : (
             <div className="h-full min-h-[120px] flex flex-col items-center justify-center text-gray-500 text-center px-4">

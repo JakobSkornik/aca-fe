@@ -1,3 +1,5 @@
+import type { GameSummaryDigest } from './WebSocketMessages'
+
 export interface MoveScore {
   cp: number | null;
   mate: number | null;
@@ -60,6 +62,8 @@ export interface GameJson {
   moves: GameMove[];
   episodes?: EpisodeSummary[];
   game_narrative?: string | null;
+  /** Structured game digest from pre-move commentary pass (optional when worker saves JSON). */
+  game_summary?: GameSummaryDigest | null;
   analysis_info: AnalysisInfo;
 }
 

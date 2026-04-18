@@ -22,6 +22,7 @@ export enum ServerWsMessageType {
   AI_COMMENT_UPDATE = 'AI_COMMENT_UPDATE',
   EPISODE_NARRATIVE = 'EPISODE_NARRATIVE',
   GAME_NARRATIVE = 'GAME_NARRATIVE',
+  GAME_SUMMARY = 'GAME_SUMMARY',
   AI_GENERATION_STATUS = 'AI_GENERATION_STATUS',
   MODEL_PARAMS_UPDATED = 'MODEL_PARAMS_UPDATED',
 }
@@ -115,6 +116,19 @@ export interface AiCommentRagRef {
   phase?: string
 }
 
+/** Full LLM + RAG debug (mirrors server `llm_debug` on AI_COMMENT_UPDATE). */
+export interface AiCommentLlmDebug {
+  move_category: string | null
+  key_moment_type: string | null
+  tier: { steps: number; effort: string; max_tokens?: number }
+  rag_query: Record<string, unknown>
+  rationale: Record<string, unknown>
+  system_prompts: { name: string; text: string }[]
+  user_text: string
+  passes: { name: string; effort: string }[]
+  token_usage_total: number | null
+}
+
 export interface AiCommentUpdateServerPayload {
   moveId: number
   context: 'mainline' | 'preview'
@@ -125,6 +139,7 @@ export interface AiCommentUpdateServerPayload {
     pv_line?: AiCommentPvLineEntry[]
     resolved_tokens?: ResolvedAnnotationToken[]
     rag_refs?: AiCommentRagRef[]
+    llm_debug?: AiCommentLlmDebug
   }
 }
 
@@ -136,6 +151,20 @@ export interface EpisodeNarrativeServerPayload {
 
 export interface GameNarrativeServerPayload {
   narrative: string
+}
+
+/** Whole-game digest from pre-move LLM pass (see `GAME_SUMMARY` WS event). */
+export interface GameSummaryDigest {
+  overall_story: string
+  opening_character: string
+  phase_story: { phase: string; summary: string }[]
+  turning_points: { ply: number; san: string; why: string }[]
+  winning_side_plan: string
+  losing_side_mistakes: string
+}
+
+export interface GameSummaryServerPayload {
+  digest: GameSummaryDigest
 }
 
 export interface AiGenerationStatusServerPayload {
@@ -178,6 +207,7 @@ export interface ServerWsMessage {
   | AiCommentUpdateServerPayload
   | EpisodeNarrativeServerPayload
   | GameNarrativeServerPayload
+  | GameSummaryServerPayload
   | AiGenerationStatusServerPayload
   | ModelParamsUpdatedServerPayload
 }

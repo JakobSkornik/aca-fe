@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Chess } from 'chess.js'
 
+import PvChipWithHover from './PvChipWithHover'
 import { UIHelpers } from '@/helpers/uiHelpers'
 import { useGameState } from '@/contexts/GameStateContext'
 
@@ -14,7 +16,6 @@ const GameViewer = () => {
     blackName: '',
     blackElo: '',
   }
-  const [backendStatus, setBackendStatus] = useState<string>('')
   const [animatedScore, setAnimatedScore] = useState(-1)
 
   const mainlineMove = manager.getMainlineMove(currentMoveIndex)
@@ -43,6 +44,43 @@ const GameViewer = () => {
   const pv1 = getCurrentPv1()
   const pv2 = getCurrentPv2()
 
+  const rootFen = useMemo(
+    () => manager.getPositionForIndex(currentMoveIndex - 1),
+    [manager, currentMoveIndex]
+  )
+
+  const pv1Fens = useMemo(() => {
+    try {
+      const c = new Chess(rootFen)
+      return pv1.map((m) => {
+        try {
+          const r = c.move(m.move)
+          return r ? c.fen() : ''
+        } catch {
+          return ''
+        }
+      })
+    } catch {
+      return pv1.map(() => '')
+    }
+  }, [pv1, rootFen])
+
+  const pv2Fens = useMemo(() => {
+    try {
+      const c = new Chess(rootFen)
+      return pv2.map((m) => {
+        try {
+          const r = c.move(m.move)
+          return r ? c.fen() : ''
+        } catch {
+          return ''
+        }
+      })
+    } catch {
+      return pv2.map(() => '')
+    }
+  }, [pv2, rootFen])
+
   const normalizeScore = (score: number) => {
     const scoreInPawns = score / 100
     const k = 1
@@ -54,20 +92,6 @@ const GameViewer = () => {
     const normalizedScore = normalizeScore(score)
     setAnimatedScore(normalizedScore)
   }, [score])
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const base = process.env.NEXT_PUBLIC_API_URL || ''
-        const res = await fetch(`${base}/evaluator/status`)
-        const json = await res.json()
-        setBackendStatus(`BE: ok=${json.ok} sessions=${json.active_sessions}`)
-      } catch {
-        setBackendStatus('BE: offline')
-      }
-    }
-    fetchStatus()
-  }, [])
 
   return (
     <div className="relative flex flex-col w-full h-full rounded-md overflow-hidden text-xs">
@@ -95,7 +119,6 @@ const GameViewer = () => {
             <p className="text-sm">
               <strong>Opening:</strong> {opening || 'Unknown'}
             </p>
-            <p className="text-xs text-gray-500">{backendStatus}</p>
           </div>
         </div>
       </div>
@@ -137,12 +160,12 @@ const GameViewer = () => {
                   const isWhiteMove = (currentMoveIndex + moveIdx) % 2 === 1
                   const moveColors = UIHelpers.getPvMoveColors(false, isWhiteMove)
                   return (
-                    <span
+                    <PvChipWithHover
                       key={moveIdx}
-                      className={`px-1 py-0.5 ${moveColors.bg} ${moveColors.text} rounded-sm`}
-                    >
-                      {move.move}
-                    </span>
+                      san={move.move}
+                      fenAfterMove={pv1Fens[moveIdx] ?? ''}
+                      className={`px-1 py-0.5 ${moveColors.bg} ${moveColors.text} rounded-sm cursor-help`}
+                    />
                   )
                 })}
               </div>
@@ -161,12 +184,12 @@ const GameViewer = () => {
                   const isWhiteMove = (currentMoveIndex + moveIdx) % 2 === 1
                   const moveColors = UIHelpers.getPvMoveColors(false, isWhiteMove)
                   return (
-                    <span
+                    <PvChipWithHover
                       key={moveIdx}
-                      className={`px-1 py-0.5 ${moveColors.bg} ${moveColors.text} rounded-sm`}
-                    >
-                      {move.move}
-                    </span>
+                      san={move.move}
+                      fenAfterMove={pv2Fens[moveIdx] ?? ''}
+                      className={`px-1 py-0.5 ${moveColors.bg} ${moveColors.text} rounded-sm cursor-help`}
+                    />
                   )
                 })}
               </div>

@@ -4,13 +4,13 @@ import { Move } from '../types/chess/Move'
 import { PgnHeaders } from '../types/chess/PgnHeaders'
 import { MoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList } from '../helpers/moveListUtils'
 import { applyCaptureFromMoveResult, cloneCaptureCount, emptyCaptureCount } from '../helpers/captureUtils'
-import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, AiCommentUpdateServerPayload, AiGenerationStatusServerPayload, ModelParamsUpdatedServerPayload, SetModelParamsClientPayload, EpisodeNarrativeServerPayload, GameNarrativeServerPayload } from '../types/WebSocketMessages'
+import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, AiCommentUpdateServerPayload, AiGenerationStatusServerPayload, ModelParamsUpdatedServerPayload, SetModelParamsClientPayload, EpisodeNarrativeServerPayload, GameNarrativeServerPayload, GameSummaryServerPayload } from '../types/WebSocketMessages'
 import { jobService } from '../services/JobService'
 import { CaptureCount } from '../types/chess/CaptureCount'
 import { chessPositionManager } from '../helpers/ChessPositionManager'
 import { GameJson, GameMove } from '../types/GameJson'
 import { isEngineKeyMomentScoreComment } from '../helpers/commentaryText'
-import type { ResolvedAnnotationToken } from '../types/WebSocketMessages'
+import type { AiCommentLlmDebug, GameSummaryDigest, ResolvedAnnotationToken } from '../types/WebSocketMessages'
 import type { Arrow, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
 
 /** Retrieved master-game annotation reference (Chroma RAG). */
@@ -31,6 +31,7 @@ export type MainlineComment = {
   pvLine?: { san: string; fen: string }[]
   resolvedTokens?: ResolvedAnnotationToken[]
   ragRefs?: RagRef[]
+  llmDebug?: AiCommentLlmDebug
 }
 
 /** Transient highlights on the main board from annotation hover (arrows + square tint). */
@@ -58,6 +59,8 @@ export type GameStateSnapshot = {
   aiGeneration: Record<number, { context: 'mainline' | 'preview'; startedAt: number; model?: string; effort?: string }>
   episodeNarratives: { episodeIndex: number; title: string; narrative: string }[]
   gameNarrative: string | null
+  /** Whole-game digest streamed before per-move commentary (`GAME_SUMMARY`). */
+  gameSummary: GameSummaryDigest | null
   commentaryComplete: boolean
   /** Hover-driven overlay from inline commentary tokens (merged in MainlineChessboard). */
   commentaryBoardOverlay: CommentaryBoardOverlay
@@ -100,10 +103,11 @@ export class GameStateManager {
       commentsMainline: [],
       pendingComments: [],
       aiComments: [],
-      modelParams: { model: 'gpt-5-mini', effort: 'low', temperature: 0.2, maxTokens: 120 },
+      modelParams: { model: 'gpt-5', effort: 'medium', temperature: 0.2, maxTokens: 120 },
       aiGeneration: {},
       episodeNarratives: [],
       gameNarrative: null,
+      gameSummary: null,
       commentaryComplete: true,
       commentaryBoardOverlay: null,
     }
@@ -149,6 +153,7 @@ export class GameStateManager {
         narrative: e.narrative as string,
       }));
     this.state.gameNarrative = data.game_narrative ?? null;
+    this.state.gameSummary = data.game_summary ?? null;
     this.state.commentaryComplete = !!data.game_narrative;
 
     // Set headers
@@ -335,18 +340,6 @@ export class GameStateManager {
     return this.state.moves.getPositionForIndex(index)
   }
 
-  /** First PV move at index (engine best line) for the preview board. */
-  getBestMoveForIndex(index: number): { fen: string; san: string; from: string; to: string } | null {
-    const pv1 = this.state.moves.getPv1(index)
-    if (!pv1 || pv1.length === 0) return null
-    const m = pv1[0]
-    const fenBefore = index <= 0 ? new Chess().fen() : this.state.moves.getPositionForIndex(index - 1)
-    const board = new Chess(fenBefore)
-    const r = board.move(m.move)
-    if (!r) return { fen: m.position, san: m.move, from: '', to: '' }
-    return { fen: m.position, san: m.move, from: r.from, to: r.to }
-  }
-
   // --- Backend interaction ---
   connectToSession(sessionId: string) {
     this.state.isLoaded = false
@@ -439,6 +432,21 @@ export class GameStateManager {
           .filter((r) => r.source && r.fen && r.text)
         if (parsed.length > 0) commentItem.ragRefs = parsed
       }
+      const ldRaw = raw?.llm_debug
+      if (ldRaw && typeof ldRaw === 'object' && ldRaw !== null) {
+        commentItem.llmDebug = ldRaw as AiCommentLlmDebug
+        console.groupCollapsed(`[LLM debug] move ${aiPayload.moveId}`)
+        console.log('move_category', (ldRaw as AiCommentLlmDebug).move_category)
+        console.log('key_moment_type', (ldRaw as AiCommentLlmDebug).key_moment_type)
+        console.log('tier', (ldRaw as AiCommentLlmDebug).tier)
+        console.log('passes', (ldRaw as AiCommentLlmDebug).passes)
+        console.log('token_usage_total', (ldRaw as AiCommentLlmDebug).token_usage_total)
+        console.log('rag_query', (ldRaw as AiCommentLlmDebug).rag_query)
+        console.log('rationale', (ldRaw as AiCommentLlmDebug).rationale)
+        console.log('system_prompts', (ldRaw as AiCommentLlmDebug).system_prompts)
+        console.log('user_text', (ldRaw as AiCommentLlmDebug).user_text)
+        console.groupEnd()
+      }
       this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
     } catch {
       /* ignore */
@@ -520,6 +528,12 @@ export class GameStateManager {
         this.state.gameNarrative = p.narrative
         this.state.commentaryComplete = true
         this.disconnectJobCommentaryWs()
+        this.notify()
+        break
+      }
+      case 'GAME_SUMMARY': {
+        const p = msg.payload as GameSummaryServerPayload
+        this.state.gameSummary = p.digest
         this.notify()
         break
       }
@@ -641,9 +655,17 @@ export class GameStateManager {
         this.state.pendingComments = []
         this.state.episodeNarratives = []
         this.state.gameNarrative = null
+        this.state.gameSummary = null
         this.state.commentaryComplete = false
         this.notify()
         break
+
+      case ServerWsMessageType.GAME_SUMMARY: {
+        const p = srvMsg.payload as GameSummaryServerPayload
+        this.state.gameSummary = p.digest
+        this.notify()
+        break
+      }
 
       default:
         break

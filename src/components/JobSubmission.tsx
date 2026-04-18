@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import { jobService } from '@/services/JobService';
 import { useRouter } from 'next/router';
 import { useGameState } from '@/contexts/GameStateContext';
+import BackendHealthIndicator from './BackendHealthIndicator';
 import Dropdown from './ui/Dropdown';
+import { useBackendHealth } from '@/hooks/useBackendHealth';
 
 const JobSubmission: React.FC = () => {
+  const backendOk = useBackendHealth();
   const [pgn, setPgn] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,7 +53,6 @@ const JobSubmission: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-4 p-4 max-w-2xl mx-auto">
-      
       <div className="w-full">
         <Dropdown
           options={staticPgns}
@@ -73,6 +75,10 @@ const JobSubmission: React.FC = () => {
       >
         {loading ? 'Submitting...' : 'Analyze Game'}
       </button>
+
+      <div className="flex justify-end border-t border-gray-200/80 pt-2">
+        <BackendHealthIndicator backendOk={backendOk} />
+      </div>
     </div>
   );
 };

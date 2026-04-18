@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { useGameState } from '@/contexts/GameStateContext';
 import { jobService } from '@/services/JobService';
 import MainlineChessboard from '@/components/MainlineChessboard';
-import PreviewChessboard from '@/components/PreviewChessboard';
+import GameSummaryPanel from '@/components/GameSummaryPanel';
 import MoveList from '@/components/MoveList';
 import Comments from '@/components/Comments';
 import GameViewer from '@/components/GameViewer';
@@ -55,18 +55,42 @@ const GamePage = () => {
         Automatic Chess Annotator
       </h1>
 
-      {/* Row 1: main board | preview | game info (PVs, scores) */}
-      <div className="flex flex-col xl:flex-row flex-shrink-0 bg-lightest-gray shadow-md rounded-md overflow-hidden min-h-[260px] max-h-[46vh] border border-gray-200">
-        <div className="flex flex-row justify-center gap-4 xl:gap-6 flex-shrink-0 px-3 py-3 xl:py-4 xl:border-r border-gray-200">
-          <div className="flex-none w-[min(22vw,320px)] min-w-[200px] max-w-[320px]">
+      {/* Row 1: main board | game info (narrow) | game summary (wide) */}
+      <div className="hidden 2xl:flex flex-shrink-0 flex-row bg-lightest-gray shadow-md rounded-md overflow-hidden min-h-[260px] max-h-[46vh] border border-gray-200">
+        <div className="flex-none w-[32vw] max-w-[520px] shrink-0 border-r border-gray-200 px-3 py-4">
+          <MainlineChessboard />
+        </div>
+        <div className="flex-none w-[22vw] max-w-[360px] shrink-0 border-r border-gray-200 px-2 py-3">
+          <GameViewer />
+        </div>
+        <div className="min-h-[200px] min-w-0 flex-1 flex flex-col overflow-hidden px-2 py-3">
+          <GameSummaryPanel />
+        </div>
+      </div>
+
+      <div className="hidden xl:flex 2xl:hidden flex-shrink-0 flex-row bg-lightest-gray shadow-md rounded-md overflow-hidden min-h-[260px] max-h-[46vh] border border-gray-200">
+        <div className="flex-none w-[360px] shrink-0 border-r border-gray-200 px-3 py-4">
+          <MainlineChessboard />
+        </div>
+        <div className="flex-none w-[260px] min-w-[220px] shrink-0 border-r border-gray-200 px-2 py-3">
+          <GameViewer />
+        </div>
+        <div className="min-h-[200px] min-w-0 flex-1 flex flex-col overflow-hidden px-2 py-3">
+          <GameSummaryPanel />
+        </div>
+      </div>
+
+      <div className="xl:hidden flex flex-shrink-0 flex-col bg-lightest-gray shadow-md rounded-md overflow-hidden min-h-[260px] max-h-[46vh] border border-gray-200">
+        <div className="flex flex-row justify-center border-b border-gray-200 px-3 py-3">
+          <div className="w-[360px] mx-auto">
             <MainlineChessboard />
           </div>
-          <div className="flex-none w-[min(22vw,320px)] min-w-[200px] max-w-[320px]">
-            <PreviewChessboard />
-          </div>
         </div>
-        <div className="flex-1 min-w-0 min-h-[200px] flex flex-col border-t xl:border-t-0 xl:border-l border-gray-200 overflow-hidden">
+        <div className="min-h-[180px] min-w-0 border-b border-gray-200 px-2 py-2">
           <GameViewer />
+        </div>
+        <div className="min-h-[200px] min-w-0 flex flex-col overflow-hidden px-2 py-2">
+          <GameSummaryPanel />
         </div>
       </div>
 
