@@ -15,9 +15,9 @@ export function AccordionRow({ label, defaultOpen = false, children, className =
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex cursor-pointer select-none items-center gap-1 py-0.5 text-left text-[10px] text-text-tertiary hover:text-text-secondary"
+        className="flex w-full cursor-pointer select-none items-center gap-1 rounded border border-border-tertiary bg-background-secondary px-1.5 py-1 text-left text-[10px] font-medium text-text-primary hover:border-accent-progress/50 hover:bg-background-primary"
       >
-        <span className="inline-block w-3 shrink-0">{open ? '▾' : '▸'}</span>
+        <span className="inline-block w-3 shrink-0 text-accent-progress">{open ? '▾' : '▸'}</span>
         {label}
       </button>
       {open ? (

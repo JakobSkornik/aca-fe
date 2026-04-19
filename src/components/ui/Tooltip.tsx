@@ -5,6 +5,8 @@ type TooltipProps = {
   children: React.ReactNode
   position?: 'top' | 'bottom' | 'left' | 'right'
   delay?: number
+  /** Merged onto the hover trigger wrapper (e.g. `block w-full` for full-width cells). */
+  triggerClassName?: string
 }
 
 const Tooltip: React.FC<TooltipProps> = ({
@@ -12,6 +14,7 @@ const Tooltip: React.FC<TooltipProps> = ({
   children,
   position = 'top',
   delay = 300,
+  triggerClassName = '',
 }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
@@ -73,7 +76,7 @@ const Tooltip: React.FC<TooltipProps> = ({
     <>
       <div
         ref={triggerRef}
-        className="relative inline-block"
+        className={`relative inline-block ${triggerClassName}`.trim()}
         onMouseEnter={showTooltip}
         onMouseLeave={hideTooltip}
         onMouseMove={(e) => {

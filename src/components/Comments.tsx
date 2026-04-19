@@ -62,23 +62,6 @@ const Comments: React.FC = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary">
-      <div className="z-10 flex shrink-0 flex-col gap-1 border-b border-border-tertiary px-2 py-1">
-        <div className="flex items-center justify-between text-[10px]">
-          <span className="rounded-full border border-border-tertiary bg-background-secondary px-1.5 py-px font-medium text-text-secondary">
-            {displayedComments.length} comments
-          </span>
-        </div>
-        {commentaryGenerating && (
-          <div className="flex items-center gap-1.5 rounded border border-border-secondary bg-background-warning px-1.5 py-1 text-[10px] font-medium text-text-warning">
-            <span
-              className="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-text-warning border-t-transparent"
-              aria-hidden
-            />
-            <span>Commentary generating…</span>
-          </div>
-        )}
-      </div>
-
       <div className="flex min-h-0 flex-1 flex-row">
         <div className="min-w-0 flex-1 overflow-y-auto scroll-smooth px-2 py-1.5">
           {displayedComments.length === 0 ? (
@@ -101,15 +84,26 @@ const Comments: React.FC = () => {
             <div className="flex h-full min-h-[100px] flex-col items-center justify-center px-2 text-center text-text-secondary">
               <p className="mb-0.5 text-[11px] font-medium text-text-primary">No commentary for this move</p>
               <p className="text-[10px] text-text-tertiary">
-                Select a move in the list on the right that has commentary, or use the movelist above.
+                Select a move in the move list that has commentary, or pick one from the commentary sidebar.
               </p>
             </div>
           )}
         </div>
 
         <div className="flex w-[168px] shrink-0 flex-col border-l border-border-tertiary bg-background-secondary xl:w-[188px]">
-          <div className="flex shrink-0 items-center border-b border-border-tertiary px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-text-tertiary">
-            All comments
+          <div className="shrink-0 space-y-1 border-b border-border-tertiary px-2 py-1">
+            <div className="text-[11px] font-semibold tabular-nums text-text-primary">
+              {displayedComments.length} {displayedComments.length === 1 ? 'comment' : 'comments'}
+            </div>
+            {commentaryGenerating ? (
+              <div className="flex items-center gap-1.5 rounded border border-border-secondary bg-background-warning px-1.5 py-1 text-[10px] font-medium text-text-warning">
+                <span
+                  className="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-text-warning border-t-transparent"
+                  aria-hidden
+                />
+                <span>Commentary generating…</span>
+              </div>
+            ) : null}
           </div>
           <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-1">
             {sortedForNav.length === 0 ? (
@@ -130,7 +124,7 @@ const Comments: React.FC = () => {
                     onClick={() => handleNavClick(item)}
                     className={`w-full rounded border px-1.5 py-1 text-left text-[10px] transition-colors ${
                       isNavActive
-                        ? 'border-border-secondary bg-background-primary shadow-sm ring-1 ring-accent-engine/30'
+                        ? 'border-border-secondary bg-background-primary shadow-sm ring-1 ring-accent-progress/40'
                         : 'border-transparent hover:border-border-tertiary hover:bg-background-primary'
                     }`}
                   >

@@ -27,9 +27,9 @@ const GameSummaryPanel: React.FC = () => {
       bodyClassName="min-h-0 flex-1 overflow-y-auto p-3 text-xs text-text-secondary"
     >
       {!d && !commentaryComplete && (
-        <div className="flex items-center gap-2 text-text-tertiary">
+        <div className="flex items-center gap-1.5 rounded border border-border-secondary bg-background-warning px-2 py-1.5 text-[11px] font-medium text-text-warning">
           <span
-            className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border-secondary border-t-accent-engine"
+            className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-text-warning border-t-transparent"
             aria-hidden
           />
           <span>Summary generating…</span>
