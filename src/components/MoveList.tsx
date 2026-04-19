@@ -27,6 +27,8 @@ const MoveList = () => {
 
   const displayedMoves = manager.getDisplayedMovesList()
   const displayLength = 300
+  const colWidthPx = 64
+  const labelColPx = 52
   const scrollFollowIndex = currentMoveIndex
 
   const handleMoveNavigation = useCallback(
@@ -52,19 +54,29 @@ const MoveList = () => {
   const handleDownload = async () => {
     if (!id || typeof id !== 'string') return
     try {
-      const gameJson = await jobService.getGameJson(id)
-      const blob = new Blob([JSON.stringify(gameJson, null, 2)], { type: 'application/json' })
+      let body: string
+      if (id === 'offline') {
+        body = sessionStorage.getItem('aca_offline_export') ?? ''
+        if (!body) {
+          window.alert('Nothing to export.')
+          return
+        }
+      } else {
+        const gameJson = await jobService.getGameJson(id)
+        body = JSON.stringify(gameJson, null, 2)
+      }
+      const blob = new Blob([body], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `game_${id}.json`
+      a.download = id === 'offline' ? 'game_offline.json' : `game_${id}.json`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (e) {
       console.error('Failed to download game JSON', e)
-      alert('Failed to download game JSON')
+      window.alert('Failed to download game JSON')
     }
   }
 
@@ -119,46 +131,70 @@ const MoveList = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col">
-      <div className="p-2 border-b">
-        <div className="flex justify-between items-center mb-2">
-          <div className="flex justify-start items-center space-x-2">
+    <div className="flex h-full w-full flex-col">
+      <div className="border-b border-border-tertiary px-2 py-1">
+        <div className="mb-1 flex items-center justify-between">
+          <div className="flex items-center justify-start gap-1">
             <Tooltip content="Go to first move">
-              <button onClick={() => handleMoveNavigation('first')} className={UIHelpers.getButtonClasses()}>
-                <Image src="/icons/fast_back.svg" alt="First" width={16} height={16} className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => handleMoveNavigation('first')}
+                className={`${UIHelpers.getButtonClasses()} !px-1.5 !py-1`}
+              >
+                <Image src="/icons/fast_back.svg" alt="First" width={14} height={14} className="h-3.5 w-3.5" />
               </button>
             </Tooltip>
             <Tooltip content="Previous move">
-              <button onClick={() => handleMoveNavigation('prev')} className={UIHelpers.getButtonClasses()}>
-                <Image src="/icons/back.svg" alt="Previous" width={16} height={16} className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => handleMoveNavigation('prev')}
+                className={`${UIHelpers.getButtonClasses()} !px-1.5 !py-1`}
+              >
+                <Image src="/icons/back.svg" alt="Previous" width={14} height={14} className="h-3.5 w-3.5" />
               </button>
             </Tooltip>
             <Tooltip content="Next move">
-              <button onClick={() => handleMoveNavigation('next')} className={UIHelpers.getButtonClasses()}>
-                <Image src="/icons/forward.svg" alt="Next" width={16} height={16} className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => handleMoveNavigation('next')}
+                className={`${UIHelpers.getButtonClasses()} !px-1.5 !py-1`}
+              >
+                <Image src="/icons/forward.svg" alt="Next" width={14} height={14} className="h-3.5 w-3.5" />
               </button>
             </Tooltip>
             <Tooltip content="Go to last move">
-              <button onClick={() => handleMoveNavigation('last')} className={UIHelpers.getButtonClasses()}>
-                <Image src="/icons/fast_forward.svg" alt="Last" width={16} height={16} className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => handleMoveNavigation('last')}
+                className={`${UIHelpers.getButtonClasses()} !px-1.5 !py-1`}
+              >
+                <Image src="/icons/fast_forward.svg" alt="Last" width={14} height={14} className="h-3.5 w-3.5" />
               </button>
             </Tooltip>
             <Tooltip content="Close analysis session">
-              <button onClick={() => router.push('/')} className={UIHelpers.getIconButtonClasses()}>
-                <Image src="/icons/close.svg" alt="Close" width={16} height={16} className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                className={`${UIHelpers.getIconButtonClasses()} !p-1`}
+              >
+                <Image src="/icons/close.svg" alt="Close" width={14} height={14} className="h-3.5 w-3.5" />
               </button>
             </Tooltip>
           </div>
 
           {id && typeof id === 'string' && (
             <Tooltip content="Download Analysis JSON">
-              <button onClick={handleDownload} className={UIHelpers.getButtonClasses()}>
+              <button
+                type="button"
+                onClick={() => void handleDownload()}
+                className={`${UIHelpers.getButtonClasses()} !px-1.5 !py-1`}
+              >
                 <Image
                   src="/icons/upload.svg"
                   alt="Download"
-                  width={16}
-                  height={16}
-                  className="w-4 h-4 transform rotate-180"
+                  width={14}
+                  height={14}
+                  className="h-3.5 w-3.5 rotate-180 transform"
                 />
               </button>
             </Tooltip>
@@ -171,18 +207,13 @@ const MoveList = () => {
               {isAnalysisInProgress ? (
                 <Tooltip content="Analysis in progress">
                   <div>
-                    <p className="text-sm text-gray-600">Analyzing...</p>
-                    <div className="relative h-4 bg-darkest-gray rounded-full" style={{ width: '400px' }}>
+                    <p className="text-[11px] text-text-secondary">Analyzing…</p>
+                    <div className="relative h-3 w-full max-w-[320px] rounded-full bg-background-secondary">
                       <div
-                        className="absolute h-full bg-light-gray transition-[width] duration-500 rounded-full"
+                        className="absolute h-full rounded-full bg-accent-engine transition-[width] duration-500"
                         style={{ width: `${analysisProgress}%`, left: 0 }}
                       />
-                      <div
-                        className="absolute inset-0 flex items-center justify-center text-sm font-bold"
-                        style={{
-                          color: analysisProgress < 50 ? 'var(--lightest-gray)' : 'var(--darkest-gray)',
-                        }}
-                      >
+                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-text-primary drop-shadow-[0_0_1px_var(--color-background-primary)]">
                         {analysisProgress.toFixed(0)}%
                       </div>
                     </div>
@@ -197,34 +228,37 @@ const MoveList = () => {
       </div>
 
       <div ref={listRef} className={`${UIHelpers.getMoveListContainerClasses()} w-full flex-1`}>
-        <div className="p-2" style={{ display: showDebug ? 'block' : 'none' }}>
+        <div className="p-1" style={{ display: showDebug ? 'block' : 'none' }}>
           <HiddenFeaturesDebug visible={showDebug} />
         </div>
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `80px repeat(${displayLength}, 100px)`,
-            gridTemplateRows: 'repeat(3, 4vh)',
-            columnGap: '8px',
-            rowGap: '8px',
+            gridTemplateColumns: `${labelColPx}px repeat(${displayLength}, ${colWidthPx}px)`,
+            gridTemplateRows: 'minmax(20px, 3vh) minmax(20px, 3vh) minmax(40px, 4.8vh)',
+            columnGap: '6px',
+            rowGap: '4px',
           }}
         >
-          <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 1, gridColumn: 1 }} />
+          <div
+            className="flex items-center justify-end pr-1 text-[10px] font-bold"
+            style={{ gridRow: 1, gridColumn: 1 }}
+          />
           {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
             const moveNum = Math.floor(colIndex / 2) + 1
             const isWhite = colIndex % 2 === 0
             return (
               <div
                 key={`row1-col${colIndex}`}
-                className="w-[100px] h-[4vh] flex items-center justify-center text-xs font-semibold"
-                style={{ gridRow: 1, gridColumn: colIndex + 2 }}
+                className="flex items-center justify-center text-[10px] font-semibold"
+                style={{ gridRow: 1, gridColumn: colIndex + 2, width: colWidthPx }}
               >
                 {isWhite ? `${moveNum}.` : `${moveNum}...`}
               </div>
             )
           })}
 
-          <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 2, gridColumn: 1 }}>
+          <div className="flex items-center justify-end pr-1 text-[10px] font-bold" style={{ gridRow: 2, gridColumn: 1 }}>
             Tags:
           </div>
           {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
@@ -236,14 +270,14 @@ const MoveList = () => {
             return (
               <div
                 key={`row2-col${colIndex}`}
-                className="w-[100px] h-[4vh] flex items-center justify-center gap-0.5 text-xs font-bold text-red-600"
-                style={{ gridRow: 2, gridColumn: colIndex + 2 }}
+                className="flex items-center justify-center gap-0.5 text-[10px] font-bold text-text-danger"
+                style={{ gridRow: 2, gridColumn: colIndex + 2, width: colWidthPx }}
               >
                 {annotation ? <span>{annotation}</span> : null}
-                {hasAiComment ? <span className="text-blue-700 font-semibold">*</span> : null}
+                {hasAiComment ? <span className="font-semibold text-accent-engine">*</span> : null}
                 {isGeneratingAi ? (
                   <span
-                    className="inline-block h-3 w-3 border-2 border-red-600 border-t-transparent rounded-full animate-spin shrink-0"
+                    className="inline-block h-2.5 w-2.5 shrink-0 animate-spin rounded-full border-2 border-text-danger border-t-transparent"
                     aria-label="Commentary generating"
                   />
                 ) : null}
@@ -251,7 +285,7 @@ const MoveList = () => {
             )
           })}
 
-          <div className="flex items-center justify-end pr-2 font-bold text-xs" style={{ gridRow: 3, gridColumn: 1 }}>
+          <div className="flex items-center justify-end pr-1 text-[9px] font-bold leading-tight" style={{ gridRow: 3, gridColumn: 1 }}>
             Mainline:
           </div>
           {displayedMoves.map((move: Move, colIndex: number) => {
@@ -259,8 +293,8 @@ const MoveList = () => {
               return (
                 <div
                   key={`row3-col${colIndex}`}
-                  className="w-[100px] h-[4vh] invisible"
-                  style={{ gridRow: 3, gridColumn: colIndex + 2 }}
+                  className="invisible min-h-[40px]"
+                  style={{ gridRow: 3, gridColumn: colIndex + 2, width: colWidthPx }}
                 />
               )
             }
@@ -268,20 +302,26 @@ const MoveList = () => {
             const isWhite = colIndex % 2 === 0
             const isCurrent = colIndex === currentMoveIndex
             const moveRef = isCurrent ? activeItemRef : undefined
-            const moveCellClass = isWhite ? 'bg-lightest-gray text-darkest-gray' : 'bg-darkest-gray text-lightest-gray'
+            const moveCellClass = isWhite
+              ? 'bg-background-primary text-text-primary shadow-[0_0_0_1px_var(--color-border-secondary)]'
+              : 'bg-text-primary text-background-primary'
             return (
               <div
                 ref={moveRef}
                 key={`row3-col${colIndex}`}
-                className={`w-[100px] h-[4vh] rounded-[8px] flex items-center hvr-shadow justify-between px-2 text-xs ${moveCellClass} ${isCurrent ? 'selected-shadow text-l z-10' : ''} move-item-${colIndex}`}
-                style={isCurrent ? { fontSize: '1.15rem', gridRow: 3, gridColumn: colIndex + 2 } : { gridRow: 3, gridColumn: colIndex + 2 }}
+                className={`move-item-${colIndex} box-border flex min-h-[40px] cursor-pointer flex-col items-center justify-center gap-px rounded border-2 border-white px-0.5 py-0.5 text-[10px] shadow-sm ${moveCellClass} ${isCurrent ? 'z-10 ring-2 ring-accent-engine ring-offset-0' : ''}`}
+                style={{ gridRow: 3, gridColumn: colIndex + 2, width: colWidthPx }}
                 onClick={() => handleRowClick(colIndex)}
               >
-                <div className="flex items-center">
-                  <Image alt={move.piece ?? ''} width={20} height={20} src={getPieceImg(move.piece)} />
-                  <span className="font-semibold text-sm">{move.move}</span>
+                <div className={`flex items-center justify-center gap-px ${isCurrent ? 'text-sm' : ''}`}>
+                  <Image alt={move.piece ?? ''} width={14} height={14} src={getPieceImg(move.piece)} />
+                  <span className="font-semibold leading-none">{move.move}</span>
                 </div>
-                {move.score !== undefined && <span className="text-xs ml-2">{(move.score / 100).toFixed(2)}</span>}
+                {move.score !== undefined ? (
+                  <span className="font-mono text-[9px] leading-none text-current/85">
+                    {(move.score / 100).toFixed(2)}
+                  </span>
+                ) : null}
               </div>
             )
           })}

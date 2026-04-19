@@ -85,7 +85,7 @@ const Tooltip: React.FC<TooltipProps> = ({
       </div>
       {isVisible && (
         <div
-          className="fixed z-[9999] px-2 py-1 text-xs bg-dark-gray text-darkest-gray rounded shadow whitespace-pre-wrap break-words max-w-[420px] transform -translate-x-1/2 pointer-events-none"
+          className="pointer-events-none fixed z-[9999] max-w-[420px] -translate-x-1/2 transform whitespace-pre-wrap break-words rounded bg-text-primary px-2 py-1 text-xs text-background-primary shadow"
           style={{
             left: tooltipPosition.x,
             top: tooltipPosition.y,

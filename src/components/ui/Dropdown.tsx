@@ -69,11 +69,11 @@ const Dropdown: React.FC<DropdownProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-dark-gray rounded-md shadow-xl max-h-60 overflow-auto">
+        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border-tertiary bg-background-primary shadow-xl">
           {options.map((option) => (
             <div
               key={option.value}
-              className="mx-4 px-2 my-2 py-2 cursor-pointer hvr-shadow text-darkest-gray"
+              className="mx-2 my-1 cursor-pointer rounded px-2 py-2 text-text-primary hover:bg-background-secondary"
               onClick={() => handleSelect(option)}
             >
               {option.label}

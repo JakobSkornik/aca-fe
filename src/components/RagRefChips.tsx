@@ -4,10 +4,11 @@ import type { RagRef } from '@/contexts/GameStateManager'
 
 type Props = {
   ragRefs: RagRef[]
+  embedded?: boolean
 }
 
 /** Chips for RAG-retrieved master positions; hover shows mini board, click expands text. */
-const RagRefChips: React.FC<Props> = ({ ragRefs }) => {
+const RagRefChips: React.FC<Props> = ({ ragRefs, embedded = false }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
@@ -20,10 +21,14 @@ const RagRefChips: React.FC<Props> = ({ ragRefs }) => {
     return i >= 0 ? src.slice(i + 1) : src
   }
 
+  const wrapClass = embedded ? '' : 'mt-2 border-t border-border-tertiary pt-2'
+
   return (
-    <div className="mt-2 pt-2 border-t border-light-gray">
-      <div className="text-xs font-semibold text-gray-500 mb-1.5">Referenced positions</div>
-      <div className="flex flex-wrap gap-1.5 items-start">
+    <div className={wrapClass}>
+      {!embedded ? (
+        <div className="mb-1.5 text-xs font-semibold text-text-tertiary">Referenced positions</div>
+      ) : null}
+      <div className="flex flex-wrap items-start gap-1.5">
         {ragRefs.map((ref, i) => {
           const label = [basename(ref.source), ref.san, ref.phase].filter(Boolean).join(' · ')
           const scoreLabel =
@@ -34,10 +39,10 @@ const RagRefChips: React.FC<Props> = ({ ragRefs }) => {
               : null
           const open = expandedIdx === i
           return (
-            <div key={`rag-${i}-${ref.fen.slice(0, 20)}`} className="flex flex-col gap-0.5 min-w-0 max-w-full">
+            <div key={`rag-${i}-${ref.fen.slice(0, 20)}`} className="flex min-w-0 max-w-full flex-col gap-0.5">
               <button
                 type="button"
-                className="cursor-help text-left px-2 py-1 rounded text-xs font-medium border bg-blue-500/10 text-blue-900 border-blue-500/25 hover:bg-blue-500/15 max-w-full truncate inline-flex items-center gap-1.5"
+                className="inline-flex max-w-full cursor-help items-center gap-1.5 truncate rounded border border-accent-engine/30 bg-accent-engine/10 px-2 py-1 text-left text-xs font-medium text-text-info hover:bg-accent-engine/15"
                 title={ref.text}
                 onMouseEnter={(e) => {
                   setHoverIdx(i)
@@ -51,13 +56,13 @@ const RagRefChips: React.FC<Props> = ({ ragRefs }) => {
               >
                 <span className="truncate">{label || 'Reference'}</span>
                 {scoreLabel && (
-                  <span className="shrink-0 px-1 py-0.5 rounded bg-blue-500/20 text-[10px] font-semibold align-middle">
+                  <span className="shrink-0 rounded bg-accent-engine/20 px-1 py-0.5 align-middle text-[10px] font-semibold">
                     {scoreLabel}
                   </span>
                 )}
               </button>
               {open && (
-                <div className="text-xs text-gray-600 pl-1 max-h-32 overflow-y-auto whitespace-pre-wrap border-l-2 border-blue-400/40 ml-0.5">
+                <div className="ml-0.5 max-h-32 overflow-y-auto whitespace-pre-wrap border-l-2 border-accent-engine/40 pl-1 text-xs text-text-secondary">
                   {ref.text}
                 </div>
               )}
@@ -65,9 +70,7 @@ const RagRefChips: React.FC<Props> = ({ ragRefs }) => {
           )
         })}
       </div>
-      {active && (
-        <PvHoverBoard fen={active.fen} visible={hoverIdx !== null} anchorEl={anchorEl} />
-      )}
+      {active && <PvHoverBoard fen={active.fen} visible={hoverIdx !== null} anchorEl={anchorEl} />}
     </div>
   )
 }

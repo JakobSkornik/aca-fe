@@ -61,18 +61,17 @@ const Comments: React.FC = () => {
   )
 
   return (
-    <div className="flex flex-col h-full bg-lightest-gray min-h-0">
-      <div className="p-2 bg-light-gray border-b border-gray-300 shadow-sm z-10 flex-shrink-0 space-y-1.5">
-        <div className="font-semibold text-darkest-gray flex justify-between items-center">
-          <span>Analysis Commentary</span>
-          <span className="text-xs font-normal text-gray-600 bg-gray-200 px-2 py-1 rounded-full">
+    <div className="flex h-full min-h-0 flex-col bg-background-primary">
+      <div className="z-10 flex shrink-0 flex-col gap-1 border-b border-border-tertiary px-2 py-1">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="rounded-full border border-border-tertiary bg-background-secondary px-1.5 py-px font-medium text-text-secondary">
             {displayedComments.length} comments
           </span>
         </div>
         {commentaryGenerating && (
-          <div className="flex items-center gap-2 text-xs font-medium text-amber-900 bg-amber-100/90 border border-amber-200/80 rounded px-2 py-1.5">
+          <div className="flex items-center gap-1.5 rounded border border-border-secondary bg-background-warning px-1.5 py-1 text-[10px] font-medium text-text-warning">
             <span
-              className="inline-block h-3.5 w-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin shrink-0"
+              className="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-text-warning border-t-transparent"
               aria-hidden
             />
             <span>Commentary generating…</span>
@@ -80,11 +79,10 @@ const Comments: React.FC = () => {
         )}
       </div>
 
-      <div className="flex flex-1 min-h-0 flex-row">
-        <div className="flex-1 min-w-0 overflow-y-auto p-4 scroll-smooth">
+      <div className="flex min-h-0 flex-1 flex-row">
+        <div className="min-w-0 flex-1 overflow-y-auto scroll-smooth px-2 py-1.5">
           {displayedComments.length === 0 ? (
-            <div className="h-full min-h-[120px] flex flex-col items-center justify-center text-gray-400 italic">
-              <span className="text-4xl mb-2">💬</span>
+            <div className="flex h-full min-h-[100px] flex-col items-center justify-center text-[11px] italic text-text-tertiary">
               <p>No commentary available for this game.</p>
             </div>
           ) : activeComment ? (
@@ -100,22 +98,22 @@ const Comments: React.FC = () => {
               llmDebug={activeComment.llmDebug}
             />
           ) : (
-            <div className="h-full min-h-[120px] flex flex-col items-center justify-center text-gray-500 text-center px-4">
-              <p className="font-medium text-darkest-gray mb-1">No commentary for this move</p>
-              <p className="text-sm text-gray-500">
-                Select a move in the list on the right that has commentary, or use the movelist below.
+            <div className="flex h-full min-h-[100px] flex-col items-center justify-center px-2 text-center text-text-secondary">
+              <p className="mb-0.5 text-[11px] font-medium text-text-primary">No commentary for this move</p>
+              <p className="text-[10px] text-text-tertiary">
+                Select a move in the list on the right that has commentary, or use the movelist above.
               </p>
             </div>
           )}
         </div>
 
-        <div className="w-[220px] xl:w-[260px] flex-shrink-0 border-l border-gray-200 flex flex-col min-h-0 bg-light-gray/40">
-          <div className="px-3 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wide border-b border-gray-200 flex-shrink-0">
+        <div className="flex w-[168px] shrink-0 flex-col border-l border-border-tertiary bg-background-secondary xl:w-[188px]">
+          <div className="flex shrink-0 items-center border-b border-border-tertiary px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-text-tertiary">
             All comments
           </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-1">
             {sortedForNav.length === 0 ? (
-              <p className="text-xs text-gray-400 px-2 py-4 text-center">—</p>
+              <p className="px-1 py-2 text-center text-[10px] text-text-tertiary">—</p>
             ) : (
               sortedForNav.map((item, navIndex) => {
                 const moveIdx = manager.findMoveIndexById(item.moveId)
@@ -130,13 +128,13 @@ const Comments: React.FC = () => {
                     type="button"
                     ref={isNavActive ? activeNavRef : undefined}
                     onClick={() => handleNavClick(item)}
-                    className={`w-full text-left rounded-md px-2 py-2 text-xs transition-colors border border-transparent ${
+                    className={`w-full rounded border px-1.5 py-1 text-left text-[10px] transition-colors ${
                       isNavActive
-                        ? 'bg-light-gray shadow-sm border-gray-300 ring-1 ring-blue-200/80'
-                        : 'hover:bg-lightest-gray border-gray-100'
+                        ? 'border-border-secondary bg-background-primary shadow-sm ring-1 ring-accent-engine/30'
+                        : 'border-transparent hover:border-border-tertiary hover:bg-background-primary'
                     }`}
                   >
-                    <div className="font-semibold text-darkest-gray leading-tight">{title}</div>
+                    <div className="leading-snug font-semibold text-text-primary">{title}</div>
                   </button>
                 )
               })

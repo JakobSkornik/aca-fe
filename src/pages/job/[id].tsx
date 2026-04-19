@@ -1,22 +1,20 @@
-import React from 'react';
-import { useRouter } from 'next/router';
-import JobView from '@/components/JobView';
+import React from 'react'
+import JobView from '@/components/JobView'
+import { useRouter } from 'next/router'
 
 const JobPage = () => {
-  const router = useRouter();
-  const { id } = router.query;
+  const router = useRouter()
+  const { id } = router.query
 
   if (!id || typeof id !== 'string') {
-    return <div className="text-darkest-gray">Invalid Job ID</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background-secondary text-text-secondary">
+        Invalid Job ID
+      </div>
+    )
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-light-gray">
-      <div className="bg-lightest-gray p-8 rounded-lg shadow-md w-full max-w-lg">
-        <JobView jobId={id} />
-      </div>
-    </div>
-  );
-};
+  return <JobView jobId={id} />
+}
 
-export default JobPage;
+export default JobPage

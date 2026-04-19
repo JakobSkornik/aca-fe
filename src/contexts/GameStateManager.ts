@@ -64,6 +64,8 @@ export type GameStateSnapshot = {
   commentaryComplete: boolean
   /** Hover-driven overlay from inline commentary tokens (merged in MainlineChessboard). */
   commentaryBoardOverlay: CommentaryBoardOverlay
+  /** Main board orientation (`react-chessboard` + player bars). */
+  boardOrientation: 'white' | 'black'
 }
 
 const getPieceFromSan = (san: string, color: 'w' | 'b'): string => {
@@ -110,7 +112,13 @@ export class GameStateManager {
       gameSummary: null,
       commentaryComplete: true,
       commentaryBoardOverlay: null,
+      boardOrientation: 'white',
     }
+  }
+
+  flipBoard() {
+    this.state.boardOrientation = this.state.boardOrientation === 'white' ? 'black' : 'white'
+    this.notify()
   }
 
   // --- State subscription ---
@@ -138,6 +146,7 @@ export class GameStateManager {
   // --- Load from JSON ---
   loadGameFromJson(data: GameJson) {
     this.disconnectJobCommentaryWs()
+    this.state.boardOrientation = 'white'
     this.state.isLoaded = false;
     this.state.isAnalysisInProgress = false;
     this.state.isFullyAnalyzed = true;
@@ -183,6 +192,7 @@ export class GameStateManager {
             isAnalyzed: true,
             context: 'mainline',
             score: gm.score ? (gm.score.mate ? (gm.score.mate > 0 ? 100000 - gm.score.mate : -100000 - gm.score.mate) : gm.score.cp || 0) : undefined,
+            mateIn: gm.score?.mate != null ? gm.score.mate : undefined,
             annotation: gm.comment || undefined,
             piece: getPieceFromSan(gm.san, gm.color),
             hiddenFeatures: {}

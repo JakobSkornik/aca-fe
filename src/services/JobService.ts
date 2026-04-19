@@ -33,6 +33,23 @@ class JobService {
     return res.json();
   }
 
+  async listJobs(limit = 20): Promise<JobResponse[]> {
+    const res = await fetch(`${API_URL}/jobs?limit=${limit}`);
+    if (!res.ok) {
+      throw new Error(`Failed to list jobs: ${res.statusText}`);
+    }
+    return res.json();
+  }
+
+  async retryJob(jobId: string): Promise<JobResponse> {
+    const res = await fetch(`${API_URL}/jobs/${jobId}/retry`, { method: 'POST' });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || `Retry failed: ${res.statusText}`);
+    }
+    return res.json();
+  }
+
   async getJobStatus(jobId: string): Promise<JobResponse> {
     const res = await fetch(`${API_URL}/jobs/${jobId}/status`);
     if (!res.ok) {
@@ -49,7 +66,7 @@ class JobService {
     return res.json();
   }
 
-  /** WebSocket URL for streaming LLM commentary after engine phase (`/jobs/{id}/ws`). */
+  /** WebSocket URL for streaming LLM commentary (`/jobs/{id}/ws`). */
   getCommentaryWsUrl(jobId: string): string {
     const wsBase =
       process.env.NEXT_PUBLIC_WS_URL || apiUrlToWsBase(API_URL);
@@ -59,6 +76,3 @@ class JobService {
 }
 
 export const jobService = new JobService();
-
-
-

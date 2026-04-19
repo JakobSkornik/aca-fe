@@ -2,120 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
-@import '@fontsource/montserrat';
+@import '@fontsource/montserrat/400.css';
+@import '@fontsource/montserrat/500.css';
+@import '@fontsource/montserrat/600.css';
+@import '@fontsource/montserrat/700.css';
+
+/* Design tokens — aligned with wireframes; Tailwind maps to these in tailwind.config.js */
+:root {
+  --font-sans: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Fira Code', monospace;
+
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f5f5f4;
+  --color-background-info: #eff6ff;
+  --color-background-warning: #fffbeb;
+  --color-background-success: #f0fdf4;
+  --color-background-danger: #fef2f2;
+
+  --color-text-primary: #1c1c1a;
+  --color-text-secondary: #57534e;
+  --color-text-tertiary: #a8a29e;
+  --color-text-info: #1d4ed8;
+  --color-text-warning: #92400e;
+  --color-text-success: #166534;
+  --color-text-danger: #991b1b;
+
+  --color-border-tertiary: rgba(0, 0, 0, 0.1);
+  --color-border-secondary: rgba(0, 0, 0, 0.18);
+  --color-border-primary: rgba(0, 0, 0, 0.32);
+  --color-border-info: #bfdbfe;
+  --color-border-danger: #fecaca;
+
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+
+  /* Chess board (classic) */
+  --board-light: #f0d9b5;
+  --board-dark: #b58863;
+  --accent-engine: #3b82f6;
+  --accent-commentary: #a855f7;
+  --accent-progress: #f59e0b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background-primary: #1c1c1a;
+    --color-background-secondary: #282825;
+    --color-background-info: #1e3a5f;
+    --color-background-warning: #3d2c00;
+    --color-background-success: #14301a;
+    --color-background-danger: #3d1414;
+
+    --color-text-primary: #e8e6e1;
+    --color-text-secondary: #a8a29e;
+    --color-text-tertiary: #6b6760;
+    --color-text-info: #93c5fd;
+    --color-text-warning: #fcd34d;
+    --color-text-success: #86efac;
+    --color-text-danger: #fca5a5;
+
+    --color-border-tertiary: rgba(255, 255, 255, 0.08);
+    --color-border-secondary: rgba(255, 255, 255, 0.15);
+    --color-border-primary: rgba(255, 255, 255, 0.28);
+    --color-border-info: #1e40af;
+    --color-border-danger: #7f1d1d;
+
+    --board-light: #c9a882;
+    --board-dark: #6b4f3a;
+  }
+}
 
 html {
   font-size: 16px;
 }
 
-@media (max-width: 1024px) {
-  html {
-    font-size: 15px;
-  }
-}
-
-@media (max-width: 768px) {
-  html {
-    font-size: 14px;
-  }
-}
-
-@media (max-width: 640px) {
-  html {
-    font-size: 13px;
-  }
-}
-
-@media (max-width: 480px) {
-  html {
-    font-size: 12px;
-  }
-}
-
-:root {
-  --transparent-orange: #c7711a44;
-  --orange: #c7711a;
-  --lightest-gray: #eee;
-  --light-gray: #ddd;
-  --dark-gray: #ccc;
-  --darkest-gray: #333;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: var(--lightest-gray);
-    --foreground: var(--darkest-gray);
-  }
-}
-
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: 'montserrat';
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background: var(--color-background-secondary);
 }
 
-.orange {
-  color: var(--orange);
-}
-
-.dark-gray {
-  color: var(--dark-gray);
-}
-
-.darkest-gray {
-  color: var(--darkest-gray);
-}
-
-.lightest-gray {
-  color: var(--lightest-gray);
-}
-
-.light-gray {
-  color: var(--light-gray);
-}
-
-.bg-dark-gray {
-  background-color: var(--dark-gray);
-}
-
-.bg-darkest-gray {
-  background-color: var(--darkest-gray);
-}
-
-.bg-lightest-gray {
-  background-color: var(--lightest-gray);
-}
-
-.bg-light-gray {
-  background-color: var(--light-gray);
-}
-
-.bg-white {
-  background-color: white;
-}
-
-.hvr-shadow {
-  transition: box-shadow 0.2s ease;
-}
-
-.hvr-shadow:hover {
-  box-shadow: 0px 0px 8px 10px rgba(0, 0, 0, 0.2);
-}
-
-.selected-shadow {
-  box-shadow: 0px 0px 18px 20px rgba(49, 49, 49, 0.452);
-  z-index: 100;
-}
-
-.selected-shadow {
-  box-shadow: 0px 0px 8px 10px rgba(49, 49, 49, 0.452);
-  z-index: 100;
-}
-
-.bg-preview-white {
-  background-color: rgb(253, 190, 72);
-}
-
-.bg-preview-black {
-  background-color: rgb(181, 149, 90, 0.49);
+/* Subtle hover for interactive rows */
+@layer utilities {
+  .hvr-surface:hover {
+    background: var(--color-background-secondary);
+  }
 }

@@ -5,12 +5,14 @@ export type PvLineEntry = { san: string; fen: string }
 
 type Props = {
   pvLine: PvLineEntry[]
+  /** Inside an accordion or card — omit extra chrome */
+  embedded?: boolean
 }
 
 /**
  * Renders engine PV moves as hoverable chips; shows a mini board with the position after each move.
  */
-const InlinePvMoves: React.FC<Props> = ({ pvLine }) => {
+const InlinePvMoves: React.FC<Props> = ({ pvLine, embedded = false }) => {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
 
@@ -18,14 +20,18 @@ const InlinePvMoves: React.FC<Props> = ({ pvLine }) => {
 
   const active = hoverIdx !== null ? pvLine[hoverIdx] : null
 
+  const wrapClass = embedded ? '' : 'mt-2 border-t border-border-tertiary pt-2'
+
   return (
-    <div className="mt-2 pt-2 border-t border-light-gray">
-      <div className="text-xs font-semibold text-dark-gray mb-1">Engine line (hover for position)</div>
-      <div className="flex flex-wrap gap-1 items-center">
+    <div className={wrapClass}>
+      {!embedded ? (
+        <div className="mb-1 text-xs font-semibold text-text-tertiary">Engine line (hover for position)</div>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-1">
         {pvLine.map((step, i) => (
           <span
             key={`pv-${i}-${step.fen}`}
-            className="cursor-help px-1.5 py-0.5 rounded bg-orange-500/15 text-darkest-gray font-medium text-sm border border-orange-500/30"
+            className="cursor-help rounded border border-accent-progress/35 bg-accent-progress/15 px-1.5 py-0.5 text-sm font-medium text-text-primary"
             onMouseEnter={(e) => {
               setHoverIdx(i)
               setAnchorEl(e.currentTarget)
@@ -39,9 +45,7 @@ const InlinePvMoves: React.FC<Props> = ({ pvLine }) => {
           </span>
         ))}
       </div>
-      {active && (
-        <PvHoverBoard fen={active.fen} visible={hoverIdx !== null} anchorEl={anchorEl} />
-      )}
+      {active && <PvHoverBoard fen={active.fen} visible={hoverIdx !== null} anchorEl={anchorEl} />}
     </div>
   )
 }

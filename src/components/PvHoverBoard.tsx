@@ -49,14 +49,14 @@ const PvHoverBoard: React.FC<Props> = ({ fen, visible, anchorEl }) => {
 
   const board = (
     <div
-      className="fixed z-[9999] pointer-events-none shadow-xl rounded border border-gray-300 bg-white p-1"
+      className="pointer-events-none fixed z-[9999] rounded border border-border-secondary bg-background-primary p-1 shadow-xl"
       style={{ top: pos.top, left: pos.left }}
     >
       <Chessboard
         position={fen}
         boardWidth={BOARD_W}
-        customDarkSquareStyle={{ backgroundColor: 'var(--dark-gray)' }}
-        customLightSquareStyle={{ backgroundColor: 'var(--lightest-gray)' }}
+        customDarkSquareStyle={{ backgroundColor: 'var(--board-dark)' }}
+        customLightSquareStyle={{ backgroundColor: 'var(--board-light)' }}
         arePiecesDraggable={false}
         boardOrientation="white"
         showBoardNotation={true}

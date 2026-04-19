@@ -317,7 +317,7 @@ const PgnLoader = () => {
       <button
         disabled={loading || !tempPgn.trim()}
         onClick={submitPgn}
-        className={UIHelpers.getPrimaryButtonClasses(loading || !tempPgn.trim())}
+        className={UIHelpers.getPrimaryButtonClasses()}
       >
         {loading ? (
           <div className="flex items-center justify-center">

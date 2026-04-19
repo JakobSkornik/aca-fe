@@ -48,7 +48,7 @@ const TokenPv: React.FC<{ data: Record<string, unknown> | null }> = ({ data }) =
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
 
   if (!pv?.length) {
-    return <span className="text-orange-700/80 text-sm">[pv]</span>
+    return <span className="text-sm text-accent-progress">[pv]</span>
   }
 
   const active = hoverIdx !== null ? pv[hoverIdx] : null
@@ -58,7 +58,7 @@ const TokenPv: React.FC<{ data: Record<string, unknown> | null }> = ({ data }) =
       {pv.map((step, i) => (
         <span
           key={`pv-${i}-${step.fen}`}
-          className="cursor-help px-1.5 py-0.5 rounded bg-orange-500/15 text-darkest-gray font-medium text-sm border border-orange-500/30"
+          className="cursor-help rounded border border-accent-progress/35 bg-accent-progress/15 px-1.5 py-0.5 text-sm font-medium text-text-primary"
           onMouseEnter={(e) => {
             setHoverIdx(i)
             setAnchorEl(e.currentTarget)
@@ -148,7 +148,7 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
         return (
           <span
             key={`mv-${i}`}
-            className="cursor-help px-1.5 py-0.5 rounded bg-green-500/15 border border-green-500/40 text-darkest-gray font-medium text-sm mx-0.5 align-middle"
+            className="mx-0.5 cursor-help rounded border border-text-success/40 bg-background-success px-1.5 py-0.5 align-middle text-sm font-medium text-text-primary"
             onMouseEnter={() => applyMoveHover(data, content)}
             onMouseLeave={leave}
           >

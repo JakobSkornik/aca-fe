@@ -10,6 +10,8 @@ export interface Move {
   context: string // mainline, pv1, pv2
   annotation?: string
   score?: number
+  /** From engine `MoveScore.mate` when present; positive = White mates in N. */
+  mateIn?: number | null
   phase?: string // early, mid, end
   capturedByWhite?: CaptureCount
   capturedByBlack?: CaptureCount

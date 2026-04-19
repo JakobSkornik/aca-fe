@@ -1,72 +1,35 @@
-import React from 'react';
-import { useRouter } from 'next/router';
-import JobSubmission from '@/components/JobSubmission';
-import { useGameState } from '@/contexts/GameStateContext';
+import React from 'react'
+import TopBar from '@/components/ui/TopBar'
+import BackendHealthIndicator from '@/components/BackendHealthIndicator'
+import LandingNewAnalysis from '@/components/LandingNewAnalysis'
+import RecentJobsSidebar from '@/components/RecentJobsSidebar'
+import { useBackendHealth } from '@/hooks/useBackendHealth'
+import { useRouter } from 'next/router'
 
 const Home = () => {
-  const router = useRouter();
-  const { manager } = useGameState();
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        manager.loadGameFromJson(json);
-        router.push('/game/local'); 
-      } catch (err) {
-        console.error(err);
-        alert('Invalid JSON file');
-      }
-    };
-    reader.readAsText(file);
-  };
+  const backendOk = useBackendHealth()
+  const router = useRouter()
 
   return (
-    <div className="min-h-screen bg-light-gray flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-darkest-gray">
-            Automatic Chess Annotator
-          </h2>
-        </div>
+    <div className="min-h-screen bg-background-secondary text-text-primary">
+      <div className="mx-auto max-w-[900px] px-4 py-6 pb-12">
+        <TopBar
+          subtitle="Automatic game analysis"
+          onLogoClick={() => router.push('/')}
+          right={<BackendHealthIndicator backendOk={backendOk} />}
+        />
 
-        <div className="bg-lightest-gray py-8 px-4 shadow rounded-lg sm:px-10">
-          <JobSubmission />
-          
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-dark-gray"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-lightest-gray text-dark-gray">
-                  Or load existing analysis
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleFileUpload}
-                className="mt-1 block w-full text-sm text-dark-gray
-                  file:mr-4 file:py-2 file:px-4
-                  file:rounded-full file:border-0
-                  file:text-sm file:font-semibold
-                  file:bg-light-gray file:text-darkest-gray
-                  hover:file:bg-dark-gray"
-              />
-            </div>
+        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-[1fr_300px] md:items-start">
+          <div>
+            <LandingNewAnalysis />
+          </div>
+          <div className="flex flex-col gap-3.5">
+            <RecentJobsSidebar />
           </div>
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Home;
+export default Home
