@@ -13,8 +13,12 @@ const GameSummaryPanel: React.FC = () => {
     manager.goToMove(idx)
   }
 
-  /** PGN / annotation move number (1-based full-move index), not raw half-move ply. */
-  const annotationMoveNo = (ply: number) => Math.max(1, Math.ceil(ply / 2))
+  /** PGN-style label: White `N.` Black `N...` (ply is 1-based half-move). */
+  const fmtPlyLabel = (ply: number, san: string) => {
+    const full = Math.max(1, Math.ceil(ply / 2))
+    const isWhite = ply % 2 === 1
+    return isWhite ? `${full}. ${san}` : `${full}... ${san}`
+  }
 
   return (
     <Card
@@ -63,7 +67,7 @@ const GameSummaryPanel: React.FC = () => {
                     onClick={() => goToPly(tp.ply)}
                     className="rounded-md border border-border-info bg-background-info px-2 py-0.5 text-[11px] font-medium text-text-info hover:opacity-90"
                   >
-                    {annotationMoveNo(tp.ply)}. {tp.san}
+                    {fmtPlyLabel(tp.ply, tp.san)}
                   </button>
                 ))}
               </div>

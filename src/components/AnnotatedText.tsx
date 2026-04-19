@@ -86,29 +86,42 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
   )
 
   const applyMoveHover = (data: Record<string, unknown> | null, san: string) => {
-    let from = data?.from as string | undefined
-    let to = data?.to as string | undefined
-
-    if ((!from || !to) && san && currentFen) {
-      try {
-        const fenBefore =
-          currentMoveIndex <= 0
-            ? new Chess().fen()
-            : manager.getPositionForIndex(currentMoveIndex - 1)
-        const b = new Chess(fenBefore || currentFen)
-        const r = b.move(san)
-        if (r) {
-          from = r.from
-          to = r.to
-        }
-      } catch { /* invalid SAN — skip */ }
-    }
-
-    if (from && to) {
+    const fromData = data?.from as string | undefined
+    const toData = data?.to as string | undefined
+    if (fromData && toData) {
       manager.setCommentaryBoardOverlay({
-        arrows: [[from as Square, to as Square, GREEN_ARROW]],
+        arrows: [[fromData as Square, toData as Square, GREEN_ARROW]],
         squareStyles: {},
       })
+      return
+    }
+
+    if (!san) return
+
+    const fenBefore =
+      currentMoveIndex <= 0
+        ? new Chess().fen()
+        : manager.getPositionForIndex(currentMoveIndex - 1)
+
+    /** Opponent replies: position after the displayed move. Same-side alts: position before it. */
+    const candidateFens = [currentFen, fenBefore].filter((f): f is string => Boolean(f))
+    const seen = new Set<string>()
+    for (const fen of candidateFens) {
+      if (seen.has(fen)) continue
+      seen.add(fen)
+      try {
+        const b = new Chess(fen)
+        const r = b.move(san)
+        if (r) {
+          manager.setCommentaryBoardOverlay({
+            arrows: [[r.from as Square, r.to as Square, GREEN_ARROW]],
+            squareStyles: {},
+          })
+          return
+        }
+      } catch {
+        /* try next fen */
+      }
     }
   }
 

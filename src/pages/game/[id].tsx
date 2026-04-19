@@ -8,6 +8,7 @@ import MoveList from '@/components/MoveList'
 import Comments from '@/components/Comments'
 import OpeningMetadataCard from '@/components/game/OpeningMetadataCard'
 import EvaluationPanel from '@/components/game/EvaluationPanel'
+import MoveNavButtons from '@/components/game/MoveNavButtons'
 import { TopBar } from '@/components/ui/TopBar'
 import { Card } from '@/components/ui/Card'
 import type { GameJson } from '@/types/GameJson'
@@ -182,9 +183,10 @@ const GamePage = () => {
 
         <Card
           title="Moves"
+          headerRight={<MoveNavButtons />}
           headerClassName="!px-2.5 !py-1.5"
           titleClassName="!text-[11px]"
-          className="flex h-[min(24vh,300px)] min-h-[180px] shrink-0 flex-col overflow-hidden xl:min-h-[200px]"
+          className="flex h-[min(14vh,300px)] shrink-0 flex-col overflow-hidden"
           bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
         >
           <MoveList />
