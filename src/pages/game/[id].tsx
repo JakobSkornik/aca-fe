@@ -153,17 +153,10 @@ const GamePage = () => {
         }
       />
 
-      {/*
-        xl: 3-column grid — bottom row: Moves spans board+engine columns; Commentary aligns with Game summary.
-      */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
-        <div
-          className="grid min-h-0 flex-1 gap-3
-            grid-cols-1
-            xl:grid-cols-[minmax(0,min(28vw,440px))_minmax(0,min(22vw,360px))_minmax(0,1fr)]
-            xl:grid-rows-[minmax(300px,min(52vh,480px))_minmax(152px,1fr)]"
-        >
-          <div className="flex min-h-0 justify-center overflow-hidden xl:col-start-1 xl:row-start-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+        {/* Row 1: board | opening + engine | summary */}
+        <div className="flex min-h-[260px] max-h-[46vh] shrink-0 flex-col gap-3 xl:flex-row xl:overflow-hidden">
+          <div className="flex min-h-0 shrink-0 justify-center xl:w-[min(28vw,440px)] xl:shrink-0">
             <Card
               title="Board"
               headerClassName="!px-2.5 !py-1.5"
@@ -174,8 +167,7 @@ const GamePage = () => {
               <MainlineChessboard />
             </Card>
           </div>
-
-          <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden xl:col-start-2 xl:row-start-1">
+          <div className="flex min-h-0 min-w-0 w-full shrink-0 flex-col gap-3 xl:w-[min(22vw,360px)] xl:max-w-[360px]">
             <div className="min-h-[140px] shrink-0">
               <OpeningMetadataCard />
             </div>
@@ -183,31 +175,30 @@ const GamePage = () => {
               <EvaluationPanel />
             </div>
           </div>
-
-          <div className="min-h-[200px] min-w-0 overflow-hidden xl:col-start-3 xl:row-start-1">
+          <div className="min-h-[200px] min-w-0 w-full flex-1 overflow-hidden">
             <GameSummaryPanel />
           </div>
-
-          <Card
-            title="Moves"
-            headerClassName="!px-2.5 !py-1.5"
-            titleClassName="!text-[11px]"
-            className="flex min-h-[min(17vh,220px)] shrink-0 flex-col overflow-hidden max-xl:min-h-[128px] xl:col-span-2 xl:row-start-2 xl:h-full xl:min-h-0 xl:min-w-0"
-            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-          >
-            <MoveList />
-          </Card>
-
-          <Card
-            title="Commentary"
-            headerClassName="!px-2.5 !py-1.5"
-            titleClassName="!text-[11px]"
-            className="flex min-h-[128px] shrink-0 flex-col overflow-hidden xl:col-start-3 xl:row-start-2 xl:h-full xl:min-h-0 xl:min-w-0"
-            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-          >
-            <Comments />
-          </Card>
         </div>
+
+        <Card
+          title="Moves"
+          headerClassName="!px-2.5 !py-1.5"
+          titleClassName="!text-[11px]"
+          className="flex h-[min(24vh,300px)] min-h-[180px] shrink-0 flex-col overflow-hidden xl:min-h-[200px]"
+          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+        >
+          <MoveList />
+        </Card>
+
+        <Card
+          title="Commentary"
+          headerClassName="!px-2.5 !py-1.5"
+          titleClassName="!text-[11px]"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+        >
+          <Comments />
+        </Card>
       </div>
     </div>
   )

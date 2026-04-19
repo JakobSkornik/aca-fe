@@ -5,7 +5,6 @@ import { UIHelpers } from '@/helpers/uiHelpers'
 import { Move } from '@/types/chess/Move'
 import Tooltip from './ui/Tooltip'
 import HiddenFeaturesDebug from './HiddenFeaturesDebug'
-import { jobService } from '@/services/JobService'
 import { useRouter } from 'next/router'
 
 const MoveList = () => {
@@ -23,7 +22,6 @@ const MoveList = () => {
     return s
   }, [commentsMainline])
   const router = useRouter()
-  const { id } = router.query
 
   const displayedMoves = manager.getDisplayedMovesList()
   const displayLength = 300
@@ -50,35 +48,6 @@ const MoveList = () => {
     },
     [manager]
   )
-
-  const handleDownload = async () => {
-    if (!id || typeof id !== 'string') return
-    try {
-      let body: string
-      if (id === 'offline') {
-        body = sessionStorage.getItem('aca_offline_export') ?? ''
-        if (!body) {
-          window.alert('Nothing to export.')
-          return
-        }
-      } else {
-        const gameJson = await jobService.getGameJson(id)
-        body = JSON.stringify(gameJson, null, 2)
-      }
-      const blob = new Blob([body], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = id === 'offline' ? 'game_offline.json' : `game_${id}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      console.error('Failed to download game JSON', e)
-      window.alert('Failed to download game JSON')
-    }
-  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -133,7 +102,7 @@ const MoveList = () => {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="border-b border-border-tertiary px-2 py-1">
-        <div className="mb-1 flex items-center justify-between">
+        <div className="mb-1 flex items-center justify-start gap-1">
           <div className="flex items-center justify-start gap-1">
             <Tooltip content="Go to first move">
               <button
@@ -181,24 +150,6 @@ const MoveList = () => {
               </button>
             </Tooltip>
           </div>
-
-          {id && typeof id === 'string' && (
-            <Tooltip content="Download Analysis JSON">
-              <button
-                type="button"
-                onClick={() => void handleDownload()}
-                className={`${UIHelpers.getButtonClasses()} !px-1.5 !py-1`}
-              >
-                <Image
-                  src="/icons/upload.svg"
-                  alt="Download"
-                  width={14}
-                  height={14}
-                  className="h-3.5 w-3.5 rotate-180 transform"
-                />
-              </button>
-            </Tooltip>
-          )}
         </div>
 
         <div className="flex justify-start">
@@ -235,7 +186,7 @@ const MoveList = () => {
           className="grid"
           style={{
             gridTemplateColumns: `${labelColPx}px repeat(${displayLength}, ${colWidthPx}px)`,
-            gridTemplateRows: 'minmax(20px, 3vh) minmax(20px, 3vh) minmax(40px, 4.8vh)',
+            gridTemplateRows: 'minmax(20px, 3vh) minmax(52px, 5.5vh)',
             columnGap: '6px',
             rowGap: '4px',
           }}
@@ -258,46 +209,24 @@ const MoveList = () => {
             )
           })}
 
-          <div className="flex items-center justify-end pr-1 text-[10px] font-bold" style={{ gridRow: 2, gridColumn: 1 }}>
-            Tags:
-          </div>
-          {Array.from({ length: displayLength }).map((_: unknown, colIndex: number) => {
-            const annotation = getMoveAnnotation(colIndex)
-            const move = displayedMoves[colIndex]
-            const moveId = move?.id
-            const hasAiComment = moveId != null && moveIdsWithAiComment.has(moveId)
-            const isGeneratingAi = moveId != null && aiGeneration[moveId] != null
-            return (
-              <div
-                key={`row2-col${colIndex}`}
-                className="flex items-center justify-center gap-0.5 text-[10px] font-bold text-text-danger"
-                style={{ gridRow: 2, gridColumn: colIndex + 2, width: colWidthPx }}
-              >
-                {annotation ? <span>{annotation}</span> : null}
-                {hasAiComment ? <span className="font-semibold text-accent-engine">*</span> : null}
-                {isGeneratingAi ? (
-                  <span
-                    className="inline-block h-2.5 w-2.5 shrink-0 animate-spin rounded-full border-2 border-text-danger border-t-transparent"
-                    aria-label="Commentary generating"
-                  />
-                ) : null}
-              </div>
-            )
-          })}
-
-          <div className="flex items-center justify-end pr-1 text-[9px] font-bold leading-tight" style={{ gridRow: 3, gridColumn: 1 }}>
+          <div className="flex items-center justify-end pr-1 text-[9px] font-bold leading-tight" style={{ gridRow: 2, gridColumn: 1 }}>
             Mainline:
           </div>
           {displayedMoves.map((move: Move, colIndex: number) => {
             if (colIndex >= displayLength || !move.move) {
               return (
                 <div
-                  key={`row3-col${colIndex}`}
-                  className="invisible min-h-[40px]"
-                  style={{ gridRow: 3, gridColumn: colIndex + 2, width: colWidthPx }}
+                  key={`row2-col${colIndex}`}
+                  className="invisible min-h-[52px]"
+                  style={{ gridRow: 2, gridColumn: colIndex + 2, width: colWidthPx }}
                 />
               )
             }
+
+            const annotation = getMoveAnnotation(colIndex)
+            const moveId = move?.id
+            const hasAiComment = moveId != null && moveIdsWithAiComment.has(moveId)
+            const isGeneratingAi = moveId != null && aiGeneration[moveId] != null
 
             const isWhite = colIndex % 2 === 0
             const isCurrent = colIndex === currentMoveIndex
@@ -308,11 +237,21 @@ const MoveList = () => {
             return (
               <div
                 ref={moveRef}
-                key={`row3-col${colIndex}`}
-                className={`move-item-${colIndex} box-border flex min-h-[40px] cursor-pointer flex-col items-center justify-center gap-px rounded border-2 border-white px-0.5 py-0.5 text-[10px] shadow-sm ${moveCellClass} ${isCurrent ? 'z-10 ring-2 ring-accent-engine ring-offset-0' : ''}`}
-                style={{ gridRow: 3, gridColumn: colIndex + 2, width: colWidthPx }}
+                key={`row2-col${colIndex}`}
+                className={`move-item-${colIndex} box-border flex min-h-[52px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded border-2 border-white px-0.5 py-0.5 text-[10px] shadow-sm ${moveCellClass} ${isCurrent ? 'z-10 ring-2 ring-accent-engine ring-offset-0' : ''}`}
+                style={{ gridRow: 2, gridColumn: colIndex + 2, width: colWidthPx }}
                 onClick={() => handleRowClick(colIndex)}
               >
+                <div className="flex min-h-[14px] items-center justify-center gap-0.5 text-[9px] font-bold leading-none text-text-danger">
+                  {annotation ? <span>{annotation}</span> : null}
+                  {hasAiComment ? <span className="font-semibold text-accent-engine">*</span> : null}
+                  {isGeneratingAi ? (
+                    <span
+                      className="inline-block h-2.5 w-2.5 shrink-0 animate-spin rounded-full border-2 border-text-danger border-t-transparent"
+                      aria-label="Commentary generating"
+                    />
+                  ) : null}
+                </div>
                 <div className={`flex items-center justify-center gap-px ${isCurrent ? 'text-sm' : ''}`}>
                   <Image alt={move.piece ?? ''} width={14} height={14} src={getPieceImg(move.piece)} />
                   <span className="font-semibold leading-none">{move.move}</span>
