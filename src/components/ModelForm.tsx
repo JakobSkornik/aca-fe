@@ -4,27 +4,22 @@ import { useGameState } from '@/contexts/GameStateContext'
 const ModelForm: React.FC = () => {
   const { manager, state } = useGameState()
   const current = state.modelParams
-  const [model, setModel] = useState<'gpt-5.4-mini' | 'gpt-5.4'>(current.model)
+  const [provider, setProvider] = useState<'openai' | 'anthropic'>(current.provider)
   const [effort, setEffort] = useState<'low' | 'medium' | 'high'>(current.effort)
-  const [temperature, setTemperature] = useState<number>(current.temperature ?? 0.2)
-  const [maxTokens, setMaxTokens] = useState<number>(current.maxTokens ?? 120)
 
   useEffect(() => {
-    setModel(current.model)
+    setProvider(current.provider)
     setEffort(current.effort)
-    setTemperature(current.temperature ?? 0.2)
-    setMaxTokens(current.maxTokens ?? 120)
   }, [current])
 
   const [justSaved, setJustSaved] = useState<boolean>(false)
   const handleSave = () => {
-    manager.setModelParams({ model, effort, temperature, maxTokens })
+    manager.setModelParams({ provider, effort })
     setJustSaved(true)
     setTimeout(() => setJustSaved(false), 1200)
   }
 
   const activeGen = useMemo(() => {
-    // Show the latest active generation timer if any
     const keys = Object.keys(state.aiGeneration)
     if (keys.length === 0) return null
     const lastKey = Number(keys[keys.length - 1])
@@ -44,15 +39,18 @@ const ModelForm: React.FC = () => {
       <div className="font-bold mb-2">AI Model Settings</div>
       <div className="space-y-3">
         <div>
-          <label className="block text-xs mb-1">Model</label>
+          <label className="block text-xs mb-1">LLM provider</label>
           <select
             className="w-full border rounded px-2 py-1"
-            value={model}
-            onChange={(e) => setModel(e.target.value as 'gpt-5.4-mini' | 'gpt-5.4')}
+            value={provider}
+            onChange={(e) => setProvider(e.target.value as 'openai' | 'anthropic')}
           >
-            <option value="gpt-5.4-mini">gpt-5.4-mini</option>
-            <option value="gpt-5.4">gpt-5.4</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
           </select>
+          <p className="mt-1 text-[10px] leading-snug text-gray-600">
+            Anthropic: Haiku 4.5 for per-move, Sonnet 4.5 for digest + narrative (fixed server-side).
+          </p>
         </div>
 
         <div>
@@ -66,30 +64,6 @@ const ModelForm: React.FC = () => {
             <option value="medium">medium</option>
             <option value="high">high</option>
           </select>
-        </div>
-
-        <div>
-          <label className="block text-xs mb-1">Temperature</label>
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            max="2"
-            className="w-full border rounded px-2 py-1"
-            value={temperature}
-            onChange={(e) => setTemperature(Number(e.target.value))}
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs mb-1">Max Tokens</label>
-          <input
-            type="number"
-            min="1"
-            className="w-full border rounded px-2 py-1"
-            value={maxTokens}
-            onChange={(e) => setMaxTokens(Number(e.target.value))}
-          />
         </div>
 
         <div className="flex items-center space-x-2">
@@ -120,5 +94,3 @@ const ModelForm: React.FC = () => {
 }
 
 export default ModelForm
-
-

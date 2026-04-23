@@ -37,10 +37,8 @@ export interface RequestAnalysisClientPayload {
 }
 
 export interface SetModelParamsClientPayload {
-  model?: 'gpt-5.4-mini' | 'gpt-5.4'
+  provider?: 'openai' | 'anthropic'
   effort?: 'low' | 'medium' | 'high'
-  temperature?: number
-  maxTokens?: number
 }
 
 // --- Server Message Payloads ---
@@ -178,10 +176,8 @@ export interface AiGenerationStatusServerPayload {
 }
 
 export interface ModelParamsUpdatedServerPayload {
-  model: 'gpt-5.4-mini' | 'gpt-5.4'
+  provider: 'openai' | 'anthropic'
   effort: 'low' | 'medium' | 'high'
-  temperature?: number
-  maxTokens?: number
 }
 
 // --- Generic Message Structures ---

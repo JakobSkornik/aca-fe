@@ -12,21 +12,28 @@ export function TopBar({ subtitle, right, onLogoClick, className = '' }: TopBarP
     <header
       className={`flex shrink-0 items-center justify-between border-b border-border-tertiary bg-background-primary px-4 py-2.5 ${className}`}
     >
-      <button
-        type="button"
-        onClick={onLogoClick}
-        className="flex cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent p-0 text-left hover:opacity-90"
-      >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-secondary bg-background-secondary text-base text-text-secondary">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onLogoClick}
+          aria-label="Home"
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border-secondary bg-background-secondary text-base text-text-secondary hover:opacity-90"
+        >
           ♟
-        </span>
-        <span>
-          <span className="block text-[15px] font-medium text-text-primary">Chess Annotator</span>
+        </button>
+        <div className="min-w-0 text-left">
+          <button
+            type="button"
+            onClick={onLogoClick}
+            className="block border-0 bg-transparent p-0 text-left hover:opacity-90"
+          >
+            <span className="block text-[15px] font-medium text-text-primary">Chess Annotator</span>
+          </button>
           {subtitle != null ? (
             <span className="mt-0.5 block text-xs text-text-tertiary">{subtitle}</span>
           ) : null}
-        </span>
-      </button>
+        </div>
+      </div>
       {right != null ? <div className="flex items-center gap-2">{right}</div> : null}
     </header>
   )

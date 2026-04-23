@@ -16,14 +16,14 @@ function apiUrlToWsBase(apiUrl: string): string {
 class JobService {
   async submitJob(
     pgn: string,
-    opts?: { llm_model?: string; llm_effort?: string }
+    opts?: { llm_provider?: string; llm_effort?: string }
   ): Promise<JobResponse> {
     const res = await fetch(`${API_URL}/jobs/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         pgn_string: pgn,
-        llm_model: opts?.llm_model,
+        llm_provider: opts?.llm_provider,
         llm_effort: opts?.llm_effort,
       }),
     });

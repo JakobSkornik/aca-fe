@@ -291,8 +291,8 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
                   <dd className="font-mono text-right text-text-secondary">{job.move_count ?? '—'}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="shrink-0 text-text-tertiary">Model</dt>
-                  <dd className="truncate text-right font-mono text-text-secondary">{job.llm_model || '—'}</dd>
+                  <dt className="shrink-0 text-text-tertiary">Provider</dt>
+                  <dd className="truncate text-right font-mono text-text-secondary">{job.llm_provider || '—'}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="shrink-0 text-text-tertiary">Effort</dt>

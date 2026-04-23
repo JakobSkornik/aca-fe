@@ -40,7 +40,7 @@ const JobSubmission: React.FC = () => {
     try {
       const mp = manager.getModelParams();
       const job = await jobService.submitJob(pgn, {
-        llm_model: mp.model,
+        llm_provider: mp.provider,
         llm_effort: mp.effort,
       });
       router.push(`/job/${job.job_id}`);

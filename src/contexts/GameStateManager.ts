@@ -55,7 +55,7 @@ export type GameStateSnapshot = {
   commentsMainline: MainlineComment[]
   pendingComments: { moveId: number; context: 'mainline' | 'preview'; text: string }[]
   aiComments: { moveId: number; moveIndex: number; context: 'mainline' | 'preview'; data: Record<string, unknown> }[]
-  modelParams: { model: 'gpt-5.4-mini' | 'gpt-5.4'; effort: 'low' | 'medium' | 'high'; temperature?: number; maxTokens?: number }
+  modelParams: { provider: 'openai' | 'anthropic'; effort: 'low' | 'medium' | 'high' }
   aiGeneration: Record<number, { context: 'mainline' | 'preview'; startedAt: number; model?: string; effort?: string }>
   episodeNarratives: { episodeIndex: number; title: string; narrative: string }[]
   gameNarrative: string | null
@@ -89,6 +89,8 @@ export class GameStateManager {
   private state: GameStateSnapshot
   private listeners: (() => void)[] = []
   private jobCommentaryWs: WebSocket | null = null
+  /** Job id for the active `/jobs/{id}/ws` connection; cleared on disconnect. */
+  private jobCommentaryActiveJobId: string | null = null
 
   constructor() {
     this.state = {
@@ -105,7 +107,7 @@ export class GameStateManager {
       commentsMainline: [],
       pendingComments: [],
       aiComments: [],
-      modelParams: { model: 'gpt-5.4', effort: 'medium', temperature: 0.2, maxTokens: 120 },
+      modelParams: { provider: 'openai', effort: 'medium' },
       aiGeneration: {},
       episodeNarratives: [],
       gameNarrative: null,
@@ -457,7 +459,7 @@ export class GameStateManager {
         console.log('user_text', (ldRaw as AiCommentLlmDebug).user_text)
         console.groupEnd()
       }
-      this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
+      this.upsertMainlineComment(commentItem)
     } catch {
       /* ignore */
     }
@@ -473,10 +475,12 @@ export class GameStateManager {
   connectToJobCommentaryWs(jobId: string) {
     if (this.state.commentaryComplete) return
     this.disconnectJobCommentaryWs()
+    this.jobCommentaryActiveJobId = jobId
     const url = jobService.getCommentaryWsUrl(jobId)
     const ws = new WebSocket(url)
     this.jobCommentaryWs = ws
     ws.onmessage = (ev) => {
+      if (this.jobCommentaryWs !== ws || this.jobCommentaryActiveJobId !== jobId) return
       try {
         const msg = JSON.parse(ev.data as string) as { type: string; payload: unknown }
         this.handleJobCommentaryMessage(msg)
@@ -488,11 +492,15 @@ export class GameStateManager {
       console.warn('Job commentary WebSocket error')
     }
     ws.onclose = () => {
-      this.jobCommentaryWs = null
+      if (this.jobCommentaryWs === ws) {
+        this.jobCommentaryWs = null
+        this.jobCommentaryActiveJobId = null
+      }
     }
   }
 
   disconnectJobCommentaryWs() {
+    this.jobCommentaryActiveJobId = null
     if (this.jobCommentaryWs) {
       this.jobCommentaryWs.close()
       this.jobCommentaryWs = null
@@ -521,9 +529,12 @@ export class GameStateManager {
         this.notify()
         break
       }
-      case 'AI_COMMENT_UPDATE':
-        this.applyAiCommentUpdatePayload(msg.payload as AiCommentUpdateServerPayload)
+      case 'AI_COMMENT_UPDATE': {
+        const p = msg.payload as AiCommentUpdateServerPayload
+        if (this.findMoveIndexById(p.moveId) === -1) break
+        this.applyAiCommentUpdatePayload(p)
         break
+      }
       case 'EPISODE_NARRATIVE': {
         const p = msg.payload as EpisodeNarrativeServerPayload
         this.state.episodeNarratives = [
@@ -654,10 +665,8 @@ export class GameStateManager {
       case ServerWsMessageType.MODEL_PARAMS_UPDATED:
         const paramsPayload = srvMsg.payload as ModelParamsUpdatedServerPayload
         this.state.modelParams = {
-          model: paramsPayload.model,
+          provider: paramsPayload.provider,
           effort: paramsPayload.effort,
-          temperature: paramsPayload.temperature,
-          maxTokens: paramsPayload.maxTokens,
         }
         // New model settings invalidate existing AI-generated commentary
         this.state.commentsMainline = []
@@ -816,12 +825,20 @@ export class GameStateManager {
       const idx = this.state.moves.findMoveIndexById(pending.moveId)
       if (idx !== -1) {
         const commentItem: MainlineComment = { moveId: pending.moveId, moveIndex: idx, text: pending.text }
-        this.state.commentsMainline = [...this.state.commentsMainline, commentItem]
+        this.upsertMainlineComment(commentItem)
       } else {
         remaining.push(pending)
       }
     }
     this.state.pendingComments = remaining
+  }
+
+  /** At most one mainline comment row per moveId (WS + JSON must not append duplicates). */
+  private upsertMainlineComment(item: MainlineComment) {
+    this.state.commentsMainline = [
+      ...this.state.commentsMainline.filter((c) => c.moveId !== item.moveId),
+      item,
+    ]
   }
 
 }

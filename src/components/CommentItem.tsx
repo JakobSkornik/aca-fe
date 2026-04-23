@@ -52,14 +52,19 @@ const CommentItem: React.FC<Props> = ({
   const timeoutsRef = useRef<number[]>([])
 
   useEffect(() => {
+    timeoutsRef.current.forEach((t) => clearTimeout(t))
+    timeoutsRef.current = []
+    charIndexRef.current = 0
+
     if (hasInlineAnnotations) {
-      timeoutsRef.current.forEach((t) => clearTimeout(t))
-      timeoutsRef.current = []
       setDisplayedText(text)
       setIsComplete(true)
       return
     }
-    if (isComplete) return
+
+    setDisplayedText('')
+    setIsComplete(false)
+
     const start = () => {
       step()
     }
@@ -79,7 +84,7 @@ const CommentItem: React.FC<Props> = ({
       timeoutsRef.current = []
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, text, hasInlineAnnotations])
+  }, [id, text, hasInlineAnnotations, initialDelay, typewriterSpeed])
 
   useEffect(() => {
     if (!finalizeIfNotHighlighted) return

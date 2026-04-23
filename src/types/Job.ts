@@ -20,7 +20,7 @@ export interface JobResponse {
   created_at: number
   pgn_headers: JobPgnHeaders | null
   move_count: number | null
-  llm_model: string | null
+  llm_provider: string | null
   llm_effort: string | null
   error: string | null
   queued_ahead: number | null

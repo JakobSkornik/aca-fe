@@ -19,7 +19,7 @@ const LandingNewAnalysis: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [model, setModel] = useState<'gpt-5.4-mini' | 'gpt-5.4'>(manager.getModelParams().model)
+  const [provider, setProvider] = useState<'openai' | 'anthropic'>(manager.getModelParams().provider)
   const [effort, setEffort] = useState<'low' | 'medium' | 'high'>(manager.getModelParams().effort)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -95,8 +95,8 @@ const LandingNewAnalysis: React.FC = () => {
     setLoading(true)
     setError(null)
     try {
-      manager.setModelParams({ model, effort })
-      const job = await jobService.submitJob(pgn, { llm_model: model, llm_effort: effort })
+      manager.setModelParams({ provider, effort })
+      const job = await jobService.submitJob(pgn, { llm_provider: provider, llm_effort: effort })
       sessionStorage.setItem(`aca_pgn_${job.job_id}`, pgn.trim())
       router.push(`/job/${job.job_id}`)
     } catch (e) {
@@ -154,14 +154,14 @@ const LandingNewAnalysis: React.FC = () => {
       {advancedOpen ? (
         <div className="mt-3.5 flex flex-col gap-3.5 rounded-md border border-border-tertiary bg-background-secondary p-4 sm:flex-row">
           <div className="min-w-0 flex-1">
-            <div className="mb-1 text-[11px] text-text-tertiary">Model</div>
+            <div className="mb-1 text-[11px] text-text-tertiary">LLM provider</div>
             <select
-              value={model}
-              onChange={(e) => setModel(e.target.value as 'gpt-5.4-mini' | 'gpt-5.4')}
+              value={provider}
+              onChange={(e) => setProvider(e.target.value as 'openai' | 'anthropic')}
               className="w-full rounded-md border border-border-secondary bg-background-primary px-2.5 py-2 text-sm text-text-primary outline-none focus:border-border-primary"
             >
-              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
-              <option value="gpt-5.4">gpt-5.4</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
             </select>
           </div>
           <div className="min-w-0 flex-1">
