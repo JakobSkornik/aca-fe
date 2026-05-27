@@ -1,8 +1,14 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
 import { jobService } from '@/services/JobService'
 import { useGameState } from '@/contexts/GameStateContext'
 import { Card } from '@/components/ui/Card'
+import {
+  LLM_PROVIDER_OPTIONS,
+  providerSupportsEffort,
+  type LlmEffort,
+  type LlmProvider,
+} from '@/constants/llmProviders'
 
 const EXAMPLES = [
   { id: 'Test', path: '/data/short.pgn', label: 'Test' },
@@ -19,8 +25,13 @@ const LandingNewAnalysis: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [provider, setProvider] = useState<'openai' | 'anthropic'>(manager.getModelParams().provider)
-  const [effort, setEffort] = useState<'low' | 'medium' | 'high'>(manager.getModelParams().effort)
+  const [provider, setProvider] = useState<LlmProvider>(manager.getModelParams().provider)
+  const [effort, setEffort] = useState<LlmEffort>(manager.getModelParams().effort)
+  const selectedProviderOption = useMemo(
+    () => LLM_PROVIDER_OPTIONS.find((o) => o.value === provider),
+    [provider],
+  )
+  const showEffort = providerSupportsEffort(provider)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -157,25 +168,35 @@ const LandingNewAnalysis: React.FC = () => {
             <div className="mb-1 text-[11px] text-text-tertiary">LLM provider</div>
             <select
               value={provider}
-              onChange={(e) => setProvider(e.target.value as 'openai' | 'anthropic')}
+              onChange={(e) => setProvider(e.target.value as LlmProvider)}
               className="w-full rounded-md border border-border-secondary bg-background-primary px-2.5 py-2 text-sm text-text-primary outline-none focus:border-border-primary"
             >
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
+              {LLM_PROVIDER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
+            {selectedProviderOption ? (
+              <p className="mt-1 text-[10px] leading-snug text-text-tertiary">
+                Models: {selectedProviderOption.modelSummary}
+              </p>
+            ) : null}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 text-[11px] text-text-tertiary">Reasoning effort</div>
-            <select
-              value={effort}
-              onChange={(e) => setEffort(e.target.value as 'low' | 'medium' | 'high')}
-              className="w-full rounded-md border border-border-secondary bg-background-primary px-2.5 py-2 text-sm text-text-primary outline-none focus:border-border-primary"
-            >
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-            </select>
-          </div>
+          {showEffort ? (
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 text-[11px] text-text-tertiary">Reasoning effort</div>
+              <select
+                value={effort}
+                onChange={(e) => setEffort(e.target.value as LlmEffort)}
+                className="w-full rounded-md border border-border-secondary bg-background-primary px-2.5 py-2 text-sm text-text-primary outline-none focus:border-border-primary"
+              >
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

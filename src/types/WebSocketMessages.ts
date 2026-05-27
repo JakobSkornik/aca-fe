@@ -1,5 +1,6 @@
 import { Move } from './chess/Move'
 import { PgnHeaders } from './chess/PgnHeaders'
+import type { LlmEffort, LlmProvider } from '@/constants/llmProviders'
 
 // --- Message Type Enums ---
 export enum ClientWsMessageType {
@@ -37,8 +38,8 @@ export interface RequestAnalysisClientPayload {
 }
 
 export interface SetModelParamsClientPayload {
-  provider?: 'openai' | 'anthropic'
-  effort?: 'low' | 'medium' | 'high'
+  provider?: LlmProvider
+  effort?: LlmEffort
 }
 
 // --- Server Message Payloads ---
@@ -176,8 +177,8 @@ export interface AiGenerationStatusServerPayload {
 }
 
 export interface ModelParamsUpdatedServerPayload {
-  provider: 'openai' | 'anthropic'
-  effort: 'low' | 'medium' | 'high'
+  provider: LlmProvider
+  effort: LlmEffort
 }
 
 // --- Generic Message Structures ---

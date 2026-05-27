@@ -8,6 +8,7 @@ import BackendHealthIndicator from '@/components/BackendHealthIndicator'
 import { useBackendHealth } from '@/hooks/useBackendHealth'
 import { JobPipeline } from '@/components/job/JobPipeline'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { modelSummaryForProvider } from '@/constants/llmProviders'
 
 interface JobViewProps {
   jobId: string
@@ -293,6 +294,12 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
                 <div className="flex justify-between gap-2">
                   <dt className="shrink-0 text-text-tertiary">Provider</dt>
                   <dd className="truncate text-right font-mono text-text-secondary">{job.llm_provider || '—'}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="shrink-0 text-text-tertiary">Model</dt>
+                  <dd className="truncate text-right font-mono text-text-secondary">
+                    {modelSummaryForProvider(job.llm_provider)}
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="shrink-0 text-text-tertiary">Effort</dt>

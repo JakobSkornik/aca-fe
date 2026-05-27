@@ -12,6 +12,12 @@ import { GameJson, GameMove } from '../types/GameJson'
 import { isEngineKeyMomentScoreComment } from '../helpers/commentaryText'
 import type { AiCommentLlmDebug, GameSummaryDigest, ResolvedAnnotationToken } from '../types/WebSocketMessages'
 import type { Arrow, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
+import {
+  DEFAULT_LLM_EFFORT,
+  DEFAULT_LLM_PROVIDER,
+  type LlmEffort,
+  type LlmProvider,
+} from '../constants/llmProviders'
 
 /** Retrieved master-game annotation reference (Chroma RAG). */
 export type RagRef = {
@@ -55,7 +61,7 @@ export type GameStateSnapshot = {
   commentsMainline: MainlineComment[]
   pendingComments: { moveId: number; context: 'mainline' | 'preview'; text: string }[]
   aiComments: { moveId: number; moveIndex: number; context: 'mainline' | 'preview'; data: Record<string, unknown> }[]
-  modelParams: { provider: 'openai' | 'anthropic'; effort: 'low' | 'medium' | 'high' }
+  modelParams: { provider: LlmProvider; effort: LlmEffort }
   aiGeneration: Record<number, { context: 'mainline' | 'preview'; startedAt: number; model?: string; effort?: string }>
   episodeNarratives: { episodeIndex: number; title: string; narrative: string }[]
   gameNarrative: string | null
@@ -107,7 +113,7 @@ export class GameStateManager {
       commentsMainline: [],
       pendingComments: [],
       aiComments: [],
-      modelParams: { provider: 'openai', effort: 'medium' },
+      modelParams: { provider: DEFAULT_LLM_PROVIDER, effort: DEFAULT_LLM_EFFORT },
       aiGeneration: {},
       episodeNarratives: [],
       gameNarrative: null,

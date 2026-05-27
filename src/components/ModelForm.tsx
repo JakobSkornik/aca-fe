@@ -1,11 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
+import {
+  LLM_PROVIDER_OPTIONS,
+  providerSupportsEffort,
+  type LlmEffort,
+  type LlmProvider,
+} from '@/constants/llmProviders'
 
 const ModelForm: React.FC = () => {
   const { manager, state } = useGameState()
   const current = state.modelParams
-  const [provider, setProvider] = useState<'openai' | 'anthropic'>(current.provider)
-  const [effort, setEffort] = useState<'low' | 'medium' | 'high'>(current.effort)
+  const [provider, setProvider] = useState<LlmProvider>(current.provider)
+  const [effort, setEffort] = useState<LlmEffort>(current.effort)
+  const selectedProviderOption = useMemo(
+    () => LLM_PROVIDER_OPTIONS.find((o) => o.value === provider),
+    [provider],
+  )
+  const showEffort = providerSupportsEffort(provider)
 
   useEffect(() => {
     setProvider(current.provider)
@@ -43,28 +54,35 @@ const ModelForm: React.FC = () => {
           <select
             className="w-full border rounded px-2 py-1"
             value={provider}
-            onChange={(e) => setProvider(e.target.value as 'openai' | 'anthropic')}
+            onChange={(e) => setProvider(e.target.value as LlmProvider)}
           >
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
+            {LLM_PROVIDER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
-          <p className="mt-1 text-[10px] leading-snug text-gray-600">
-            Anthropic: Haiku 4.5 for per-move, Sonnet 4.5 for digest + narrative (fixed server-side).
-          </p>
+          {selectedProviderOption ? (
+            <p className="mt-1 text-[10px] leading-snug text-gray-600">
+              Models: {selectedProviderOption.modelSummary}
+            </p>
+          ) : null}
         </div>
 
-        <div>
-          <label className="block text-xs mb-1">Reasoning Effort</label>
-          <select
-            className="w-full border rounded px-2 py-1"
-            value={effort}
-            onChange={(e) => setEffort(e.target.value as 'low' | 'medium' | 'high')}
-          >
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-          </select>
-        </div>
+        {showEffort ? (
+          <div>
+            <label className="block text-xs mb-1">Reasoning Effort</label>
+            <select
+              className="w-full border rounded px-2 py-1"
+              value={effort}
+              onChange={(e) => setEffort(e.target.value as LlmEffort)}
+            >
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+        ) : null}
 
         <div className="flex items-center space-x-2">
           <button
