@@ -30,6 +30,8 @@ function formatScore(move: Move | undefined): string | null {
   if (!move) return null
   if (move.mateIn != null) return `M${move.mateIn}`
   if (move.score !== undefined) return (move.score / 100).toFixed(2)
+  // Opening-book plies carry no engine eval by design
+  if (move.phase === 'early') return 'book'
   return null
 }
 

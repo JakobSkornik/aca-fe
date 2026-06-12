@@ -4,13 +4,13 @@ import { Move } from '../types/chess/Move'
 import { PgnHeaders } from '../types/chess/PgnHeaders'
 import { MoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList } from '../helpers/moveListUtils'
 import { applyCaptureFromMoveResult, cloneCaptureCount, emptyCaptureCount } from '../helpers/captureUtils'
-import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, AiCommentUpdateServerPayload, AiGenerationStatusServerPayload, ModelParamsUpdatedServerPayload, SetModelParamsClientPayload, EpisodeNarrativeServerPayload, GameNarrativeServerPayload, GameSummaryServerPayload } from '../types/WebSocketMessages'
+import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, AiCommentUpdateServerPayload, AiGenerationStatusServerPayload, ModelParamsUpdatedServerPayload, SetModelParamsClientPayload, EpisodeNarrativeServerPayload, GameNarrativeServerPayload } from '../types/WebSocketMessages'
 import { jobService } from '../services/JobService'
 import { CaptureCount } from '../types/chess/CaptureCount'
 import { chessPositionManager } from '../helpers/ChessPositionManager'
 import { GameJson, GameMove } from '../types/GameJson'
 import { isEngineKeyMomentScoreComment } from '../helpers/commentaryText'
-import type { AiCommentLlmDebug, GameSummaryDigest, ResolvedAnnotationToken } from '../types/WebSocketMessages'
+import type { AiCommentLlmDebug, ResolvedAnnotationToken } from '../types/WebSocketMessages'
 import type { Arrow, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
 import {
   DEFAULT_LLM_EFFORT,
@@ -65,8 +65,8 @@ export type GameStateSnapshot = {
   aiGeneration: Record<number, { context: 'mainline' | 'preview'; startedAt: number; model?: string; effort?: string }>
   episodeNarratives: { episodeIndex: number; title: string; narrative: string }[]
   gameNarrative: string | null
-  /** Whole-game digest streamed before per-move commentary (`GAME_SUMMARY`). */
-  gameSummary: GameSummaryDigest | null
+  /** Raw loaded game (feature_series, per-move feature_refs/phase for the charts panel). */
+  gameJson: GameJson | null
   commentaryComplete: boolean
   /** Hover-driven overlay from inline commentary tokens (merged in MainlineChessboard). */
   commentaryBoardOverlay: CommentaryBoardOverlay
@@ -117,7 +117,7 @@ export class GameStateManager {
       aiGeneration: {},
       episodeNarratives: [],
       gameNarrative: null,
-      gameSummary: null,
+      gameJson: null,
       commentaryComplete: true,
       commentaryBoardOverlay: null,
       boardOrientation: 'white',
@@ -170,7 +170,7 @@ export class GameStateManager {
         narrative: e.narrative as string,
       }));
     this.state.gameNarrative = data.game_narrative ?? null;
-    this.state.gameSummary = data.game_summary ?? null;
+    this.state.gameJson = data;
     this.state.commentaryComplete = !!data.game_narrative;
 
     // Set headers
@@ -202,17 +202,22 @@ export class GameStateManager {
             score: gm.score ? (gm.score.mate ? (gm.score.mate > 0 ? 100000 - gm.score.mate : -100000 - gm.score.mate) : gm.score.cp || 0) : undefined,
             mateIn: gm.score?.mate != null ? gm.score.mate : undefined,
             annotation: gm.comment || undefined,
+            phase: gm.phase,
             piece: getPieceFromSan(gm.san, gm.color),
             hiddenFeatures: {}
         };
 
         // AI commentary list only (exclude engine key-moment + score lines)
         if (gm.comment && !isEngineKeyMomentScoreComment(gm.comment)) {
-            this.state.commentsMainline.push({
+            const item: MainlineComment = {
                 moveId: move.id,
                 moveIndex: index,
                 text: gm.comment,
-            })
+            }
+            if (gm.resolved_tokens && gm.resolved_tokens.length > 0) {
+                item.resolvedTokens = gm.resolved_tokens
+            }
+            this.state.commentsMainline.push(item)
         }
 
         // PVs (from position before this mainline move)
@@ -558,12 +563,6 @@ export class GameStateManager {
         this.notify()
         break
       }
-      case 'GAME_SUMMARY': {
-        const p = msg.payload as GameSummaryServerPayload
-        this.state.gameSummary = p.digest
-        this.notify()
-        break
-      }
       default:
         break
     }
@@ -680,17 +679,9 @@ export class GameStateManager {
         this.state.pendingComments = []
         this.state.episodeNarratives = []
         this.state.gameNarrative = null
-        this.state.gameSummary = null
         this.state.commentaryComplete = false
         this.notify()
         break
-
-      case ServerWsMessageType.GAME_SUMMARY: {
-        const p = srvMsg.payload as GameSummaryServerPayload
-        this.state.gameSummary = p.digest
-        this.notify()
-        break
-      }
 
       default:
         break

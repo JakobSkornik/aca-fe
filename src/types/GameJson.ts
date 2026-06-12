@@ -1,4 +1,4 @@
-import type { GameSummaryDigest } from './WebSocketMessages'
+import type { ResolvedAnnotationToken } from './WebSocketMessages'
 
 export interface MoveScore {
   cp: number | null;
@@ -10,7 +10,33 @@ export interface Variation {
   move_san: string;
   score: MoveScore | null;
   line: string[];
+  /** Position after each ply of `line` (backend-resolved; no SAN replay needed). */
+  fens?: string[];
 }
+
+/** A positional feature this move's comment is grounded in (chart highlight). */
+export interface FeatureRef {
+  name: string;
+  delta_cp: number;
+}
+
+/** One feature's change between the starting and envisioned position. */
+export interface FeatureDelta {
+  name: string;
+  delta_cp: number;
+  before_cp: number;
+  after_cp: number;
+  flag_before: number | null;
+  flag_after: number | null;
+}
+
+/** Guid diff tables: positive favors White, negative favors Black. */
+export interface FeatureDiff {
+  positive: FeatureDelta[];
+  negative: FeatureDelta[];
+}
+
+export type GamePhase = 'early' | 'mid' | 'end';
 
 export interface GameMove {
   mn: number;
@@ -18,6 +44,7 @@ export interface GameMove {
   san: string;
   uci: string;
   fen: string;
+  phase?: GamePhase;
   score: MoveScore | null;
   variations: Variation[];
   comment: string | null;
@@ -27,6 +54,9 @@ export interface GameMove {
   tactical_motifs: string[];
   is_critical: boolean;
   episode_index: number | null;
+  feature_refs?: FeatureRef[];
+  feature_diff?: FeatureDiff | null;
+  resolved_tokens?: ResolvedAnnotationToken[];
 }
 
 export interface GameMetadata {
@@ -57,14 +87,17 @@ export interface EpisodeSummary {
   dominant_theme: string;
 }
 
+/** Per-ply progression of every charted positional feature (White-POV cp). */
+export interface FeatureSeries {
+  plies: number[];
+  features: Record<string, (number | null)[]>;
+}
+
 export interface GameJson {
   metadata: GameMetadata;
   moves: GameMove[];
   episodes?: EpisodeSummary[];
   game_narrative?: string | null;
-  /** Structured game digest from pre-move commentary pass (optional when worker saves JSON). */
-  game_summary?: GameSummaryDigest | null;
+  feature_series?: FeatureSeries | null;
   analysis_info: AnalysisInfo;
 }
-
-

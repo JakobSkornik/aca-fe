@@ -23,7 +23,6 @@ export enum ServerWsMessageType {
   AI_COMMENT_UPDATE = 'AI_COMMENT_UPDATE',
   EPISODE_NARRATIVE = 'EPISODE_NARRATIVE',
   GAME_NARRATIVE = 'GAME_NARRATIVE',
-  GAME_SUMMARY = 'GAME_SUMMARY',
   AI_GENERATION_STATUS = 'AI_GENERATION_STATUS',
   MODEL_PARAMS_UPDATED = 'MODEL_PARAMS_UPDATED',
 }
@@ -152,20 +151,6 @@ export interface GameNarrativeServerPayload {
   narrative: string
 }
 
-/** Whole-game digest from pre-move LLM pass (see `GAME_SUMMARY` WS event). */
-export interface GameSummaryDigest {
-  overall_story: string
-  opening_character: string
-  phase_story: { phase: string; summary: string }[]
-  turning_points: { ply: number; san: string; why: string }[]
-  winning_side_plan: string
-  losing_side_mistakes: string
-}
-
-export interface GameSummaryServerPayload {
-  digest: GameSummaryDigest
-}
-
 export interface AiGenerationStatusServerPayload {
   moveId: number
   context: 'mainline' | 'preview'
@@ -204,7 +189,6 @@ export interface ServerWsMessage {
   | AiCommentUpdateServerPayload
   | EpisodeNarrativeServerPayload
   | GameNarrativeServerPayload
-  | GameSummaryServerPayload
   | AiGenerationStatusServerPayload
   | ModelParamsUpdatedServerPayload
 }

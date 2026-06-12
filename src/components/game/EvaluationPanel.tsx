@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Chess } from 'chess.js'
-import PvChipWithHover from '@/components/PvChipWithHover'
+import PvLineChips from '@/components/PvLineChips'
 import { UIHelpers } from '@/helpers/uiHelpers'
 import { useGameState } from '@/contexts/GameStateContext'
 import { Card } from '@/components/ui/Card'
@@ -13,6 +13,8 @@ const EvaluationPanel: React.FC = () => {
   const mainlineMove = manager.getMainlineMove(currentMoveIndex)
   const score = mainlineMove?.score ?? 0
   const mateIn = mainlineMove?.mateIn
+  // Opening-book plies have no engine eval; show a neutral bar labeled "Book"
+  const isBookMove = mainlineMove?.phase === 'early' && mainlineMove?.score === undefined
 
   const getCurrentPv1 = () => {
     const pv1Moves = manager.getPv1(currentMoveIndex)
@@ -72,15 +74,20 @@ const EvaluationPanel: React.FC = () => {
   }
 
   useEffect(() => {
-    if (mateIn != null && mateIn !== 0) {
+    if (isBookMove) {
+      setAnimatedScore(50)
+    } else if (mateIn != null && mateIn !== 0) {
       setAnimatedScore(mateIn > 0 ? 100 : 0)
     } else {
       setAnimatedScore(normalizeScore(score))
     }
-  }, [score, mateIn])
+  }, [score, mateIn, isBookMove])
 
-  const centerLabel =
-    mateIn != null && mateIn !== 0 ? `M${mateIn}` : (score / 100).toFixed(2)
+  const centerLabel = isBookMove
+    ? 'Book'
+    : mateIn != null && mateIn !== 0
+      ? `M${mateIn}`
+      : (score / 100).toFixed(2)
 
   return (
     <Card title="Engine" className="flex h-full min-h-0 flex-col" bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -113,20 +120,17 @@ const EvaluationPanel: React.FC = () => {
               <span className="mr-1 font-bold text-text-primary">
                 {pv1[0]?.score !== undefined ? (pv1[0].score / 100).toFixed(2) : ''}
               </span>
-              <div className="flex flex-wrap gap-1">
-                {pv1.map((move, moveIdx) => {
+              <PvLineChips
+                steps={pv1.map((move, moveIdx) => ({
+                  san: move.move,
+                  fen: pv1Fens[moveIdx] ?? '',
+                }))}
+                chipClassName={(moveIdx) => {
                   const isWhiteMove = (currentMoveIndex + moveIdx) % 2 === 1
                   const moveColors = UIHelpers.getPvMoveColors(false, isWhiteMove)
-                  return (
-                    <PvChipWithHover
-                      key={moveIdx}
-                      san={move.move}
-                      fenAfterMove={pv1Fens[moveIdx] ?? ''}
-                      className={`cursor-help rounded-sm px-1 py-0.5 ${moveColors.bg} ${moveColors.text}`}
-                    />
-                  )
-                })}
-              </div>
+                  return `cursor-pointer rounded-sm px-1 py-0.5 ${moveColors.bg} ${moveColors.text}`
+                }}
+              />
             </div>
           )}
         </div>
@@ -139,20 +143,17 @@ const EvaluationPanel: React.FC = () => {
               <span className="mr-1 font-bold text-text-primary">
                 {pv2[0]?.score !== undefined ? (pv2[0].score / 100).toFixed(2) : ''}
               </span>
-              <div className="flex flex-wrap gap-1">
-                {pv2.map((move, moveIdx) => {
+              <PvLineChips
+                steps={pv2.map((move, moveIdx) => ({
+                  san: move.move,
+                  fen: pv2Fens[moveIdx] ?? '',
+                }))}
+                chipClassName={(moveIdx) => {
                   const isWhiteMove = (currentMoveIndex + moveIdx) % 2 === 1
                   const moveColors = UIHelpers.getPvMoveColors(false, isWhiteMove)
-                  return (
-                    <PvChipWithHover
-                      key={moveIdx}
-                      san={move.move}
-                      fenAfterMove={pv2Fens[moveIdx] ?? ''}
-                      className={`cursor-help rounded-sm px-1 py-0.5 ${moveColors.bg} ${moveColors.text}`}
-                    />
-                  )
-                })}
-              </div>
+                  return `cursor-pointer rounded-sm px-1 py-0.5 ${moveColors.bg} ${moveColors.text}`
+                }}
+              />
             </div>
           )}
         </div>

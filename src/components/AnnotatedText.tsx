@@ -1,11 +1,11 @@
-import React, { Fragment, useMemo, useState } from 'react'
+import React, { Fragment, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import type { Square, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
-import PvHoverBoard from './PvHoverBoard'
+import PvLineChips from './PvLineChips'
+import type { PvPopupStep } from './PvPopup'
 import type { ResolvedAnnotationToken } from '@/types/WebSocketMessages'
 import { parseAnnotatedText, type AnnotationSegment } from '@/helpers/annotationTokens'
 import { useGameState } from '@/contexts/GameStateContext'
-import type { PvLineEntry } from './InlinePvMoves'
 
 type Props = {
   text: string
@@ -23,11 +23,9 @@ function fileSquares(file: string): Square[] {
   return ['8', '7', '6', '5', '4', '3', '2', '1'].map((r) => `${f}${r}` as Square)
 }
 
-function pvLineToPvEntries(
-  line: unknown
-): PvLineEntry[] | null {
+function pvLineToSteps(line: unknown): PvPopupStep[] | null {
   if (!Array.isArray(line)) return null
-  const out: PvLineEntry[] = []
+  const out: PvPopupStep[] = []
   for (const step of line) {
     if (
       typeof step === 'object' &&
@@ -35,43 +33,21 @@ function pvLineToPvEntries(
       typeof (step as { san?: string }).san === 'string' &&
       typeof (step as { fen?: string }).fen === 'string'
     ) {
-      out.push({ san: (step as { san: string }).san, fen: (step as { fen: string }).fen })
+      const s = step as { san: string; fen: string; from?: string; to?: string }
+      out.push({ san: s.san, fen: s.fen, from: s.from, to: s.to })
     }
   }
   return out.length ? out : null
 }
 
 const TokenPv: React.FC<{ data: Record<string, unknown> | null }> = ({ data }) => {
-  const lineRaw = data?.line
-  const pv = pvLineToPvEntries(lineRaw)
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
-
+  const pv = pvLineToSteps(data?.line)
   if (!pv?.length) {
     return <span className="text-sm text-accent-progress">[pv]</span>
   }
-
-  const active = hoverIdx !== null ? pv[hoverIdx] : null
-
   return (
-    <span className="inline-flex flex-wrap gap-1 items-center align-middle mx-0.5">
-      {pv.map((step, i) => (
-        <span
-          key={`pv-${i}-${step.fen}`}
-          className="cursor-help rounded border border-accent-progress/35 bg-accent-progress/15 px-1.5 py-0.5 text-sm font-medium text-text-primary"
-          onMouseEnter={(e) => {
-            setHoverIdx(i)
-            setAnchorEl(e.currentTarget)
-          }}
-          onMouseLeave={() => {
-            setHoverIdx(null)
-            setAnchorEl(null)
-          }}
-        >
-          {step.san}
-        </span>
-      ))}
-      {active && <PvHoverBoard fen={active.fen} visible={hoverIdx !== null} anchorEl={anchorEl} />}
+    <span className="mx-0.5">
+      <PvLineChips steps={pv} />
     </span>
   )
 }

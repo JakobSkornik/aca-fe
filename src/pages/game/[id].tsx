@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import { useGameState } from '@/contexts/GameStateContext'
 import { jobService } from '@/services/JobService'
 import MainlineChessboard from '@/components/MainlineChessboard'
-import GameSummaryPanel from '@/components/GameSummaryPanel'
+import FeatureChartsPanel from '@/components/FeatureChartsPanel'
 import MoveList from '@/components/MoveList'
 import Comments from '@/components/Comments'
 import OpeningMetadataCard from '@/components/game/OpeningMetadataCard'
@@ -45,6 +45,29 @@ const GamePage = () => {
     } catch (e) {
       console.error(e)
       window.alert('Failed to export JSON')
+    }
+  }, [id])
+
+  const exportGamePgn = useCallback(async () => {
+    if (!id || typeof id !== 'string') return
+    if (id === 'offline') {
+      window.alert('PGN export needs the backend; offline games can only export JSON.')
+      return
+    }
+    try {
+      const pgn = await jobService.getGamePgn(id, true)
+      const blob = new Blob([pgn], { type: 'application/x-chess-pgn' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `game_${id}.pgn`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      window.alert('Failed to export PGN')
     }
   }, [id])
 
@@ -149,6 +172,13 @@ const GamePage = () => {
             >
               Export JSON
             </button>
+            <button
+              type="button"
+              onClick={() => void exportGamePgn()}
+              className="rounded-md border border-border-secondary bg-background-primary px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-background-secondary"
+            >
+              Export PGN
+            </button>
           </>
         }
       />
@@ -176,7 +206,7 @@ const GamePage = () => {
             </div>
           </div>
           <div className="min-h-[200px] min-w-0 w-full flex-1 overflow-hidden">
-            <GameSummaryPanel />
+            <FeatureChartsPanel />
           </div>
         </div>
 

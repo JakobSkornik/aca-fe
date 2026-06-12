@@ -66,6 +66,17 @@ class JobService {
     return res.json();
   }
 
+  /** Annotated PGN export (comments, [%eval], NAGs, variations). */
+  async getGamePgn(jobId: string, includeFeatures = false): Promise<string> {
+    const res = await fetch(
+      `${API_URL}/jobs/${jobId}/pgn?include_features=${includeFeatures ? 'true' : 'false'}`
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to get PGN: ${res.statusText}`);
+    }
+    return res.text();
+  }
+
   /** WebSocket URL for streaming LLM commentary (`/jobs/{id}/ws`). */
   getCommentaryWsUrl(jobId: string): string {
     const wsBase =
