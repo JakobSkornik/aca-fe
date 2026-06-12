@@ -1,20 +1,23 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { useGameState } from '@/contexts/GameStateContext'
-import VariationInspector, { type VariationKeyFactor } from '@/components/VariationInspector'
-import type { PvPopupStep } from '@/components/PvPopup'
+import { useVariationPlayer } from '@/contexts/VariationPlayerContext'
 import { evalDepthSuffix, numberedLineString } from '@/helpers/chessNotation'
+import type { KeyFactor, PlayerLine } from '@/types/Line'
 import type { CommentFactsLine } from '@/types/GameJson'
 
-type LineCard = {
-  key: string
-  title: string
-  startFen: string
-  steps: PvPopupStep[]
-  evalCp: number | null
-  evalMate: number | null
-  depth: number | null
-  keyFactors: VariationKeyFactor[]
+type LineCard = PlayerLine & { key: string; title: string; startFen: string }
+
+function factsClaimsToFactors(
+  claims: { text: string; text_state: string | null; features: string[]; delta_cp: number; flag_note: string | null }[] | undefined
+): KeyFactor[] {
+  return (claims ?? []).map((c) => ({
+    text: c.text,
+    text_state: c.text_state,
+    features: c.features,
+    delta_cp: c.delta_cp,
+    flag_note: c.flag_note,
+  }))
 }
 
 function cardFromFactsLine(
@@ -24,7 +27,7 @@ function cardFromFactsLine(
   evalCp: number | null,
   evalMate: number | null,
   depth: number | null,
-  keyFactors: VariationKeyFactor[]
+  keyFactors: KeyFactor[]
 ): LineCard | null {
   if (!line || !line.san?.length) return null
   return {
@@ -39,11 +42,12 @@ function cardFromFactsLine(
   }
 }
 
-/** 4.png-style grid: every available line of the current move as a mini-board card. */
+/** Grid of every available line for the current move; clicking a card loads
+ * it into the embedded variation player. */
 const LinesPanel: React.FC = () => {
   const { state, manager } = useGameState()
+  const player = useVariationPlayer()
   const { currentMoveIndex, gameJson } = state
-  const [inspecting, setInspecting] = useState<LineCard | null>(null)
 
   const cards = useMemo<LineCard[]>(() => {
     const out: LineCard[] = []
@@ -60,13 +64,7 @@ const LinesPanel: React.FC = () => {
         cf.eval_cp,
         cf.eval_mate,
         cf.depth,
-        (cf.claims ?? []).map((c) => ({
-          text: c.text,
-          text_state: c.text_state,
-          features: c.features,
-          delta_cp: c.delta_cp,
-          flag_note: c.flag_note,
-        }))
+        factsClaimsToFactors(cf.claims)
       )
       if (main) out.push(main)
       const alt = cf.better_alternative
@@ -78,13 +76,7 @@ const LinesPanel: React.FC = () => {
           alt.eval_cp,
           null,
           cf.depth,
-          (alt.claims ?? []).map((c) => ({
-            text: c.text,
-            text_state: c.text_state,
-            features: c.features,
-            delta_cp: c.delta_cp,
-            flag_note: c.flag_note,
-          }))
+          factsClaimsToFactors(alt.claims)
         )
         if (altCard) out.push(altCard)
       }
@@ -100,7 +92,7 @@ const LinesPanel: React.FC = () => {
         evalCp: v.score?.cp ?? null,
         evalMate: v.score?.mate ?? null,
         depth: v.depth ?? gameJson?.analysis_info?.depth ?? null,
-        keyFactors: (v.key_factors ?? []) as VariationKeyFactor[],
+        keyFactors: (v.key_factors ?? []) as KeyFactor[],
       })
     }
     return out
@@ -116,16 +108,16 @@ const LinesPanel: React.FC = () => {
 
   return (
     <div className="h-full overflow-y-auto p-2">
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-2">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">
         {cards.map((card) => {
           const leafFen = card.steps[card.steps.length - 1]?.fen || card.startFen
           return (
             <button
               key={card.key}
               type="button"
-              onClick={() => setInspecting(card)}
+              onClick={() => player?.loadLine(card, 0)}
               className="flex flex-col gap-1 rounded-md border border-border-tertiary bg-background-secondary/40 p-1.5 text-left transition-colors hover:border-accent-progress/60"
-              title="Inspect this line"
+              title="Load into the line player"
             >
               <div className="flex items-baseline justify-between gap-1">
                 <span className="truncate text-[10px] font-semibold text-text-primary">{card.title}</span>
@@ -136,7 +128,7 @@ const LinesPanel: React.FC = () => {
               <div className="pointer-events-none self-center">
                 <Chessboard
                   position={leafFen}
-                  boardWidth={160}
+                  boardWidth={150}
                   customDarkSquareStyle={{ backgroundColor: 'var(--board-dark)' }}
                   customLightSquareStyle={{ backgroundColor: 'var(--board-light)' }}
                   arePiecesDraggable={false}
@@ -147,7 +139,7 @@ const LinesPanel: React.FC = () => {
               <div className="line-clamp-2 text-[10px] leading-snug text-text-secondary">
                 {numberedLineString(card.startFen, card.steps.map((s) => s.san))}
               </div>
-              {card.keyFactors.length > 0 ? (
+              {card.keyFactors?.length ? (
                 <div className="line-clamp-2 text-[9px] leading-snug text-text-tertiary">
                   {card.keyFactors.map((f) => f.text_state || f.text).join(' ')}
                 </div>
@@ -156,18 +148,6 @@ const LinesPanel: React.FC = () => {
           )
         })}
       </div>
-      {inspecting ? (
-        <VariationInspector
-          steps={inspecting.steps}
-          startFen={inspecting.startFen}
-          evalCp={inspecting.evalCp}
-          evalMate={inspecting.evalMate}
-          depth={inspecting.depth}
-          keyFactors={inspecting.keyFactors}
-          title={inspecting.title}
-          onClose={() => setInspecting(null)}
-        />
-      ) : null}
     </div>
   )
 }

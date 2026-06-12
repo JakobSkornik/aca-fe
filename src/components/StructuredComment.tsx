@@ -1,44 +1,79 @@
-import React, { useState } from 'react'
+import React from 'react'
 import PvLineChips from './PvLineChips'
-import type { VariationKeyFactor } from './VariationInspector'
 import { evalDepthSuffix } from '@/helpers/chessNotation'
+import type { KeyFactor } from '@/types/Line'
 import type { CommentFactsClaim, CommentFactsJson, MoveDebugJson } from '@/types/GameJson'
 
 type Props = {
   facts: CommentFactsJson
   debug?: MoveDebugJson | null
-  debugMode: boolean
 }
 
-function claimToFactor(c: CommentFactsClaim): VariationKeyFactor {
+function claimToFactor(c: CommentFactsClaim): KeyFactor {
   return {
     text: c.text,
     text_state: c.text_state,
     features: c.features,
     delta_cp: c.delta_cp,
     flag_note: c.flag_note,
+    beneficiary: c.beneficiary,
+    is_concession: c.is_concession,
+  }
+}
+
+function flashFeature(name: string) {
+  try {
+    window.dispatchEvent(new CustomEvent('aca:flash-feature', { detail: name }))
+  } catch {
+    /* ignore */
   }
 }
 
 const FeatureChip: React.FC<{ name: string; delta?: number }> = ({ name, delta }) => (
   <span
-    className="rounded bg-accent-progress/15 px-1 py-0.5 font-mono text-[9px] text-text-tertiary"
-    title={name}
+    className="cursor-help rounded bg-accent-progress/15 px-1 py-0.5 font-mono text-[9px] text-text-tertiary hover:bg-accent-progress/30"
+    title={`${name} — hover highlights its chart below`}
+    onMouseEnter={() => flashFeature(name)}
   >
     {name}
     {delta != null ? ` ${delta >= 0 ? '+' : ''}${delta}` : ''}
   </span>
 )
 
+const ClaimRow: React.FC<{ claim: CommentFactsClaim }> = ({ claim }) => (
+  <li className="flex flex-wrap items-center gap-1.5 text-text-secondary">
+    <span>
+      {claim.is_concession ? (
+        <span
+          className="mr-1 rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600"
+          title="Favors the opponent — a trade-off of the move"
+        >
+          concedes
+        </span>
+      ) : (
+        '• '
+      )}
+      {claim.text}
+    </span>
+    {claim.features.slice(0, 3).map((f) => (
+      <FeatureChip key={f} name={f} delta={claim.delta_cp} />
+    ))}
+    {claim.flag_note ? (
+      <span className="font-mono text-[9px] text-text-tertiary">[{claim.flag_note}]</span>
+    ) : null}
+  </li>
+)
+
 /**
- * The comment's structure made visible (Matej: "each part with its own PV,
- * reasons visible"): assessment + line, claim rows with their features, the
- * better alternative, and — in debug mode — the full reasoning trace.
+ * The comment's structure made visible: assessment line, rule-based reasons
+ * with their feature values (always shown), the better alternative, and the
+ * reasoning trace behind a small disclosure.
  */
-const StructuredComment: React.FC<Props> = ({ facts, debug, debugMode }) => {
-  const [showDiffNote, setShowDiffNote] = useState(false)
+const StructuredComment: React.FC<Props> = ({ facts, debug }) => {
   const line = facts.display_line
   const alt = facts.better_alternative
+  const merits = (facts.claims ?? []).filter((c) => !c.is_concession)
+  const concessions = (facts.claims ?? []).filter((c) => c.is_concession)
 
   return (
     <div className="mt-2 space-y-2 border-t border-border-tertiary pt-2 text-xs">
@@ -60,22 +95,17 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, debugMode }) => {
         </div>
       ) : null}
 
-      {facts.claims?.length ? (
+      {merits.length || concessions.length ? (
         <div>
           <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
             Reasons (rule-based)
           </div>
           <ul className="space-y-0.5">
-            {facts.claims.map((c, i) => (
-              <li key={`c-${i}`} className="flex flex-wrap items-center gap-1.5 text-text-secondary">
-                <span>• {c.text}</span>
-                {c.features.slice(0, 3).map((f) => (
-                  <FeatureChip key={f} name={f} delta={c.delta_cp} />
-                ))}
-                {c.flag_note ? (
-                  <span className="font-mono text-[9px] text-text-tertiary">[{c.flag_note}]</span>
-                ) : null}
-              </li>
+            {merits.map((c, i) => (
+              <ClaimRow key={`m-${i}`} claim={c} />
+            ))}
+            {concessions.map((c, i) => (
+              <ClaimRow key={`x-${i}`} claim={c} />
             ))}
           </ul>
         </div>
@@ -103,12 +133,12 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, debugMode }) => {
         </div>
       ) : null}
 
-      {debugMode && debug ? (
-        <div className="rounded-md border border-border-tertiary bg-background-secondary/50 p-2">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
-            Reasoning (debug)
-          </div>
-          <ol className="list-decimal space-y-0.5 pl-4 text-[11px] text-text-secondary">
+      {debug ? (
+        <details className="rounded-md border border-border-tertiary bg-background-secondary/50 px-2 py-1">
+          <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+            Reasoning details
+          </summary>
+          <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-[11px] text-text-secondary">
             <li>
               Engine: eval{' '}
               {debug.eval_before_cp != null ? (debug.eval_before_cp / 100).toFixed(2) : '—'} →{' '}
@@ -126,8 +156,7 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, debugMode }) => {
               .
             </li>
             <li>
-              Classification: {debug.key_moment_type ?? 'none'}; quality:{' '}
-              {debug.move_quality ?? '—'}.
+              Classification: {debug.key_moment_type ?? 'none'}; quality: {debug.move_quality ?? '—'}.
             </li>
             {debug.envisioned ? (
               <li>
@@ -145,7 +174,7 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, debugMode }) => {
                     .join('; ')
                 : 'none'}
               {debug.muted_claims.length
-                ? `; muted by dedup window: ${debug.muted_claims.length} (${debug.muted_claims.join(' | ')})`
+                ? `; muted by dedup window: ${debug.muted_claims.length}`
                 : ''}
               .
             </li>
@@ -160,21 +189,7 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, debugMode }) => {
               </li>
             ) : null}
           </ol>
-          <button
-            type="button"
-            className="mt-1 text-[10px] text-text-tertiary underline hover:text-text-secondary"
-            onClick={() => setShowDiffNote((s) => !s)}
-          >
-            {showDiffNote ? 'Hide' : 'About these numbers'}
-          </button>
-          {showDiffNote ? (
-            <p className="mt-1 text-[10px] leading-snug text-text-tertiary">
-              Claims are fired by threshold rules over the feature-difference vector between the
-              position before the move and the envisioned position (the end of the quiescence-trimmed
-              line). Thresholds are listed in the game JSON under <code>debug_info.rule_thresholds</code>.
-            </p>
-          ) : null}
-        </div>
+        </details>
       ) : null}
     </div>
   )

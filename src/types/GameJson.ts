@@ -118,6 +118,10 @@ export interface CommentFactsClaim {
   features: string[];
   delta_cp: number;
   flag_note: string | null;
+  /** Which side this claim favors ("white" | "black"). */
+  beneficiary?: string | null;
+  /** True when the claim favors the opponent of the mover (a trade-off). */
+  is_concession?: boolean;
 }
 
 export interface CommentFactsJson {

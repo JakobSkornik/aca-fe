@@ -1,9 +1,13 @@
-import React, { useRef, useEffect, useMemo, useCallback, useState } from 'react'
+import React, { useEffect, useMemo, useCallback, useState } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
+import { useVariationPlayer } from '@/contexts/VariationPlayerContext'
 import type { MainlineComment } from '@/contexts/GameStateManager'
 import type { CommentaryLevel } from '@/types/GameJson'
+import type { PlayerLine } from '@/types/Line'
 import CommentItem from './CommentItem'
+import FeatureChartsPanel from './FeatureChartsPanel'
 import StructuredComment from './StructuredComment'
+import VariationPlayer from './VariationPlayer'
 
 function formatCommentTitle(item: MainlineComment, moveNotation: string): string {
   return `Move ${Math.floor(item.moveIndex / 2) + 1}${item.moveIndex % 2 === 0 ? '.' : '...'} ${moveNotation}`
@@ -25,13 +29,9 @@ function loadStoredLevel(): CommentaryLevel {
 
 const Comments: React.FC = () => {
   const { state, manager } = useGameState()
+  const player = useVariationPlayer()
   const { commentsMainline, currentMoveIndex, commentaryComplete, aiGeneration } = state
-  const activeNavRef = useRef<HTMLButtonElement>(null)
   const [level, setLevel] = useState<CommentaryLevel>(loadStoredLevel)
-  const [debugMode, setDebugMode] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem('aca_debug_mode') === '1'
-  })
 
   const changeLevel = useCallback((next: CommentaryLevel) => {
     setLevel(next)
@@ -40,17 +40,6 @@ const Comments: React.FC = () => {
     } catch {
       /* ignore */
     }
-  }, [])
-
-  const toggleDebug = useCallback(() => {
-    setDebugMode((d) => {
-      try {
-        window.localStorage.setItem('aca_debug_mode', d ? '0' : '1')
-      } catch {
-        /* ignore */
-      }
-      return !d
-    })
   }, [])
 
   const commentaryGenerating = useMemo(
@@ -89,24 +78,79 @@ const Comments: React.FC = () => {
     return formatCommentTitle(activeComment, move?.move || '')
   }, [activeComment, manager])
 
-  useEffect(() => {
-    activeNavRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [currentMoveId])
+  // Prev/next within the commented moves (the old sidebar rail, slimmed down).
+  const { prevComment, nextComment, navPos } = useMemo(() => {
+    let prev: MainlineComment | null = null
+    let next: MainlineComment | null = null
+    let pos = 0
+    for (let i = 0; i < sortedForNav.length; i++) {
+      const c = sortedForNav[i]
+      if (c.moveIndex < currentMoveIndex) {
+        prev = c
+        pos = i + 1
+      } else if (c.moveIndex === currentMoveIndex) {
+        pos = i + 1
+      } else if (c.moveIndex > currentMoveIndex && next == null) {
+        next = c
+      }
+    }
+    return { prevComment: prev, nextComment: next, navPos: pos }
+  }, [sortedForNav, currentMoveIndex])
 
-  const handleNavClick = useCallback(
-    (item: MainlineComment) => {
+  const goToComment = useCallback(
+    (item: MainlineComment | null) => {
+      if (!item) return
       const idx = manager.findMoveIndexById(item.moveId)
       if (idx !== -1) manager.goToMove(idx)
     },
     [manager]
   )
 
+  // Player follows navigation: commented line -> engine PV1 -> mainline continuation.
+  useEffect(() => {
+    if (!player) return
+    const gm = state.gameJson?.moves?.[currentMoveIndex]
+    if (!gm) return
+    let line: PlayerLine | null = null
+    const cf = gm.comment_facts
+    if (cf?.display_line?.san?.length) {
+      line = {
+        steps: cf.display_line.san.map((san, i) => ({ san, fen: cf.display_line!.fens[i] ?? '' })),
+        startFen: cf.display_line.start_fen,
+        evalCp: cf.eval_cp,
+        evalMate: cf.eval_mate,
+        depth: cf.depth,
+        title: 'Commented line',
+      }
+    } else if (gm.variations?.[0]?.line?.length) {
+      const v = gm.variations[0]
+      line = {
+        steps: v.line.map((san, i) => ({ san, fen: v.fens?.[i] ?? '' })),
+        startFen: manager.getPositionForIndex(currentMoveIndex - 1),
+        evalCp: v.score?.cp ?? null,
+        evalMate: v.score?.mate ?? null,
+        depth: v.depth ?? null,
+        title: 'Engine line 1',
+      }
+    } else {
+      // Book moves: play the theory continuation from the mainline.
+      const moves = state.gameJson?.moves ?? []
+      const cont = moves.slice(currentMoveIndex, currentMoveIndex + 8)
+      if (cont.length) {
+        line = {
+          steps: cont.map((m) => ({ san: m.san, fen: m.fen })),
+          startFen: manager.getPositionForIndex(currentMoveIndex - 1),
+          title: 'Game continuation (theory)',
+        }
+      }
+    }
+    if (line) player.loadLine(line, 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMoveIndex, state.gameJson])
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-tertiary px-2 py-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
-          Commentary language
-        </span>
         <div className="flex items-center gap-2">
           <div className="flex overflow-hidden rounded-md border border-border-secondary" role="group" aria-label="Commentary language level">
             {LEVELS.map((l) => (
@@ -125,108 +169,82 @@ const Comments: React.FC = () => {
               </button>
             ))}
           </div>
+          {commentaryGenerating ? (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-text-warning">
+              <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-text-warning border-t-transparent" />
+              generating…
+            </span>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-1 text-[10px] text-text-tertiary">
           <button
             type="button"
-            onClick={toggleDebug}
-            aria-pressed={debugMode}
-            title="Show how each conclusion was reached"
-            className={`rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors ${
-              debugMode
-                ? 'border-accent-progress bg-accent-progress/25 text-text-primary'
-                : 'border-border-secondary bg-background-primary text-text-tertiary hover:bg-background-secondary'
-            }`}
+            disabled={!prevComment}
+            onClick={() => goToComment(prevComment)}
+            className="rounded border border-border-secondary px-1.5 py-0.5 font-medium text-text-secondary hover:bg-background-secondary disabled:opacity-40"
+            title="Previous comment"
           >
-            Debug
+            ‹
+          </button>
+          <span className="tabular-nums">
+            {navPos > 0 ? navPos : '–'}/{sortedForNav.length}
+          </span>
+          <button
+            type="button"
+            disabled={!nextComment}
+            onClick={() => goToComment(nextComment)}
+            className="rounded border border-border-secondary px-1.5 py-0.5 font-medium text-text-secondary hover:bg-background-secondary disabled:opacity-40"
+            title="Next comment"
+          >
+            ›
           </button>
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-row">
-        <div className="min-w-0 flex-1 overflow-y-auto scroll-smooth px-2 py-1.5">
-          {displayedComments.length === 0 ? (
-            <div className="flex h-full min-h-[100px] flex-col items-center justify-center text-[11px] italic text-text-tertiary">
-              <p>No commentary available for this game.</p>
-            </div>
-          ) : activeComment ? (
-            <>
-              <CommentItem
-                id={`comment-main-${activeComment.moveId}`}
-                title={activeMainTitle}
-                text={activeComment.texts?.[level] ?? activeComment.text}
-                isActive
-                keyMomentType={activeKeyMomentType}
-                pvLine={activeComment.pvLine}
-                resolvedTokens={
-                  activeComment.resolvedTokensByLevel?.[level] ?? activeComment.resolvedTokens
-                }
-                ragRefs={activeComment.ragRefs}
-                llmDebug={activeComment.llmDebug}
-              />
-              {(() => {
-                const gm = state.gameJson?.moves?.[activeComment.moveIndex]
-                return gm?.comment_facts ? (
-                  <StructuredComment
-                    facts={gm.comment_facts}
-                    debug={gm.debug}
-                    debugMode={debugMode}
-                  />
-                ) : null
-              })()}
-            </>
-          ) : (
-            <div className="flex h-full min-h-[100px] flex-col items-center justify-center px-2 text-center text-text-secondary">
-              <p className="mb-0.5 text-[11px] font-medium text-text-primary">No commentary for this move</p>
-              <p className="text-[10px] text-text-tertiary">
-                Select a move in the move list that has commentary, or pick one from the commentary sidebar.
-              </p>
-            </div>
-          )}
-        </div>
 
-        <div className="flex w-[168px] shrink-0 flex-col border-l border-border-tertiary bg-background-secondary xl:w-[188px]">
-          <div className="shrink-0 space-y-1 border-b border-border-tertiary px-2 py-1">
-            <div className="text-[11px] font-semibold tabular-nums text-text-primary">
-              {displayedComments.length} {displayedComments.length === 1 ? 'comment' : 'comments'}
-            </div>
-            {commentaryGenerating ? (
-              <div className="flex items-center gap-1.5 rounded border border-border-secondary bg-background-warning px-1.5 py-1 text-[10px] font-medium text-text-warning">
-                <span
-                  className="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-text-warning border-t-transparent"
-                  aria-hidden
-                />
-                <span>Commentary generating…</span>
-              </div>
-            ) : null}
+      {/* Zone 1: the comment (flexible, scrolls) */}
+      <div className="min-h-0 flex-1 overflow-y-auto scroll-smooth px-2 py-1.5">
+        {displayedComments.length === 0 ? (
+          <div className="flex h-full min-h-[60px] flex-col items-center justify-center text-[11px] italic text-text-tertiary">
+            <p>No commentary available for this game.</p>
           </div>
-          <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-1">
-            {sortedForNav.length === 0 ? (
-              <p className="px-1 py-2 text-center text-[10px] text-text-tertiary">—</p>
-            ) : (
-              sortedForNav.map((item, navIndex) => {
-                const moveIdx = manager.findMoveIndexById(item.moveId)
-                const move = manager.getMainlineMove(moveIdx)
-                const moveNotation = move?.move || ''
-                const title = formatCommentTitle(item, moveNotation)
-                const isNavActive = item.moveId === currentMoveId
+        ) : activeComment ? (
+          <>
+            <CommentItem
+              id={`comment-main-${activeComment.moveId}`}
+              title={activeMainTitle}
+              text={activeComment.texts?.[level] ?? activeComment.text}
+              isActive
+              keyMomentType={activeKeyMomentType}
+              pvLine={activeComment.pvLine}
+              resolvedTokens={
+                activeComment.resolvedTokensByLevel?.[level] ?? activeComment.resolvedTokens
+              }
+              ragRefs={activeComment.ragRefs}
+              llmDebug={activeComment.llmDebug}
+            />
+            {(() => {
+              const gm = state.gameJson?.moves?.[activeComment.moveIndex]
+              return gm?.comment_facts ? (
+                <StructuredComment facts={gm.comment_facts} debug={gm.debug} />
+              ) : null
+            })()}
+          </>
+        ) : (
+          <div className="flex h-full min-h-[60px] flex-col items-center justify-center px-2 text-center text-text-secondary">
+            <p className="mb-0.5 text-[11px] font-medium text-text-primary">No commentary for this move</p>
+            <p className="text-[10px] text-text-tertiary">
+              Use ‹ › above to jump between commented moves.
+            </p>
+          </div>
+        )}
+      </div>
 
-                return (
-                  <button
-                    key={`nav-${navIndex}-${item.moveId}-${item.moveIndex}`}
-                    type="button"
-                    ref={isNavActive ? activeNavRef : undefined}
-                    onClick={() => handleNavClick(item)}
-                    className={`w-full rounded border px-1.5 py-1 text-left text-[10px] transition-colors ${
-                      isNavActive
-                        ? 'border-border-secondary bg-background-primary shadow-sm ring-1 ring-accent-progress/40'
-                        : 'border-transparent hover:border-border-tertiary hover:bg-background-primary'
-                    }`}
-                  >
-                    <div className="leading-snug font-semibold text-text-primary">{title}</div>
-                  </button>
-                )
-              })
-            )}
-          </div>
-        </div>
+      {/* Zone 2: embedded variation player (fixed height) */}
+      <VariationPlayer />
+
+      {/* Zone 3: feature charts, fixed at 50% of the column */}
+      <div className="h-1/2 shrink-0 grow-0 border-t border-border-tertiary">
+        <FeatureChartsPanel embedded />
       </div>
     </div>
   )

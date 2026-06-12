@@ -1,19 +1,19 @@
 import React, { useMemo, useState } from 'react'
 import PvHoverBoard from './PvHoverBoard'
-import type { PvPopupStep } from './PvPopup'
-import VariationInspector, { type VariationKeyFactor } from './VariationInspector'
+import { useVariationPlayer } from '@/contexts/VariationPlayerContext'
 import { formatNumberedSteps } from '@/helpers/chessNotation'
+import type { KeyFactor, LineStep } from '@/types/Line'
 
 type Props = {
-  steps: PvPopupStep[]
-  /** Position the line starts from (enables the base-vs-final comparison). */
+  steps: LineStep[]
+  /** Position the line starts from (shown as the player's context). */
   startFen?: string | null
   evalCp?: number | null
   evalMate?: number | null
   depth?: number | null
-  keyFactors?: VariationKeyFactor[]
+  keyFactors?: KeyFactor[]
   title?: string
-  /** Per-chip class override (e.g. white/black alternation in the engine panel). */
+  /** Per-chip class override (e.g. white/black alternation). */
   chipClassName?: (idx: number) => string
 }
 
@@ -22,7 +22,7 @@ const DEFAULT_CHIP =
 
 /**
  * Numbered SAN chips for one variation: hover previews the position, click
- * opens the Variation Inspector (base vs final boards, slider, key factors).
+ * loads the line into the embedded VariationPlayer at that ply.
  */
 const PvLineChips: React.FC<Props> = ({
   steps,
@@ -34,15 +34,15 @@ const PvLineChips: React.FC<Props> = ({
   title,
   chipClassName,
 }) => {
+  const player = useVariationPlayer()
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const [hoverAnchor, setHoverAnchor] = useState<HTMLElement | null>(null)
-  const [inspectIdx, setInspectIdx] = useState<number | null>(null)
 
   const numbered = useMemo(() => formatNumberedSteps(steps), [steps])
 
   if (!steps.length) return null
 
-  const hovered = hoverIdx !== null && inspectIdx === null ? steps[hoverIdx] : null
+  const hovered = hoverIdx !== null ? steps[hoverIdx] : null
 
   return (
     <span className="inline-flex flex-wrap items-center gap-1 align-middle">
@@ -50,7 +50,7 @@ const PvLineChips: React.FC<Props> = ({
         <span
           key={`pv-${i}-${step.fen}`}
           className={chipClassName ? chipClassName(i) : DEFAULT_CHIP}
-          title="Click to inspect the line"
+          title="Click to load into the line player"
           onMouseEnter={(e) => {
             setHoverIdx(i)
             setHoverAnchor(e.currentTarget)
@@ -60,8 +60,10 @@ const PvLineChips: React.FC<Props> = ({
             setHoverAnchor(null)
           }}
           onClick={() => {
-            setInspectIdx(i)
-            setHoverIdx(null)
+            player?.loadLine(
+              { steps, startFen, evalCp, evalMate, depth, keyFactors, title },
+              i
+            )
           }}
         >
           {numbered[i]?.label ?? step.san}
@@ -69,19 +71,6 @@ const PvLineChips: React.FC<Props> = ({
       ))}
       {hovered && hovered.fen && (
         <PvHoverBoard fen={hovered.fen} visible anchorEl={hoverAnchor} />
-      )}
-      {inspectIdx !== null && (
-        <VariationInspector
-          steps={steps}
-          startFen={startFen}
-          evalCp={evalCp}
-          evalMate={evalMate}
-          depth={depth}
-          keyFactors={keyFactors}
-          title={title}
-          initialIdx={inspectIdx}
-          onClose={() => setInspectIdx(null)}
-        />
       )}
     </span>
   )

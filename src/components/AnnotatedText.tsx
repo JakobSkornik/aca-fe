@@ -2,7 +2,7 @@ import React, { Fragment, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import type { Square, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
 import PvLineChips from './PvLineChips'
-import type { PvPopupStep } from './PvPopup'
+import type { LineStep } from '@/types/Line'
 import type { ResolvedAnnotationToken } from '@/types/WebSocketMessages'
 import { parseAnnotatedText, type AnnotationSegment } from '@/helpers/annotationTokens'
 import { useGameState } from '@/contexts/GameStateContext'
@@ -23,9 +23,9 @@ function fileSquares(file: string): Square[] {
   return ['8', '7', '6', '5', '4', '3', '2', '1'].map((r) => `${f}${r}` as Square)
 }
 
-function pvLineToSteps(line: unknown): PvPopupStep[] | null {
+function pvLineToSteps(line: unknown): LineStep[] | null {
   if (!Array.isArray(line)) return null
-  const out: PvPopupStep[] = []
+  const out: LineStep[] = []
   for (const step of line) {
     if (
       typeof step === 'object' &&

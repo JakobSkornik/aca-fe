@@ -3,13 +3,13 @@ import { useRouter } from 'next/router'
 import { useGameState } from '@/contexts/GameStateContext'
 import { jobService } from '@/services/JobService'
 import MainlineChessboard from '@/components/MainlineChessboard'
-import FeatureChartsPanel from '@/components/FeatureChartsPanel'
 import MoveList from '@/components/MoveList'
 import Comments from '@/components/Comments'
 import EvalBar from '@/components/game/EvalBar'
 import GameInfoPanel from '@/components/game/GameInfoPanel'
 import SummaryPanel from '@/components/game/SummaryPanel'
 import LinesPanel from '@/components/game/LinesPanel'
+import { VariationPlayerProvider } from '@/contexts/VariationPlayerContext'
 import { TopBar } from '@/components/ui/TopBar'
 import { Card } from '@/components/ui/Card'
 import { Tabs } from '@/components/ui/Tabs'
@@ -186,51 +186,62 @@ const GamePage = () => {
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-row gap-3 overflow-hidden p-3">
-        {/* Left column: big board + tabs underneath */}
-        <div className="flex min-h-0 w-[min(46vw,620px)] shrink-0 flex-col gap-3">
+      <VariationPlayerProvider>
+        <div className="flex min-h-0 flex-1 flex-row gap-3 overflow-hidden p-3">
+          {/* Column 1: board + tabs underneath */}
+          <div className="flex min-h-0 w-[min(36vw,500px)] shrink-0 flex-col gap-3">
+            <Card
+              title="Board"
+              headerClassName="!px-2.5 !py-1.5"
+              titleClassName="!text-[11px]"
+              className="flex w-full shrink-0 flex-col overflow-hidden"
+              bodyClassName="flex flex-col items-center gap-1.5 px-1.5 pb-1.5 pt-1"
+            >
+              <MainlineChessboard />
+              <div className="w-full max-w-[460px] px-1">
+                <EvalBar />
+              </div>
+            </Card>
+
+            <Card
+              showHeader={false}
+              className="flex min-h-[160px] min-h-0 flex-1 flex-col overflow-hidden"
+              bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            >
+              <Tabs
+                className="h-full"
+                tabs={[
+                  { key: 'info', label: 'Game info', content: <GameInfoPanel /> },
+                  { key: 'summary', label: 'Summary', content: <SummaryPanel /> },
+                  { key: 'lines', label: 'Lines', content: <LinesPanel /> },
+                ]}
+              />
+            </Card>
+          </div>
+
+          {/* Column 2: move list, full height */}
           <Card
-            title="Board"
+            title="Moves"
             headerClassName="!px-2.5 !py-1.5"
             titleClassName="!text-[11px]"
-            className="flex w-full shrink-0 flex-col overflow-hidden"
-            bodyClassName="flex flex-col items-center gap-1.5 px-1.5 pb-1.5 pt-1"
-          >
-            <MainlineChessboard />
-            <div className="w-full max-w-[560px] px-1">
-              <EvalBar />
-            </div>
-          </Card>
-
-          <Card
-            showHeader={false}
-            className="flex min-h-[180px] min-h-0 flex-1 flex-col overflow-hidden"
+            className="flex min-h-0 w-[min(24vw,340px)] shrink-0 flex-col overflow-hidden"
             bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
           >
-            <Tabs
-              className="h-full"
-              tabs={[
-                { key: 'moves', label: 'Moves', content: <MoveList /> },
-                { key: 'info', label: 'Game info', content: <GameInfoPanel /> },
-                { key: 'summary', label: 'Summary', content: <SummaryPanel /> },
-                { key: 'features', label: 'Features', content: <FeatureChartsPanel embedded /> },
-                { key: 'lines', label: 'Lines', content: <LinesPanel /> },
-              ]}
-            />
+            <MoveList />
+          </Card>
+
+          {/* Column 3: commentary (narrower by construction) */}
+          <Card
+            title="Commentary"
+            headerClassName="!px-2.5 !py-1.5"
+            titleClassName="!text-[11px]"
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+          >
+            <Comments />
           </Card>
         </div>
-
-        {/* Right column: commentary, full height */}
-        <Card
-          title="Commentary"
-          headerClassName="!px-2.5 !py-1.5"
-          titleClassName="!text-[11px]"
-          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-        >
-          <Comments />
-        </Card>
-      </div>
+      </VariationPlayerProvider>
     </div>
   )
 }

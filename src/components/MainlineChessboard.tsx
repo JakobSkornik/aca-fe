@@ -7,7 +7,7 @@ import { useSquareFit } from '@/hooks/useSquareFit'
 
 const MIN_BOARD_SIZE = 160
 const BOARD_PADDING = 6
-const MAX_BOARD_SIZE = 560
+const MAX_BOARD_SIZE = 460
 /** Width for rank labels beside the board; board width is clamped so rank + board fits the row. */
 const RANK_GUTTER_PX = 22
 
@@ -41,7 +41,7 @@ type PlayerBarProps = {
 
 function PlayerBarRow({ name, elo, lightSwatch, captures }: PlayerBarProps) {
   return (
-    <div className="flex w-full max-w-[560px] items-center justify-between gap-2 rounded-md border border-border-tertiary bg-background-primary px-2 py-1">
+    <div className="flex w-full max-w-[460px] items-center justify-between gap-2 rounded-md border border-border-tertiary bg-background-primary px-2 py-1">
       <div className="flex min-w-0 items-center gap-1.5">
         <div
           className={`h-2.5 w-2.5 shrink-0 rounded-sm border border-border-secondary ${
@@ -164,11 +164,11 @@ const MainlineChessboard = () => {
   return (
     <div ref={parentRef} className="flex w-full flex-col items-center px-2 py-2">
       {isLoaded ? (
-        <div className="mb-1 w-full max-w-[560px]">
+        <div className="mb-1 w-full max-w-[460px]">
           <PlayerBarRow {...topBar} />
         </div>
       ) : null}
-      <div ref={boardLayoutRef} className="flex w-full max-w-[560px] flex-col items-center">
+      <div ref={boardLayoutRef} className="flex w-full max-w-[460px] flex-col items-center">
         {renderSize > 0 ? (
           <>
             <div className="mb-0.5 flex w-full shrink-0 justify-center">
@@ -223,7 +223,7 @@ const MainlineChessboard = () => {
         ) : null}
       </div>
       {isLoaded ? (
-        <div className="mt-1 w-full max-w-[560px]">
+        <div className="mt-1 w-full max-w-[460px]">
           <PlayerBarRow {...bottomBar} />
         </div>
       ) : null}

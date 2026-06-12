@@ -1,15 +1,19 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
 import { Card } from '@/components/ui/Card'
 import type { FeatureRef } from '@/types/GameJson'
 
 const CHART_W = 160
-const CHART_H = 44
-const PAD_Y = 4
+const BAND_H = 22
+const PAD_Y = 3
 
-const WHITE_LINE = 'var(--accent-engine)'
-const BLACK_LINE = 'rgba(244, 114, 182, 0.9)' // rose-400
-const NET_LINE = 'var(--accent-progress)'
+// Board palette: White's series = white line on the dark squares' brown;
+// Black's series = black line on the light squares' brown. Self-explanatory,
+// so no legend.
+const WHITE_BAND_BG = 'var(--board-dark)'
+const BLACK_BAND_BG = 'var(--board-light)'
+const WHITE_LINE = '#ffffff'
+const BLACK_LINE = '#000000'
 
 /** Display labels for net features; per-side groups are title-cased from the base name. */
 const NET_LABELS: Record<string, string> = {
@@ -27,12 +31,17 @@ function titleCase(base: string): string {
     .join(' ')
 }
 
-type SeriesLine = { name: string; values: (number | null)[]; color: string }
+type SeriesBand = {
+  name: string
+  values: (number | null)[]
+  /** 'white' | 'black' | 'net' */
+  side: 'white' | 'black' | 'net'
+}
 
 type ChartGroup = {
   key: string
   label: string
-  lines: SeriesLine[]
+  bands: SeriesBand[]
   /** feature_refs of the selected move that touch this group */
   refs: FeatureRef[]
 }
@@ -45,32 +54,33 @@ function buildGroups(
   for (const [name, values] of Object.entries(features)) {
     let key: string
     let label: string
-    let color: string
+    let side: SeriesBand['side']
     if (name.startsWith('WHITE_')) {
       key = name.slice(6)
       label = titleCase(key)
-      color = WHITE_LINE
+      side = 'white'
     } else if (name.startsWith('BLACK_')) {
       key = name.slice(6)
       label = titleCase(key)
-      color = BLACK_LINE
+      side = 'black'
     } else {
       key = name
       label = NET_LABELS[name] ?? titleCase(name)
-      color = NET_LINE
+      side = 'net'
     }
     let g = groups.get(key)
     if (!g) {
-      g = { key, label, lines: [], refs: [] }
+      g = { key, label, bands: [], refs: [] }
       groups.set(key, g)
     }
-    g.lines.push({ name, values, color })
+    g.bands.push({ name, values, side })
     const ref = refsByName.get(name)
     if (ref) g.refs.push(ref)
   }
-  // White series before black for consistent legend order
+  // White band on top, black below.
+  const order = { white: 0, net: 1, black: 2 }
   for (const g of groups.values()) {
-    g.lines.sort((a, b) => a.name.localeCompare(b.name) * -1)
+    g.bands.sort((a, b) => order[a.side] - order[b.side])
   }
   return Array.from(groups.values())
 }
@@ -88,30 +98,27 @@ function linePoints(
     const v = values[i]
     if (v == null) continue
     const x = (i / Math.max(n - 1, 1)) * CHART_W
-    const y = CHART_H - PAD_Y - ((v - min) / span) * (CHART_H - 2 * PAD_Y)
+    const y = BAND_H - PAD_Y - ((v - min) / span) * (BAND_H - 2 * PAD_Y)
     pts.push(`${x.toFixed(1)},${y.toFixed(1)}`)
   }
   return pts.join(' ')
 }
 
-const MiniChart: React.FC<{
-  group: ChartGroup
+const Band: React.FC<{
+  band: SeriesBand
   plyCount: number
   currentIdx: number
-  highlighted: boolean
   onSeek: (moveIndex: number) => void
-}> = ({ group, plyCount, currentIdx, highlighted, onSeek }) => {
-  const all = group.lines.flatMap((l) => l.values.filter((v): v is number => v != null))
-  const min = Math.min(0, ...all)
-  const max = Math.max(0, ...all)
+}> = ({ band, plyCount, currentIdx, onSeek }) => {
+  const nums = band.values.filter((v): v is number => v != null)
+  const min = Math.min(0, ...nums)
+  const max = Math.max(0, ...nums)
   const span = max - min || 1
-  const zeroY = CHART_H - PAD_Y - ((0 - min) / span) * (CHART_H - 2 * PAD_Y)
+  const zeroY = BAND_H - PAD_Y - ((0 - min) / span) * (BAND_H - 2 * PAD_Y)
   const markerX = plyCount > 1 ? (currentIdx / (plyCount - 1)) * CHART_W : 0
-
-  const currentVals = group.lines
-    .map((l) => l.values[currentIdx])
-    .filter((v): v is number => v != null)
-  const valueLabel = currentVals.map((v) => (v / 100).toFixed(2)).join(' / ')
+  const isWhiteSeries = band.side !== 'black'
+  const bg = isWhiteSeries ? WHITE_BAND_BG : BLACK_BAND_BG
+  const stroke = isWhiteSeries ? WHITE_LINE : BLACK_LINE
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -121,11 +128,59 @@ const MiniChart: React.FC<{
   }
 
   return (
+    <svg
+      viewBox={`0 0 ${CHART_W} ${BAND_H}`}
+      className="block h-[22px] w-full cursor-crosshair"
+      preserveAspectRatio="none"
+      style={{ backgroundColor: bg }}
+      onClick={handleClick}
+    >
+      {band.side === 'net' ? (
+        <line x1={0} y1={zeroY} x2={CHART_W} y2={zeroY} stroke={stroke} strokeOpacity={0.3} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+      ) : null}
+      <polyline
+        points={linePoints(band.values, min, max)}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <line
+        x1={markerX}
+        y1={0}
+        x2={markerX}
+        y2={BAND_H}
+        stroke="var(--accent-progress)"
+        strokeOpacity={0.85}
+        strokeWidth={1}
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  )
+}
+
+const MiniChart: React.FC<{
+  group: ChartGroup
+  plyCount: number
+  currentIdx: number
+  highlighted: boolean
+  flashed: boolean
+  onSeek: (moveIndex: number) => void
+}> = ({ group, plyCount, currentIdx, highlighted, flashed, onSeek }) => {
+  const currentVals = group.bands
+    .map((b) => b.values[currentIdx])
+    .filter((v): v is number => v != null)
+  const valueLabel = currentVals.map((v) => (v / 100).toFixed(2)).join(' / ')
+
+  return (
     <div
-      className={`rounded-md border p-1.5 ${
-        highlighted
-          ? 'border-accent-progress bg-accent-progress/10 shadow-[0_0_0_1px_var(--accent-progress)]'
-          : 'border-border-tertiary bg-background-secondary/40'
+      className={`rounded-md border p-1.5 transition-shadow ${
+        flashed
+          ? 'border-accent-progress shadow-[0_0_0_2px_var(--accent-progress)]'
+          : highlighted
+            ? 'border-accent-progress bg-accent-progress/10 shadow-[0_0_0_1px_var(--accent-progress)]'
+            : 'border-border-tertiary bg-background-secondary/40'
       }`}
     >
       <div className="mb-0.5 flex items-baseline justify-between gap-1">
@@ -133,7 +188,7 @@ const MiniChart: React.FC<{
           className={`truncate text-[10px] font-semibold ${
             highlighted ? 'text-text-primary' : 'text-text-tertiary'
           }`}
-          title={group.lines.map((l) => l.name).join(', ')}
+          title={group.bands.map((b) => b.name).join(', ')}
         >
           {group.label}
         </span>
@@ -141,35 +196,17 @@ const MiniChart: React.FC<{
           {valueLabel}
         </span>
       </div>
-      <svg
-        viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-        className="block h-[44px] w-full cursor-crosshair"
-        preserveAspectRatio="none"
-        onClick={handleClick}
-      >
-        <line x1={0} y1={zeroY} x2={CHART_W} y2={zeroY} stroke="currentColor" strokeOpacity={0.15} strokeWidth={1} />
-        {group.lines.map((l) => (
-          <polyline
-            key={l.name}
-            points={linePoints(l.values, min, max)}
-            fill="none"
-            stroke={l.color}
-            strokeWidth={1.4}
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
+      <div className="space-y-px overflow-hidden rounded-sm">
+        {group.bands.map((b) => (
+          <Band
+            key={b.name}
+            band={b}
+            plyCount={plyCount}
+            currentIdx={currentIdx}
+            onSeek={onSeek}
           />
         ))}
-        <line
-          x1={markerX}
-          y1={0}
-          x2={markerX}
-          y2={CHART_H}
-          stroke="currentColor"
-          strokeOpacity={0.5}
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
+      </div>
       {highlighted && group.refs.length > 0 ? (
         <div className="mt-0.5 flex flex-wrap gap-1">
           {group.refs.map((r) => (
@@ -198,6 +235,24 @@ const FeatureChartsPanel: React.FC<{ embedded?: boolean }> = ({ embedded = false
   const gj = state.gameJson
   const fs = gj?.feature_series
   const currentIdx = state.currentMoveIndex
+
+  // Hovering a feature chip in the reasons block flashes its chart here.
+  const [flashedFeature, setFlashedFeature] = useState<string | null>(null)
+  const flashTimer = useRef<number | null>(null)
+  useEffect(() => {
+    const onFlash = (e: Event) => {
+      const name = (e as CustomEvent<string>).detail
+      if (!name) return
+      setFlashedFeature(name)
+      if (flashTimer.current) window.clearTimeout(flashTimer.current)
+      flashTimer.current = window.setTimeout(() => setFlashedFeature(null), 1500)
+    }
+    window.addEventListener('aca:flash-feature', onFlash)
+    return () => {
+      window.removeEventListener('aca:flash-feature', onFlash)
+      if (flashTimer.current) window.clearTimeout(flashTimer.current)
+    }
+  }, [])
 
   const refsByName = useMemo(() => {
     const m = new Map<string, FeatureRef>()
@@ -239,22 +294,11 @@ const FeatureChartsPanel: React.FC<{ embedded?: boolean }> = ({ embedded = false
 
   const body = (
     <>
-      <div className="mb-1.5 flex items-center gap-3 px-0.5 text-[10px] text-text-tertiary">
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-0.5 w-3 rounded" style={{ backgroundColor: WHITE_LINE }} /> White
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-0.5 w-3 rounded" style={{ backgroundColor: BLACK_LINE }} /> Black
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-0.5 w-3 rounded" style={{ backgroundColor: NET_LINE }} /> Net (White POV)
-        </span>
-        {nHighlighted > 0 ? (
-          <span className="ml-auto font-medium text-text-secondary">
-            {nHighlighted} feature{nHighlighted > 1 ? 's' : ''} behind this comment
-          </span>
-        ) : null}
-      </div>
+      {nHighlighted > 0 ? (
+        <div className="mb-1.5 px-0.5 text-[10px] font-medium text-text-secondary">
+          {nHighlighted} feature{nHighlighted > 1 ? 's' : ''} behind this comment
+        </div>
+      ) : null}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-1.5">
         {groups.map((g) => (
           <MiniChart
@@ -263,6 +307,7 @@ const FeatureChartsPanel: React.FC<{ embedded?: boolean }> = ({ embedded = false
             plyCount={fs.plies.length}
             currentIdx={Math.min(currentIdx, fs.plies.length - 1)}
             highlighted={g.refs.length > 0}
+            flashed={g.bands.some((b) => b.name === flashedFeature)}
             onSeek={(idx) => manager.goToMove(idx)}
           />
         ))}
