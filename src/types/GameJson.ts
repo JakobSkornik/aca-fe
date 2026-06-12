@@ -57,6 +57,45 @@ export interface GameMove {
   feature_refs?: FeatureRef[];
   feature_diff?: FeatureDiff | null;
   resolved_tokens?: ResolvedAnnotationToken[];
+  /** Per-audience-level renderings of the same facts; `comment` mirrors intermediate. */
+  comments?: Record<string, string>;
+  resolved_tokens_by_level?: Record<string, ResolvedAnnotationToken[]>;
+  /** Trimmed CommentFacts (verdict, display line, claims, better alternative). */
+  comment_facts?: CommentFactsJson | null;
+}
+
+export type CommentaryLevel = 'beginner' | 'intermediate' | 'expert';
+
+export interface CommentFactsLine {
+  start_fen: string;
+  san: string[];
+  fens: string[];
+}
+
+export interface CommentFactsClaim {
+  text: string;
+  text_state: string | null;
+  features: string[];
+  delta_cp: number;
+  flag_note: string | null;
+}
+
+export interface CommentFactsJson {
+  verdict: string;
+  eval_cp: number | null;
+  eval_mate: number | null;
+  depth: number | null;
+  engine: string;
+  display_line: CommentFactsLine | null;
+  claims: CommentFactsClaim[];
+  better_alternative?: {
+    san: string;
+    uci: string;
+    verdict: string;
+    eval_cp: number | null;
+    display_line: CommentFactsLine | null;
+    claims: CommentFactsClaim[];
+  };
 }
 
 export interface GameMetadata {

@@ -34,8 +34,11 @@ export type MainlineComment = {
   moveId: number
   moveIndex: number
   text: string
+  /** Per-audience-level renderings ({expert, intermediate, beginner}). */
+  texts?: Record<string, string>
   pvLine?: { san: string; fen: string }[]
   resolvedTokens?: ResolvedAnnotationToken[]
+  resolvedTokensByLevel?: Record<string, ResolvedAnnotationToken[]>
   ragRefs?: RagRef[]
   llmDebug?: AiCommentLlmDebug
 }
@@ -216,6 +219,12 @@ export class GameStateManager {
             }
             if (gm.resolved_tokens && gm.resolved_tokens.length > 0) {
                 item.resolvedTokens = gm.resolved_tokens
+            }
+            if (gm.comments && Object.keys(gm.comments).length > 0) {
+                item.texts = gm.comments
+            }
+            if (gm.resolved_tokens_by_level && Object.keys(gm.resolved_tokens_by_level).length > 0) {
+                item.resolvedTokensByLevel = gm.resolved_tokens_by_level
             }
             this.state.commentsMainline.push(item)
         }

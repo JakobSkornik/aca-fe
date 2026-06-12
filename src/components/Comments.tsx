@@ -1,16 +1,41 @@
-import React, { useRef, useEffect, useMemo, useCallback } from 'react'
+import React, { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
 import type { MainlineComment } from '@/contexts/GameStateManager'
+import type { CommentaryLevel } from '@/types/GameJson'
 import CommentItem from './CommentItem'
 
 function formatCommentTitle(item: MainlineComment, moveNotation: string): string {
   return `Move ${Math.floor(item.moveIndex / 2) + 1}${item.moveIndex % 2 === 0 ? '.' : '...'} ${moveNotation}`
 }
 
+const LEVELS: { value: CommentaryLevel; label: string }[] = [
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'expert', label: 'Expert' },
+]
+
+const LEVEL_STORAGE_KEY = 'aca_commentary_level'
+
+function loadStoredLevel(): CommentaryLevel {
+  if (typeof window === 'undefined') return 'intermediate'
+  const v = window.localStorage.getItem(LEVEL_STORAGE_KEY)
+  return v === 'beginner' || v === 'expert' || v === 'intermediate' ? v : 'intermediate'
+}
+
 const Comments: React.FC = () => {
   const { state, manager } = useGameState()
   const { commentsMainline, currentMoveIndex, commentaryComplete, aiGeneration } = state
   const activeNavRef = useRef<HTMLButtonElement>(null)
+  const [level, setLevel] = useState<CommentaryLevel>(loadStoredLevel)
+
+  const changeLevel = useCallback((next: CommentaryLevel) => {
+    setLevel(next)
+    try {
+      window.localStorage.setItem(LEVEL_STORAGE_KEY, next)
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   const commentaryGenerating = useMemo(
     () => !commentaryComplete || Object.keys(aiGeneration).length > 0,
@@ -62,6 +87,28 @@ const Comments: React.FC = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-tertiary px-2 py-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+          Commentary language
+        </span>
+        <div className="flex overflow-hidden rounded-md border border-border-secondary" role="group" aria-label="Commentary language level">
+          {LEVELS.map((l) => (
+            <button
+              key={l.value}
+              type="button"
+              onClick={() => changeLevel(l.value)}
+              className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                level === l.value
+                  ? 'bg-accent-progress/25 text-text-primary'
+                  : 'bg-background-primary text-text-tertiary hover:bg-background-secondary'
+              }`}
+              aria-pressed={level === l.value}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="flex min-h-0 flex-1 flex-row">
         <div className="min-w-0 flex-1 overflow-y-auto scroll-smooth px-2 py-1.5">
           {displayedComments.length === 0 ? (
@@ -72,11 +119,13 @@ const Comments: React.FC = () => {
             <CommentItem
               id={`comment-main-${activeComment.moveId}`}
               title={activeMainTitle}
-              text={activeComment.text}
+              text={activeComment.texts?.[level] ?? activeComment.text}
               isActive
               keyMomentType={activeKeyMomentType}
               pvLine={activeComment.pvLine}
-              resolvedTokens={activeComment.resolvedTokens}
+              resolvedTokens={
+                activeComment.resolvedTokensByLevel?.[level] ?? activeComment.resolvedTokens
+              }
               ragRefs={activeComment.ragRefs}
               llmDebug={activeComment.llmDebug}
             />
