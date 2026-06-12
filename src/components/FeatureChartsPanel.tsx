@@ -4,14 +4,13 @@ import { Card } from '@/components/ui/Card'
 import type { FeatureRef } from '@/types/GameJson'
 
 const CHART_W = 160
-const BAND_H = 22
-const PAD_Y = 3
+const BAND_H = 44
+const PAD_Y = 4
 
-// Board palette: White's series = white line on the dark squares' brown;
-// Black's series = black line on the light squares' brown. Self-explanatory,
-// so no legend.
-const WHITE_BAND_BG = 'var(--board-dark)'
-const BLACK_BAND_BG = 'var(--board-light)'
+// Board palette: one brown plot area (midpoint of the two square colors) where
+// White's series is a white line and Black's a black line — both clearly
+// visible, no legend needed.
+const PANEL_BG = 'color-mix(in srgb, var(--board-light) 55%, var(--board-dark) 45%)'
 const WHITE_LINE = '#ffffff'
 const BLACK_LINE = '#000000'
 
@@ -104,21 +103,30 @@ function linePoints(
   return pts.join(' ')
 }
 
-const Band: React.FC<{
-  band: SeriesBand
+const MiniChart: React.FC<{
+  group: ChartGroup
   plyCount: number
   currentIdx: number
+  highlighted: boolean
+  flashed: boolean
   onSeek: (moveIndex: number) => void
-}> = ({ band, plyCount, currentIdx, onSeek }) => {
-  const nums = band.values.filter((v): v is number => v != null)
-  const min = Math.min(0, ...nums)
-  const max = Math.max(0, ...nums)
+}> = ({ group, plyCount, currentIdx, highlighted, flashed, onSeek }) => {
+  const allNums = group.bands.flatMap((b) =>
+    b.values.filter((v): v is number => v != null)
+  )
+  const min = Math.min(0, ...allNums)
+  const max = Math.max(0, ...allNums)
   const span = max - min || 1
   const zeroY = BAND_H - PAD_Y - ((0 - min) / span) * (BAND_H - 2 * PAD_Y)
   const markerX = plyCount > 1 ? (currentIdx / (plyCount - 1)) * CHART_W : 0
-  const isWhiteSeries = band.side !== 'black'
-  const bg = isWhiteSeries ? WHITE_BAND_BG : BLACK_BAND_BG
-  const stroke = isWhiteSeries ? WHITE_LINE : BLACK_LINE
+
+  const currentVals = group.bands
+    .map((b) => b.values[currentIdx])
+    .filter((v): v is number => v != null)
+  const valueLabel = currentVals.map((v) => (v / 100).toFixed(2)).join(' / ')
+  const deltaBadge = group.refs.length
+    ? `${group.refs[0].delta_cp >= 0 ? '+' : ''}${(group.refs[0].delta_cp / 100).toFixed(2)}`
+    : null
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -128,58 +136,12 @@ const Band: React.FC<{
   }
 
   return (
-    <svg
-      viewBox={`0 0 ${CHART_W} ${BAND_H}`}
-      className="block h-[22px] w-full cursor-crosshair"
-      preserveAspectRatio="none"
-      style={{ backgroundColor: bg }}
-      onClick={handleClick}
-    >
-      {band.side === 'net' ? (
-        <line x1={0} y1={zeroY} x2={CHART_W} y2={zeroY} stroke={stroke} strokeOpacity={0.3} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-      ) : null}
-      <polyline
-        points={linePoints(band.values, min, max)}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={1.4}
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
-      <line
-        x1={markerX}
-        y1={0}
-        x2={markerX}
-        y2={BAND_H}
-        stroke="var(--accent-progress)"
-        strokeOpacity={0.85}
-        strokeWidth={1}
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  )
-}
-
-const MiniChart: React.FC<{
-  group: ChartGroup
-  plyCount: number
-  currentIdx: number
-  highlighted: boolean
-  flashed: boolean
-  onSeek: (moveIndex: number) => void
-}> = ({ group, plyCount, currentIdx, highlighted, flashed, onSeek }) => {
-  const currentVals = group.bands
-    .map((b) => b.values[currentIdx])
-    .filter((v): v is number => v != null)
-  const valueLabel = currentVals.map((v) => (v / 100).toFixed(2)).join(' / ')
-
-  return (
     <div
       className={`rounded-md border p-1.5 transition-shadow ${
         flashed
           ? 'border-accent-progress shadow-[0_0_0_2px_var(--accent-progress)]'
           : highlighted
-            ? 'border-accent-progress bg-accent-progress/10 shadow-[0_0_0_1px_var(--accent-progress)]'
+            ? 'border-accent-progress shadow-[0_0_0_1px_var(--accent-progress)]'
             : 'border-border-tertiary bg-background-secondary/40'
       }`}
     >
@@ -192,35 +154,57 @@ const MiniChart: React.FC<{
         >
           {group.label}
         </span>
-        <span className="shrink-0 font-mono text-[9px] tabular-nums text-text-tertiary">
-          {valueLabel}
+        <span className="flex shrink-0 items-baseline gap-1">
+          {deltaBadge ? (
+            <span className="rounded bg-accent-progress/25 px-1 text-[10px] font-bold tabular-nums text-text-primary">
+              Δ{deltaBadge}
+            </span>
+          ) : null}
+          <span className="font-mono text-sm font-bold tabular-nums text-text-primary">
+            {valueLabel}
+          </span>
         </span>
       </div>
-      <div className="space-y-px overflow-hidden rounded-sm">
+      <svg
+        viewBox={`0 0 ${CHART_W} ${BAND_H}`}
+        className="block h-[44px] w-full cursor-crosshair rounded-sm"
+        preserveAspectRatio="none"
+        style={{ backgroundColor: PANEL_BG }}
+        onClick={handleClick}
+      >
+        <line
+          x1={0}
+          y1={zeroY}
+          x2={CHART_W}
+          y2={zeroY}
+          stroke="#000000"
+          strokeOpacity={0.25}
+          strokeWidth={1}
+          strokeDasharray="3 3"
+          vectorEffect="non-scaling-stroke"
+        />
         {group.bands.map((b) => (
-          <Band
+          <polyline
             key={b.name}
-            band={b}
-            plyCount={plyCount}
-            currentIdx={currentIdx}
-            onSeek={onSeek}
+            points={linePoints(b.values, min, max)}
+            fill="none"
+            stroke={b.side === 'black' ? BLACK_LINE : WHITE_LINE}
+            strokeWidth={1.6}
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
           />
         ))}
-      </div>
-      {highlighted && group.refs.length > 0 ? (
-        <div className="mt-0.5 flex flex-wrap gap-1">
-          {group.refs.map((r) => (
-            <span
-              key={r.name}
-              className="rounded bg-accent-progress/20 px-1 text-[9px] font-medium tabular-nums text-text-primary"
-              title={r.name}
-            >
-              {r.delta_cp >= 0 ? '+' : ''}
-              {(r.delta_cp / 100).toFixed(2)}
-            </span>
-          ))}
-        </div>
-      ) : null}
+        <line
+          x1={markerX}
+          y1={0}
+          x2={markerX}
+          y2={BAND_H}
+          stroke="var(--accent-progress)"
+          strokeOpacity={0.9}
+          strokeWidth={1.2}
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
     </div>
   )
 }
@@ -261,15 +245,10 @@ const FeatureChartsPanel: React.FC<{ embedded?: boolean }> = ({ embedded = false
     return m
   }, [gj, currentIdx])
 
+  // Stable order — highlighting is a ring only, charts never jump around.
   const groups = useMemo(() => {
     if (!fs?.features) return []
-    const gs = buildGroups(fs.features, refsByName)
-    return gs.sort((a, b) => {
-      const ha = a.refs.length > 0 ? 1 : 0
-      const hb = b.refs.length > 0 ? 1 : 0
-      if (ha !== hb) return hb - ha
-      return 0
-    })
+    return buildGroups(fs.features, refsByName)
   }, [fs, refsByName])
 
   if (!fs || !fs.plies?.length) {
@@ -292,6 +271,18 @@ const FeatureChartsPanel: React.FC<{ embedded?: boolean }> = ({ embedded = false
 
   const nHighlighted = groups.filter((g) => g.refs.length > 0).length
 
+  const charts = groups.map((g) => (
+    <MiniChart
+      key={g.key}
+      group={g}
+      plyCount={fs.plies.length}
+      currentIdx={Math.min(currentIdx, fs.plies.length - 1)}
+      highlighted={g.refs.length > 0}
+      flashed={g.bands.some((b) => b.name === flashedFeature)}
+      onSeek={(idx) => manager.goToMove(idx)}
+    />
+  ))
+
   const body = (
     <>
       {nHighlighted > 0 ? (
@@ -299,24 +290,18 @@ const FeatureChartsPanel: React.FC<{ embedded?: boolean }> = ({ embedded = false
           {nHighlighted} feature{nHighlighted > 1 ? 's' : ''} behind this comment
         </div>
       ) : null}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-1.5">
-        {groups.map((g) => (
-          <MiniChart
-            key={g.key}
-            group={g}
-            plyCount={fs.plies.length}
-            currentIdx={Math.min(currentIdx, fs.plies.length - 1)}
-            highlighted={g.refs.length > 0}
-            flashed={g.bands.some((b) => b.name === flashedFeature)}
-            onSeek={(idx) => manager.goToMove(idx)}
-          />
-        ))}
-      </div>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-1.5">{charts}</div>
     </>
   )
 
   if (embedded) {
-    return <div className="h-full overflow-y-auto p-2">{body}</div>
+    // Full-width bottom strip: charts flow in rows of fixed-width cards;
+    // the strip scrolls vertically when they overflow.
+    return (
+      <div className="h-full overflow-y-auto p-2">
+        <div className="grid grid-cols-[repeat(auto-fill,200px)] justify-start gap-1.5">{charts}</div>
+      </div>
+    )
   }
   return (
     <Card

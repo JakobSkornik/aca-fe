@@ -1,24 +1,14 @@
 import React from 'react'
-import PvLineChips from './PvLineChips'
-import { evalDepthSuffix } from '@/helpers/chessNotation'
-import type { KeyFactor } from '@/types/Line'
+import { evalDepthSuffix, numberedLineString } from '@/helpers/chessNotation'
 import type { CommentFactsClaim, CommentFactsJson, MoveDebugJson } from '@/types/GameJson'
+
+export type CommentPart = 'main' | 'alt'
 
 type Props = {
   facts: CommentFactsJson
   debug?: MoveDebugJson | null
-}
-
-function claimToFactor(c: CommentFactsClaim): KeyFactor {
-  return {
-    text: c.text,
-    text_state: c.text_state,
-    features: c.features,
-    delta_cp: c.delta_cp,
-    flag_note: c.flag_note,
-    beneficiary: c.beneficiary,
-    is_concession: c.is_concession,
-  }
+  selectedPart: CommentPart
+  onSelectPart: (part: CommentPart) => void
 }
 
 function flashFeature(name: string) {
@@ -32,7 +22,7 @@ function flashFeature(name: string) {
 const FeatureChip: React.FC<{ name: string; delta?: number }> = ({ name, delta }) => (
   <span
     className="cursor-help rounded bg-accent-progress/15 px-1 py-0.5 font-mono text-[9px] text-text-tertiary hover:bg-accent-progress/30"
-    title={`${name} — hover highlights its chart below`}
+    title={`${name} — hover highlights its chart`}
     onMouseEnter={() => flashFeature(name)}
   >
     {name}
@@ -41,7 +31,7 @@ const FeatureChip: React.FC<{ name: string; delta?: number }> = ({ name, delta }
 )
 
 const ClaimRow: React.FC<{ claim: CommentFactsClaim }> = ({ claim }) => (
-  <li className="flex flex-wrap items-center gap-1.5 text-text-secondary">
+  <li className="flex flex-wrap items-center gap-1.5 text-[11px] text-text-secondary">
     <span>
       {claim.is_concession ? (
         <span
@@ -55,7 +45,7 @@ const ClaimRow: React.FC<{ claim: CommentFactsClaim }> = ({ claim }) => (
       )}
       {claim.text}
     </span>
-    {claim.features.slice(0, 3).map((f) => (
+    {claim.features.slice(0, 2).map((f) => (
       <FeatureChip key={f} name={f} delta={claim.delta_cp} />
     ))}
     {claim.flag_note ? (
@@ -64,73 +54,73 @@ const ClaimRow: React.FC<{ claim: CommentFactsClaim }> = ({ claim }) => (
   </li>
 )
 
+const PartCard: React.FC<{
+  title: string
+  lineText: string
+  suffix: string
+  claims: CommentFactsClaim[]
+  selected: boolean
+  onSelect: () => void
+}> = ({ title, lineText, suffix, claims, selected, onSelect }) => (
+  <button
+    type="button"
+    onClick={onSelect}
+    aria-pressed={selected}
+    className={`block w-full rounded-md border p-2 text-left transition-colors ${
+      selected
+        ? 'border-accent-progress bg-accent-progress/10'
+        : 'border-border-tertiary bg-background-secondary/40 hover:border-border-secondary'
+    }`}
+  >
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+        {selected ? '● ' : '○ '}
+        {title}
+      </span>
+      <span className="shrink-0 font-mono text-[10px] text-text-secondary">{suffix}</span>
+    </div>
+    <div className="mt-0.5 text-[12px] font-medium leading-snug text-text-primary">{lineText}</div>
+    {claims.length ? (
+      <ul className="mt-1 space-y-0.5">
+        {claims.map((c, i) => (
+          <ClaimRow key={`c-${i}`} claim={c} />
+        ))}
+      </ul>
+    ) : null}
+  </button>
+)
+
 /**
- * The comment's structure made visible: assessment line, rule-based reasons
- * with their feature values (always shown), the better alternative, and the
- * reasoning trace behind a small disclosure.
+ * One card per line of the comment (main line / better alternative), each with
+ * its numbered line, (eval, depth) and rule-based reasons. Selecting a card
+ * loads it into the player pinned below.
  */
-const StructuredComment: React.FC<Props> = ({ facts, debug }) => {
+const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSelectPart }) => {
   const line = facts.display_line
   const alt = facts.better_alternative
-  const merits = (facts.claims ?? []).filter((c) => !c.is_concession)
-  const concessions = (facts.claims ?? []).filter((c) => c.is_concession)
 
   return (
-    <div className="mt-2 space-y-2 border-t border-border-tertiary pt-2 text-xs">
-      {line ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">Line</span>
-          <PvLineChips
-            steps={line.san.map((san, i) => ({ san, fen: line.fens[i] ?? '' }))}
-            startFen={line.start_fen}
-            evalCp={facts.eval_cp}
-            evalMate={facts.eval_mate}
-            depth={facts.depth}
-            keyFactors={(facts.claims ?? []).map(claimToFactor)}
-            title="Commented line"
-          />
-          <span className="font-mono text-[10px] text-text-secondary">
-            {evalDepthSuffix(facts.eval_cp, facts.eval_mate, facts.depth)}
-          </span>
-        </div>
+    <div className="mt-2 space-y-1.5 text-xs">
+      {line?.san?.length ? (
+        <PartCard
+          title="Main line"
+          lineText={numberedLineString(line.start_fen, line.san)}
+          suffix={evalDepthSuffix(facts.eval_cp, facts.eval_mate, facts.depth)}
+          claims={facts.claims ?? []}
+          selected={selectedPart === 'main'}
+          onSelect={() => onSelectPart('main')}
+        />
       ) : null}
 
-      {merits.length || concessions.length ? (
-        <div>
-          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
-            Reasons (rule-based)
-          </div>
-          <ul className="space-y-0.5">
-            {merits.map((c, i) => (
-              <ClaimRow key={`m-${i}`} claim={c} />
-            ))}
-            {concessions.map((c, i) => (
-              <ClaimRow key={`x-${i}`} claim={c} />
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {alt?.display_line ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
-            Better was {alt.san}
-          </span>
-          <PvLineChips
-            steps={alt.display_line.san.map((san, i) => ({
-              san,
-              fen: alt.display_line!.fens[i] ?? '',
-            }))}
-            startFen={alt.display_line.start_fen}
-            evalCp={alt.eval_cp}
-            depth={facts.depth}
-            keyFactors={(alt.claims ?? []).map(claimToFactor)}
-            title={`Better was ${alt.san}`}
-          />
-          <span className="font-mono text-[10px] text-text-secondary">
-            {evalDepthSuffix(alt.eval_cp, null, facts.depth)}
-          </span>
-        </div>
+      {alt?.display_line?.san?.length ? (
+        <PartCard
+          title={`Better was ${alt.san}`}
+          lineText={numberedLineString(alt.display_line.start_fen, alt.display_line.san)}
+          suffix={evalDepthSuffix(alt.eval_cp, null, facts.depth)}
+          claims={alt.claims ?? []}
+          selected={selectedPart === 'alt'}
+          onSelect={() => onSelectPart('alt')}
+        />
       ) : null}
 
       {debug ? (
@@ -184,7 +174,7 @@ const StructuredComment: React.FC<Props> = ({ facts, debug }) => {
                 {Object.entries(debug.renderings)
                   .map(([lvl, r]) => `${lvl}=${r}`)
                   .join(', ')}
-                {debug.contract_ok === false ? ' (a level violated the fact contract → template)' : ''}
+                {debug.contract_ok === false ? ' (fact-contract violation → template)' : ''}
                 .
               </li>
             ) : null}

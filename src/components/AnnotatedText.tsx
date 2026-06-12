@@ -1,10 +1,10 @@
 import React, { Fragment, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import type { Square, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
-import PvLineChips from './PvLineChips'
 import type { LineStep } from '@/types/Line'
 import type { ResolvedAnnotationToken } from '@/types/WebSocketMessages'
 import { parseAnnotatedText, type AnnotationSegment } from '@/helpers/annotationTokens'
+import { formatNumberedSteps } from '@/helpers/chessNotation'
 import { useGameState } from '@/contexts/GameStateContext'
 
 type Props = {
@@ -40,17 +40,18 @@ function pvLineToSteps(line: unknown): LineStep[] | null {
   return out.length ? out : null
 }
 
-const TokenPv: React.FC<{ data: Record<string, unknown> | null }> = ({ data }) => {
+const TokenPv: React.FC<{ data: Record<string, unknown> | null; raw: string }> = ({ data, raw }) => {
+  // Lines live in the part cards and the player; inside prose they render as
+  // plain numbered text so the same line is never shown interactively twice.
   const pv = pvLineToSteps(data?.line)
   if (!pv?.length) {
-    return <span className="text-sm text-accent-progress">[pv]</span>
+    const inner = raw.startsWith('[pv:') ? raw.slice(4, -1) : raw
+    return <span className="font-medium text-text-primary">{inner}</span>
   }
-  const startFen = typeof data?.start_fen === 'string' ? data.start_fen : undefined
-  return (
-    <span className="mx-0.5">
-      <PvLineChips steps={pv} startFen={startFen} />
-    </span>
-  )
+  const text = formatNumberedSteps(pv)
+    .map((n) => n.label)
+    .join(' ')
+  return <span className="mx-0.5 font-medium text-text-primary">{text}</span>
 }
 
 const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }) => {
@@ -133,7 +134,7 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
 
     switch (tokenType) {
       case 'pv':
-        return <TokenPv key={`pv-${i}`} data={data} />
+        return <TokenPv key={`pv-${i}`} data={data} raw={seg.raw} />
       case 'move':
         return (
           <span

@@ -318,6 +318,14 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
                   <dd className="font-mono text-right text-text-secondary">{job.llm_effort || '—'}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
+                  <dt className="shrink-0 text-text-tertiary">Language</dt>
+                  <dd className="text-right capitalize text-text-secondary">{job.commentary_level || 'intermediate'}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="shrink-0 text-text-tertiary">Side</dt>
+                  <dd className="text-right capitalize text-text-secondary">{job.comment_side || 'both'}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
                   <dt className="shrink-0 text-text-tertiary">Submitted</dt>
                   <dd className="font-mono text-right text-text-secondary">{formatAgo(job.created_at)}</dd>
                 </div>

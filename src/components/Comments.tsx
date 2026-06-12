@@ -1,46 +1,24 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
-import { useVariationPlayer } from '@/contexts/VariationPlayerContext'
 import type { MainlineComment } from '@/contexts/GameStateManager'
-import type { CommentaryLevel } from '@/types/GameJson'
 import type { PlayerLine } from '@/types/Line'
 import CommentItem from './CommentItem'
-import FeatureChartsPanel from './FeatureChartsPanel'
-import StructuredComment from './StructuredComment'
+import StructuredComment, { type CommentPart } from './StructuredComment'
 import VariationPlayer from './VariationPlayer'
 
 function formatCommentTitle(item: MainlineComment, moveNotation: string): string {
   return `Move ${Math.floor(item.moveIndex / 2) + 1}${item.moveIndex % 2 === 0 ? '.' : '...'} ${moveNotation}`
 }
 
-const LEVELS: { value: CommentaryLevel; label: string }[] = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'expert', label: 'Expert' },
-]
-
-const LEVEL_STORAGE_KEY = 'aca_commentary_level'
-
-function loadStoredLevel(): CommentaryLevel {
-  if (typeof window === 'undefined') return 'intermediate'
-  const v = window.localStorage.getItem(LEVEL_STORAGE_KEY)
-  return v === 'beginner' || v === 'expert' || v === 'intermediate' ? v : 'intermediate'
-}
-
 const Comments: React.FC = () => {
   const { state, manager } = useGameState()
-  const player = useVariationPlayer()
   const { commentsMainline, currentMoveIndex, commentaryComplete, aiGeneration } = state
-  const [level, setLevel] = useState<CommentaryLevel>(loadStoredLevel)
+  const [selectedPart, setSelectedPart] = useState<CommentPart>('main')
 
-  const changeLevel = useCallback((next: CommentaryLevel) => {
-    setLevel(next)
-    try {
-      window.localStorage.setItem(LEVEL_STORAGE_KEY, next)
-    } catch {
-      /* ignore */
-    }
-  }, [])
+  // Navigation resets the focus to the move's main line.
+  useEffect(() => {
+    setSelectedPart('main')
+  }, [currentMoveIndex])
 
   const commentaryGenerating = useMemo(
     () => !commentaryComplete || Object.keys(aiGeneration).length > 0,
@@ -78,7 +56,6 @@ const Comments: React.FC = () => {
     return formatCommentTitle(activeComment, move?.move || '')
   }, [activeComment, manager])
 
-  // Prev/next within the commented moves (the old sidebar rail, slimmed down).
   const { prevComment, nextComment, navPos } = useMemo(() => {
     let prev: MainlineComment | null = null
     let next: MainlineComment | null = null
@@ -106,25 +83,43 @@ const Comments: React.FC = () => {
     [manager]
   )
 
-  // Player follows navigation: commented line -> engine PV1 -> mainline continuation.
-  useEffect(() => {
-    if (!player) return
-    const gm = state.gameJson?.moves?.[currentMoveIndex]
-    if (!gm) return
-    let line: PlayerLine | null = null
-    const cf = gm.comment_facts
-    if (cf?.display_line?.san?.length) {
-      line = {
-        steps: cf.display_line.san.map((san, i) => ({ san, fen: cf.display_line!.fens[i] ?? '' })),
-        startFen: cf.display_line.start_fen,
-        evalCp: cf.eval_cp,
-        evalMate: cf.eval_mate,
-        depth: cf.depth,
-        title: 'Commented line',
+  const gm = state.gameJson?.moves?.[currentMoveIndex]
+  const facts = gm?.comment_facts ?? null
+
+  // The pinned player shows the selected part's line; for moves without facts
+  // it falls back to engine PV1, then the game continuation (book theory).
+  const playerLine = useMemo<PlayerLine | null>(() => {
+    if (facts) {
+      const src =
+        selectedPart === 'alt' && facts.better_alternative?.display_line?.san?.length
+          ? {
+              line: facts.better_alternative.display_line,
+              evalCp: facts.better_alternative.eval_cp,
+              evalMate: null as number | null,
+              title: `Better was ${facts.better_alternative.san}`,
+            }
+          : facts.display_line?.san?.length
+            ? {
+                line: facts.display_line,
+                evalCp: facts.eval_cp,
+                evalMate: facts.eval_mate,
+                title: 'Main line',
+              }
+            : null
+      if (src) {
+        return {
+          steps: src.line!.san.map((san, i) => ({ san, fen: src.line!.fens[i] ?? '' })),
+          startFen: src.line!.start_fen,
+          evalCp: src.evalCp,
+          evalMate: src.evalMate,
+          depth: facts.depth,
+          title: src.title,
+        }
       }
-    } else if (gm.variations?.[0]?.line?.length) {
+    }
+    if (gm?.variations?.[0]?.line?.length) {
       const v = gm.variations[0]
-      line = {
+      return {
         steps: v.line.map((san, i) => ({ san, fen: v.fens?.[i] ?? '' })),
         startFen: manager.getPositionForIndex(currentMoveIndex - 1),
         evalCp: v.score?.cp ?? null,
@@ -132,45 +127,38 @@ const Comments: React.FC = () => {
         depth: v.depth ?? null,
         title: 'Engine line 1',
       }
-    } else {
-      // Book moves: play the theory continuation from the mainline.
-      const moves = state.gameJson?.moves ?? []
-      const cont = moves.slice(currentMoveIndex, currentMoveIndex + 8)
-      if (cont.length) {
-        line = {
-          steps: cont.map((m) => ({ san: m.san, fen: m.fen })),
-          startFen: manager.getPositionForIndex(currentMoveIndex - 1),
-          title: 'Game continuation (theory)',
-        }
+    }
+    const moves = state.gameJson?.moves ?? []
+    const cont = moves.slice(currentMoveIndex, currentMoveIndex + 8)
+    if (cont.length) {
+      return {
+        steps: cont.map((m) => ({ san: m.san, fen: m.fen })),
+        startFen: manager.getPositionForIndex(currentMoveIndex - 1),
+        title: 'Game continuation',
       }
     }
-    if (line) player.loadLine(line, 0)
+    return null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMoveIndex, state.gameJson])
+  }, [facts, selectedPart, gm, currentMoveIndex, state.gameJson])
+
+  const meta = state.gameJson?.metadata
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-tertiary px-2 py-1">
-        <div className="flex items-center gap-2">
-          <div className="flex overflow-hidden rounded-md border border-border-secondary" role="group" aria-label="Commentary language level">
-            {LEVELS.map((l) => (
-              <button
-                key={l.value}
-                type="button"
-                onClick={() => changeLevel(l.value)}
-                className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                  level === l.value
-                    ? 'bg-accent-progress/25 text-text-primary'
-                    : 'bg-background-primary text-text-tertiary hover:bg-background-secondary'
-                }`}
-                aria-pressed={level === l.value}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-1.5 text-[10px]">
+          {meta?.commentary_level ? (
+            <span className="rounded bg-accent-progress/20 px-1.5 py-0.5 font-medium capitalize text-text-secondary">
+              {meta.commentary_level}
+            </span>
+          ) : null}
+          {meta?.comment_side && meta.comment_side !== 'both' ? (
+            <span className="rounded bg-background-secondary px-1.5 py-0.5 font-medium capitalize text-text-tertiary">
+              {meta.comment_side} only
+            </span>
+          ) : null}
           {commentaryGenerating ? (
-            <span className="flex items-center gap-1 text-[10px] font-medium text-text-warning">
+            <span className="flex items-center gap-1 font-medium text-text-warning">
               <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-text-warning border-t-transparent" />
               generating…
             </span>
@@ -201,7 +189,7 @@ const Comments: React.FC = () => {
         </div>
       </div>
 
-      {/* Zone 1: the comment (flexible, scrolls) */}
+      {/* Comment + part cards (flexible, scrolls) */}
       <div className="min-h-0 flex-1 overflow-y-auto scroll-smooth px-2 py-1.5">
         {displayedComments.length === 0 ? (
           <div className="flex h-full min-h-[60px] flex-col items-center justify-center text-[11px] italic text-text-tertiary">
@@ -212,22 +200,21 @@ const Comments: React.FC = () => {
             <CommentItem
               id={`comment-main-${activeComment.moveId}`}
               title={activeMainTitle}
-              text={activeComment.texts?.[level] ?? activeComment.text}
+              text={activeComment.text}
               isActive
               keyMomentType={activeKeyMomentType}
-              pvLine={activeComment.pvLine}
-              resolvedTokens={
-                activeComment.resolvedTokensByLevel?.[level] ?? activeComment.resolvedTokens
-              }
+              resolvedTokens={activeComment.resolvedTokens}
               ragRefs={activeComment.ragRefs}
               llmDebug={activeComment.llmDebug}
             />
-            {(() => {
-              const gm = state.gameJson?.moves?.[activeComment.moveIndex]
-              return gm?.comment_facts ? (
-                <StructuredComment facts={gm.comment_facts} debug={gm.debug} />
-              ) : null
-            })()}
+            {facts ? (
+              <StructuredComment
+                facts={facts}
+                debug={gm?.debug}
+                selectedPart={selectedPart}
+                onSelectPart={setSelectedPart}
+              />
+            ) : null}
           </>
         ) : (
           <div className="flex h-full min-h-[60px] flex-col items-center justify-center px-2 text-center text-text-secondary">
@@ -239,13 +226,11 @@ const Comments: React.FC = () => {
         )}
       </div>
 
-      {/* Zone 2: embedded variation player (fixed height) */}
-      <VariationPlayer />
-
-      {/* Zone 3: feature charts, fixed at 50% of the column */}
-      <div className="h-1/2 shrink-0 grow-0 border-t border-border-tertiary">
-        <FeatureChartsPanel embedded />
-      </div>
+      {/* Player pinned directly under the comment it belongs to */}
+      <VariationPlayer
+        line={playerLine}
+        loadKey={`${currentMoveIndex}:${selectedPart}:${playerLine?.title ?? ''}`}
+      />
     </div>
   )
 }

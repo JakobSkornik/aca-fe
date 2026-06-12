@@ -174,7 +174,7 @@ export class GameStateManager {
       }));
     this.state.gameNarrative = data.game_narrative ?? null;
     this.state.gameJson = data;
-    this.state.commentaryComplete = !!data.game_narrative;
+    this.state.commentaryComplete = data.commentary_complete ?? !!data.game_narrative;
 
     // Set headers
     this.state.pgnHeaders = {
@@ -567,6 +567,12 @@ export class GameStateManager {
       case 'GAME_NARRATIVE': {
         const p = msg.payload as GameNarrativeServerPayload
         this.state.gameNarrative = p.narrative
+        this.state.commentaryComplete = true
+        this.disconnectJobCommentaryWs()
+        this.notify()
+        break
+      }
+      case 'COMMENTARY_COMPLETE': {
         this.state.commentaryComplete = true
         this.disconnectJobCommentaryWs()
         this.notify()

@@ -27,6 +27,8 @@ const LandingNewAnalysis: React.FC = () => {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [provider, setProvider] = useState<LlmProvider>(manager.getModelParams().provider)
   const [effort, setEffort] = useState<LlmEffort>(manager.getModelParams().effort)
+  const [commentaryLevel, setCommentaryLevel] = useState<string>('intermediate')
+  const [commentSide, setCommentSide] = useState<string>('both')
   const selectedProviderOption = useMemo(
     () => LLM_PROVIDER_OPTIONS.find((o) => o.value === provider),
     [provider],
@@ -107,7 +109,12 @@ const LandingNewAnalysis: React.FC = () => {
     setError(null)
     try {
       manager.setModelParams({ provider, effort })
-      const job = await jobService.submitJob(pgn, { llm_provider: provider, llm_effort: effort })
+      const job = await jobService.submitJob(pgn, {
+        llm_provider: provider,
+        llm_effort: effort,
+        commentary_level: commentaryLevel,
+        comment_side: commentSide,
+      })
       sessionStorage.setItem(`aca_pgn_${job.job_id}`, pgn.trim())
       router.push(`/job/${job.job_id}`)
     } catch (e) {
@@ -161,6 +168,33 @@ const LandingNewAnalysis: React.FC = () => {
         }}
       />
       <div className="mt-1 text-right text-[11px] text-text-tertiary">{moveCountHint(pgn)}</div>
+
+      <div className="mt-3.5 flex flex-col gap-3.5 sm:flex-row">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 text-[11px] text-text-tertiary">Commentary language</div>
+          <select
+            value={commentaryLevel}
+            onChange={(e) => setCommentaryLevel(e.target.value)}
+            className="w-full rounded-md border border-border-secondary bg-background-primary px-2.5 py-2 text-sm text-text-primary outline-none focus:border-border-primary"
+          >
+            <option value="beginner">Beginner — concepts explained simply</option>
+            <option value="intermediate">Intermediate — club player</option>
+            <option value="expert">Expert — dry, Informant style</option>
+          </select>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 text-[11px] text-text-tertiary">Comment side</div>
+          <select
+            value={commentSide}
+            onChange={(e) => setCommentSide(e.target.value)}
+            className="w-full rounded-md border border-border-secondary bg-background-primary px-2.5 py-2 text-sm text-text-primary outline-none focus:border-border-primary"
+          >
+            <option value="both">Both sides</option>
+            <option value="white">White only</option>
+            <option value="black">Black only</option>
+          </select>
+        </div>
+      </div>
 
       {advancedOpen ? (
         <div className="mt-3.5 flex flex-col gap-3.5 rounded-md border border-border-tertiary bg-background-secondary p-4 sm:flex-row">

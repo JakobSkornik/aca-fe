@@ -1,31 +1,33 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import type { Arrow, Square } from 'react-chessboard/dist/chessboard/types'
-import { useVariationPlayer } from '@/contexts/VariationPlayerContext'
+import type { PlayerLine } from '@/types/Line'
 import { evalDepthSuffix, formatNumberedSteps } from '@/helpers/chessNotation'
 
 const BOARD_W = 192
 const AUTOPLAY_MS = 900
 
+type Props = {
+  line: PlayerLine | null
+  /** Changes whenever a new line is loaded (resets the position). */
+  loadKey?: string | number
+}
+
 /**
- * Always-embedded variation player (no popup): board + slider + step controls
- * with the numbered line and its (eval, depth). Any variation chip loads its
- * line here via VariationPlayerContext.
+ * Embedded variation player pinned under the comment cards: board + slider +
+ * step controls with the numbered line and its (eval, depth).
  */
-const VariationPlayer: React.FC = () => {
-  const player = useVariationPlayer()
-  const line = player?.line ?? null
+const VariationPlayer: React.FC<Props> = ({ line, loadKey }) => {
   const steps = line?.steps ?? []
   const lastIdx = steps.length - 1
   const [idx, setIdx] = useState(0)
   const [playing, setPlaying] = useState(false)
 
-  // Reset to the requested index whenever a line is (re)loaded.
+  // Reset whenever a different line is loaded.
   useEffect(() => {
-    setIdx(player?.initialIdx ?? 0)
+    setIdx(0)
     setPlaying(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player?.loadSeq])
+  }, [loadKey])
 
   useEffect(() => {
     if (!playing) return

@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react'
-import InlinePvMoves, { PvLineEntry } from './InlinePvMoves'
 import AnnotatedText from './AnnotatedText'
 import RagRefChips from './RagRefChips'
 import LlmDebugPanel from './LlmDebugPanel'
@@ -20,7 +19,6 @@ type Props = {
   finalizeIfNotHighlighted?: boolean
   id?: string
   keyMomentType?: string
-  pvLine?: PvLineEntry[]
   resolvedTokens?: ResolvedAnnotationToken[] | null
   ragRefs?: RagRef[]
   llmDebug?: AiCommentLlmDebug
@@ -38,7 +36,6 @@ const CommentItem: React.FC<Props> = ({
   finalizeIfNotHighlighted = false,
   id,
   keyMomentType,
-  pvLine,
   resolvedTokens,
   ragRefs,
   llmDebug,
@@ -140,11 +137,6 @@ const CommentItem: React.FC<Props> = ({
         )}
       </div>
       <div className="space-y-0.5 px-2.5 pb-2">
-        {pvLine && pvLine.length > 0 ? (
-          <AccordionRow label="Principal variation" defaultOpen={isActive}>
-            <InlinePvMoves pvLine={pvLine} embedded />
-          </AccordionRow>
-        ) : null}
         {ragRefs && ragRefs.length > 0 ? (
           <AccordionRow label="Reference games (RAG)">
             <RagRefChips ragRefs={ragRefs} embedded />

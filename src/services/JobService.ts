@@ -16,7 +16,12 @@ function apiUrlToWsBase(apiUrl: string): string {
 class JobService {
   async submitJob(
     pgn: string,
-    opts?: { llm_provider?: string; llm_effort?: string }
+    opts?: {
+      llm_provider?: string;
+      llm_effort?: string;
+      commentary_level?: string;
+      comment_side?: string;
+    }
   ): Promise<JobResponse> {
     const res = await fetch(`${API_URL}/jobs/submit`, {
       method: 'POST',
@@ -25,6 +30,8 @@ class JobService {
         pgn_string: pgn,
         llm_provider: opts?.llm_provider,
         llm_effort: opts?.llm_effort,
+        commentary_level: opts?.commentary_level,
+        comment_side: opts?.comment_side,
       }),
     });
     if (!res.ok) {

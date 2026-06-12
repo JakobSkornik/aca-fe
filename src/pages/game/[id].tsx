@@ -6,13 +6,9 @@ import MainlineChessboard from '@/components/MainlineChessboard'
 import MoveList from '@/components/MoveList'
 import Comments from '@/components/Comments'
 import EvalBar from '@/components/game/EvalBar'
-import GameInfoPanel from '@/components/game/GameInfoPanel'
-import SummaryPanel from '@/components/game/SummaryPanel'
-import LinesPanel from '@/components/game/LinesPanel'
-import { VariationPlayerProvider } from '@/contexts/VariationPlayerContext'
+import FeatureChartsPanel from '@/components/FeatureChartsPanel'
 import { TopBar } from '@/components/ui/TopBar'
 import { Card } from '@/components/ui/Card'
-import { Tabs } from '@/components/ui/Tabs'
 import type { GameJson } from '@/types/GameJson'
 
 const GamePage = () => {
@@ -106,7 +102,7 @@ const GamePage = () => {
         setError(null)
         const gameJson = await jobService.getGameJson(id)
         manager.loadGameFromJson(gameJson)
-        if (gameJson.game_narrative == null) {
+        if (!(gameJson.commentary_complete ?? gameJson.game_narrative != null)) {
           manager.connectToJobCommentaryWs(id)
         }
       } catch (e) {
@@ -186,16 +182,34 @@ const GamePage = () => {
         }
       />
 
-      <VariationPlayerProvider>
-        <div className="flex min-h-0 flex-1 flex-row gap-3 overflow-hidden p-3">
-          {/* Column 1: board + tabs underneath */}
-          <div className="flex min-h-0 w-[min(36vw,500px)] shrink-0 flex-col gap-3">
+      {/* Game-info header strip (replaces the Game-info tab) */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-0.5 border-b border-border-tertiary bg-background-primary px-4 py-1.5 text-[11px] text-text-secondary">
+        <span className="font-semibold text-text-primary">
+          {state.pgnHeaders?.whiteName || '—'}
+          {state.pgnHeaders?.whiteElo ? ` (${state.pgnHeaders.whiteElo})` : ''} –{' '}
+          {state.pgnHeaders?.blackName || '—'}
+          {state.pgnHeaders?.blackElo ? ` (${state.pgnHeaders.blackElo})` : ''}
+        </span>
+        <span>{state.pgnHeaders?.result || ''}</span>
+        <span className="truncate">{state.pgnHeaders?.opening || ''}</span>
+        {state.gameJson?.analysis_info ? (
+          <span className="text-text-tertiary">
+            {state.gameJson.analysis_info.engine} d{state.gameJson.analysis_info.depth}
+          </span>
+        ) : null}
+        {state.pgnHeaders?.event ? (
+          <span className="ml-auto truncate text-text-tertiary">{state.pgnHeaders.event}</span>
+        ) : null}
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+        <div className="flex min-h-0 flex-1 flex-row gap-3 overflow-hidden">
+          {/* Left column: board + move list */}
+          <div className="flex min-h-0 w-[min(38vw,500px)] shrink-0 flex-col gap-3">
             <Card
-              title="Board"
-              headerClassName="!px-2.5 !py-1.5"
-              titleClassName="!text-[11px]"
+              showHeader={false}
               className="flex w-full shrink-0 flex-col overflow-hidden"
-              bodyClassName="flex flex-col items-center gap-1.5 px-1.5 pb-1.5 pt-1"
+              bodyClassName="flex flex-col items-center gap-1.5 px-1.5 pb-1.5 pt-1.5"
             >
               <MainlineChessboard />
               <div className="w-full max-w-[460px] px-1">
@@ -204,33 +218,17 @@ const GamePage = () => {
             </Card>
 
             <Card
-              showHeader={false}
-              className="flex min-h-[160px] min-h-0 flex-1 flex-col overflow-hidden"
+              title="Moves"
+              headerClassName="!px-2.5 !py-1.5"
+              titleClassName="!text-[11px]"
+              className="flex min-h-[120px] min-h-0 flex-1 flex-col overflow-hidden"
               bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
             >
-              <Tabs
-                className="h-full"
-                tabs={[
-                  { key: 'info', label: 'Game info', content: <GameInfoPanel /> },
-                  { key: 'summary', label: 'Summary', content: <SummaryPanel /> },
-                  { key: 'lines', label: 'Lines', content: <LinesPanel /> },
-                ]}
-              />
+              <MoveList />
             </Card>
           </div>
 
-          {/* Column 2: move list, full height */}
-          <Card
-            title="Moves"
-            headerClassName="!px-2.5 !py-1.5"
-            titleClassName="!text-[11px]"
-            className="flex min-h-0 w-[min(24vw,340px)] shrink-0 flex-col overflow-hidden"
-            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-          >
-            <MoveList />
-          </Card>
-
-          {/* Column 3: commentary (narrower by construction) */}
+          {/* Right column: commentary with the player pinned inside */}
           <Card
             title="Commentary"
             headerClassName="!px-2.5 !py-1.5"
@@ -241,7 +239,18 @@ const GamePage = () => {
             <Comments />
           </Card>
         </div>
-      </VariationPlayerProvider>
+
+        {/* Bottom strip: positional feature charts, full width */}
+        <Card
+          title="Positional features"
+          headerClassName="!px-2.5 !py-1.5"
+          titleClassName="!text-[11px]"
+          className="flex h-[230px] shrink-0 flex-col overflow-hidden"
+          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+        >
+          <FeatureChartsPanel embedded />
+        </Card>
+      </div>
     </div>
   )
 }

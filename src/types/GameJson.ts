@@ -152,6 +152,9 @@ export interface GameMetadata {
   whiteElo: number | null;
   blackElo: number | null;
   opening: string | null;
+  /** Pre-analysis options the commentary was generated with. */
+  commentary_level?: string | null;
+  comment_side?: string | null;
 }
 
 export interface AnalysisInfo {
@@ -182,5 +185,7 @@ export interface GameJson {
   episodes?: EpisodeSummary[];
   game_narrative?: string | null;
   feature_series?: FeatureSeries | null;
+  /** True once the LLM commentary sweep finished. */
+  commentary_complete?: boolean;
   analysis_info: AnalysisInfo;
 }
