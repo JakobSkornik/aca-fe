@@ -6,10 +6,13 @@ import MainlineChessboard from '@/components/MainlineChessboard'
 import FeatureChartsPanel from '@/components/FeatureChartsPanel'
 import MoveList from '@/components/MoveList'
 import Comments from '@/components/Comments'
-import OpeningMetadataCard from '@/components/game/OpeningMetadataCard'
-import EvaluationPanel from '@/components/game/EvaluationPanel'
+import EvalBar from '@/components/game/EvalBar'
+import GameInfoPanel from '@/components/game/GameInfoPanel'
+import SummaryPanel from '@/components/game/SummaryPanel'
+import LinesPanel from '@/components/game/LinesPanel'
 import { TopBar } from '@/components/ui/TopBar'
 import { Card } from '@/components/ui/Card'
+import { Tabs } from '@/components/ui/Tabs'
 import type { GameJson } from '@/types/GameJson'
 
 const GamePage = () => {
@@ -183,54 +186,50 @@ const GamePage = () => {
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-        {/* Row 1: board | opening + engine | summary */}
-        <div className="flex min-h-[260px] max-h-[46vh] shrink-0 flex-col gap-3 xl:flex-row xl:overflow-hidden">
-          <div className="flex min-h-0 shrink-0 justify-center xl:w-[min(28vw,440px)] xl:shrink-0">
-            <Card
-              title="Board"
-              headerClassName="!px-2.5 !py-1.5"
-              titleClassName="!text-[11px]"
-              className="flex w-full max-w-[440px] flex-col overflow-hidden"
-              bodyClassName="flex justify-center px-1.5 pb-1.5 pt-1"
-            >
-              <MainlineChessboard />
-            </Card>
-          </div>
-          <div className="flex min-h-0 min-w-0 w-full shrink-0 flex-col gap-3 xl:w-[min(22vw,360px)] xl:max-w-[360px]">
-            <div className="min-h-[140px] shrink-0">
-              <OpeningMetadataCard />
-            </div>
-            <div className="flex min-h-[160px] min-h-0 flex-1 flex-col overflow-hidden">
-              <EvaluationPanel />
-            </div>
-          </div>
-          <div className="min-h-[200px] min-w-0 w-full flex-1 overflow-hidden">
-            <FeatureChartsPanel />
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-row gap-3 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-row gap-3 overflow-hidden p-3">
+        {/* Left column: big board + tabs underneath */}
+        <div className="flex min-h-0 w-[min(46vw,620px)] shrink-0 flex-col gap-3">
           <Card
-            title="Moves"
+            title="Board"
             headerClassName="!px-2.5 !py-1.5"
             titleClassName="!text-[11px]"
-            className="flex w-full max-w-[440px] min-h-0 shrink-0 flex-col overflow-hidden xl:w-[min(28vw,440px)]"
-            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            className="flex w-full shrink-0 flex-col overflow-hidden"
+            bodyClassName="flex flex-col items-center gap-1.5 px-1.5 pb-1.5 pt-1"
           >
-            <MoveList />
+            <MainlineChessboard />
+            <div className="w-full max-w-[560px] px-1">
+              <EvalBar />
+            </div>
           </Card>
 
           <Card
-            title="Commentary"
-            headerClassName="!px-2.5 !py-1.5"
-            titleClassName="!text-[11px]"
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+            showHeader={false}
+            className="flex min-h-[180px] min-h-0 flex-1 flex-col overflow-hidden"
             bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
           >
-            <Comments />
+            <Tabs
+              className="h-full"
+              tabs={[
+                { key: 'moves', label: 'Moves', content: <MoveList /> },
+                { key: 'info', label: 'Game info', content: <GameInfoPanel /> },
+                { key: 'summary', label: 'Summary', content: <SummaryPanel /> },
+                { key: 'features', label: 'Features', content: <FeatureChartsPanel embedded /> },
+                { key: 'lines', label: 'Lines', content: <LinesPanel /> },
+              ]}
+            />
           </Card>
         </div>
+
+        {/* Right column: commentary, full height */}
+        <Card
+          title="Commentary"
+          headerClassName="!px-2.5 !py-1.5"
+          titleClassName="!text-[11px]"
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+        >
+          <Comments />
+        </Card>
       </div>
     </div>
   )

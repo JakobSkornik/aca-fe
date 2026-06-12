@@ -3,6 +3,7 @@ import { useGameState } from '@/contexts/GameStateContext'
 import type { MainlineComment } from '@/contexts/GameStateManager'
 import type { CommentaryLevel } from '@/types/GameJson'
 import CommentItem from './CommentItem'
+import StructuredComment from './StructuredComment'
 
 function formatCommentTitle(item: MainlineComment, moveNotation: string): string {
   return `Move ${Math.floor(item.moveIndex / 2) + 1}${item.moveIndex % 2 === 0 ? '.' : '...'} ${moveNotation}`
@@ -27,6 +28,10 @@ const Comments: React.FC = () => {
   const { commentsMainline, currentMoveIndex, commentaryComplete, aiGeneration } = state
   const activeNavRef = useRef<HTMLButtonElement>(null)
   const [level, setLevel] = useState<CommentaryLevel>(loadStoredLevel)
+  const [debugMode, setDebugMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('aca_debug_mode') === '1'
+  })
 
   const changeLevel = useCallback((next: CommentaryLevel) => {
     setLevel(next)
@@ -35,6 +40,17 @@ const Comments: React.FC = () => {
     } catch {
       /* ignore */
     }
+  }, [])
+
+  const toggleDebug = useCallback(() => {
+    setDebugMode((d) => {
+      try {
+        window.localStorage.setItem('aca_debug_mode', d ? '0' : '1')
+      } catch {
+        /* ignore */
+      }
+      return !d
+    })
   }, [])
 
   const commentaryGenerating = useMemo(
@@ -91,22 +107,37 @@ const Comments: React.FC = () => {
         <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
           Commentary language
         </span>
-        <div className="flex overflow-hidden rounded-md border border-border-secondary" role="group" aria-label="Commentary language level">
-          {LEVELS.map((l) => (
-            <button
-              key={l.value}
-              type="button"
-              onClick={() => changeLevel(l.value)}
-              className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                level === l.value
-                  ? 'bg-accent-progress/25 text-text-primary'
-                  : 'bg-background-primary text-text-tertiary hover:bg-background-secondary'
-              }`}
-              aria-pressed={level === l.value}
-            >
-              {l.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex overflow-hidden rounded-md border border-border-secondary" role="group" aria-label="Commentary language level">
+            {LEVELS.map((l) => (
+              <button
+                key={l.value}
+                type="button"
+                onClick={() => changeLevel(l.value)}
+                className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                  level === l.value
+                    ? 'bg-accent-progress/25 text-text-primary'
+                    : 'bg-background-primary text-text-tertiary hover:bg-background-secondary'
+                }`}
+                aria-pressed={level === l.value}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={toggleDebug}
+            aria-pressed={debugMode}
+            title="Show how each conclusion was reached"
+            className={`rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+              debugMode
+                ? 'border-accent-progress bg-accent-progress/25 text-text-primary'
+                : 'border-border-secondary bg-background-primary text-text-tertiary hover:bg-background-secondary'
+            }`}
+          >
+            Debug
+          </button>
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-row">
@@ -116,19 +147,31 @@ const Comments: React.FC = () => {
               <p>No commentary available for this game.</p>
             </div>
           ) : activeComment ? (
-            <CommentItem
-              id={`comment-main-${activeComment.moveId}`}
-              title={activeMainTitle}
-              text={activeComment.texts?.[level] ?? activeComment.text}
-              isActive
-              keyMomentType={activeKeyMomentType}
-              pvLine={activeComment.pvLine}
-              resolvedTokens={
-                activeComment.resolvedTokensByLevel?.[level] ?? activeComment.resolvedTokens
-              }
-              ragRefs={activeComment.ragRefs}
-              llmDebug={activeComment.llmDebug}
-            />
+            <>
+              <CommentItem
+                id={`comment-main-${activeComment.moveId}`}
+                title={activeMainTitle}
+                text={activeComment.texts?.[level] ?? activeComment.text}
+                isActive
+                keyMomentType={activeKeyMomentType}
+                pvLine={activeComment.pvLine}
+                resolvedTokens={
+                  activeComment.resolvedTokensByLevel?.[level] ?? activeComment.resolvedTokens
+                }
+                ragRefs={activeComment.ragRefs}
+                llmDebug={activeComment.llmDebug}
+              />
+              {(() => {
+                const gm = state.gameJson?.moves?.[activeComment.moveIndex]
+                return gm?.comment_facts ? (
+                  <StructuredComment
+                    facts={gm.comment_facts}
+                    debug={gm.debug}
+                    debugMode={debugMode}
+                  />
+                ) : null
+              })()}
+            </>
           ) : (
             <div className="flex h-full min-h-[100px] flex-col items-center justify-center px-2 text-center text-text-secondary">
               <p className="mb-0.5 text-[11px] font-medium text-text-primary">No commentary for this move</p>

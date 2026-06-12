@@ -5,6 +5,14 @@ export interface MoveScore {
   mate: number | null;
 }
 
+export interface VariationKeyFactorJson {
+  text: string;
+  text_state?: string | null;
+  features?: string[];
+  delta_cp?: number;
+  flag_note?: string | null;
+}
+
 export interface Variation {
   rank: number;
   move_san: string;
@@ -12,6 +20,10 @@ export interface Variation {
   line: string[];
   /** Position after each ply of `line` (backend-resolved; no SAN replay needed). */
   fens?: string[];
+  /** Search depth behind `score`. */
+  depth?: number | null;
+  /** Key factors of the final position vs the base position. */
+  key_factors?: VariationKeyFactorJson[];
 }
 
 /** A positional feature this move's comment is grounded in (chart highlight). */
@@ -62,6 +74,34 @@ export interface GameMove {
   resolved_tokens_by_level?: Record<string, ResolvedAnnotationToken[]>;
   /** Trimmed CommentFacts (verdict, display line, claims, better alternative). */
   comment_facts?: CommentFactsJson | null;
+  /** Academic reasoning trace (debug mode). */
+  debug?: MoveDebugJson | null;
+}
+
+export interface MoveDebugJson {
+  eval_before_cp: number | null;
+  eval_after_cp: number | null;
+  eval_swing_cp: number | null;
+  best_move_san: string | null;
+  best_move_eval_cp: number | null;
+  key_moment_type: string | null;
+  move_quality: string | null;
+  envisioned: {
+    kept_plies: number;
+    trimmed_plies: number;
+    start_quiescent: boolean;
+    leaf_quiescent: boolean;
+  } | null;
+  fired_rules: {
+    rule_id: string;
+    text: string;
+    delta_cp: number;
+    features: string[];
+    flag_note: string | null;
+  }[];
+  muted_claims: string[];
+  renderings: Record<string, string> | null;
+  contract_ok: boolean | null;
 }
 
 export type CommentaryLevel = 'beginner' | 'intermediate' | 'expert';

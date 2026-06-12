@@ -45,9 +45,10 @@ const TokenPv: React.FC<{ data: Record<string, unknown> | null }> = ({ data }) =
   if (!pv?.length) {
     return <span className="text-sm text-accent-progress">[pv]</span>
   }
+  const startFen = typeof data?.start_fen === 'string' ? data.start_fen : undefined
   return (
     <span className="mx-0.5">
-      <PvLineChips steps={pv} />
+      <PvLineChips steps={pv} startFen={startFen} />
     </span>
   )
 }

@@ -193,7 +193,7 @@ const MiniChart: React.FC<{
  * Charts grounding the selected move's comment (`feature_refs`) are highlighted
  * and sorted first. Clicking a chart seeks to that ply.
  */
-const FeatureChartsPanel: React.FC = () => {
+const FeatureChartsPanel: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { state, manager } = useGameState()
   const gj = state.gameJson
   const fs = gj?.feature_series
@@ -218,27 +218,27 @@ const FeatureChartsPanel: React.FC = () => {
   }, [fs, refsByName])
 
   if (!fs || !fs.plies?.length) {
+    const empty = (
+      <p className="p-3 text-xs italic text-text-tertiary">
+        No feature series in this game file (re-run the analysis with the current backend).
+      </p>
+    )
+    if (embedded) return <div className="h-full overflow-y-auto">{empty}</div>
     return (
       <Card
         title="Positional features"
         className="flex h-full min-h-[200px] w-full flex-col overflow-hidden"
-        bodyClassName="min-h-0 flex-1 overflow-y-auto p-3 text-xs text-text-secondary"
+        bodyClassName="min-h-0 flex-1 overflow-y-auto text-xs text-text-secondary"
       >
-        <p className="italic text-text-tertiary">
-          No feature series in this game file (re-run the analysis with the current backend).
-        </p>
+        {empty}
       </Card>
     )
   }
 
   const nHighlighted = groups.filter((g) => g.refs.length > 0).length
 
-  return (
-    <Card
-      title="Positional features"
-      className="flex h-full min-h-[200px] w-full flex-col overflow-hidden"
-      bodyClassName="min-h-0 flex-1 overflow-y-auto p-2"
-    >
+  const body = (
+    <>
       <div className="mb-1.5 flex items-center gap-3 px-0.5 text-[10px] text-text-tertiary">
         <span className="inline-flex items-center gap-1">
           <span className="inline-block h-0.5 w-3 rounded" style={{ backgroundColor: WHITE_LINE }} /> White
@@ -267,6 +267,19 @@ const FeatureChartsPanel: React.FC = () => {
           />
         ))}
       </div>
+    </>
+  )
+
+  if (embedded) {
+    return <div className="h-full overflow-y-auto p-2">{body}</div>
+  }
+  return (
+    <Card
+      title="Positional features"
+      className="flex h-full min-h-[200px] w-full flex-col overflow-hidden"
+      bodyClassName="min-h-0 flex-1 overflow-y-auto p-2"
+    >
+      {body}
     </Card>
   )
 }
