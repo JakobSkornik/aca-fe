@@ -5,10 +5,9 @@ import { jobService } from '@/services/JobService'
 import MainlineChessboard from '@/components/MainlineChessboard'
 import MoveList from '@/components/MoveList'
 import Comments from '@/components/Comments'
-import EvalBar from '@/components/game/EvalBar'
 import FeatureChartsPanel from '@/components/FeatureChartsPanel'
-import { TopBar } from '@/components/ui/TopBar'
-import { Card } from '@/components/ui/Card'
+import GameTopBar from '@/components/game/GameTopBar'
+import GameBar from '@/components/game/GameBar'
 import type { GameJson } from '@/types/GameJson'
 
 const GamePage = () => {
@@ -147,109 +146,36 @@ const GamePage = () => {
     )
   }
 
-  const subtitle =
-    typeof id === 'string' ? (id === 'offline' ? 'Offline JSON' : `Job ${id.slice(0, 8)}…`) : undefined
+  const jobLabel =
+    typeof id === 'string' ? (id === 'offline' ? 'Offline JSON' : `Job ${id.slice(0, 8)}…`) : 'Job'
 
   return (
-    <div className="flex h-screen min-h-0 min-w-[1024px] flex-col overflow-hidden bg-background-secondary">
-      <TopBar
-        subtitle={subtitle}
-        onLogoClick={() => router.push('/')}
-        right={
-          <>
-            <button
-              type="button"
-              onClick={() => manager.flipBoard()}
-              className="rounded-md border border-border-secondary bg-background-primary px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-background-secondary"
-            >
-              Flip board
-            </button>
-            <button
-              type="button"
-              onClick={() => void exportGameJson()}
-              className="rounded-md border border-border-secondary bg-background-primary px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-background-secondary"
-            >
-              Export JSON
-            </button>
-            <button
-              type="button"
-              onClick={() => void exportGamePgn()}
-              className="rounded-md border border-border-secondary bg-background-primary px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-background-secondary"
-            >
-              Export PGN
-            </button>
-          </>
-        }
+    <div className="app flex h-screen min-h-0 min-w-[1024px] flex-col overflow-hidden">
+      <GameTopBar
+        jobLabel={jobLabel}
+        onHome={() => router.push('/')}
+        onFlip={() => manager.flipBoard()}
+        onExportPgn={() => void exportGamePgn()}
+        onExportJson={() => void exportGameJson()}
       />
+      <GameBar />
 
-      {/* Game-info header strip (replaces the Game-info tab) */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-0.5 border-b border-border-tertiary bg-background-primary px-4 py-1.5 text-[11px] text-text-secondary">
-        <span className="font-semibold text-text-primary">
-          {state.pgnHeaders?.whiteName || '—'}
-          {state.pgnHeaders?.whiteElo ? ` (${state.pgnHeaders.whiteElo})` : ''} –{' '}
-          {state.pgnHeaders?.blackName || '—'}
-          {state.pgnHeaders?.blackElo ? ` (${state.pgnHeaders.blackElo})` : ''}
-        </span>
-        <span>{state.pgnHeaders?.result || ''}</span>
-        <span className="truncate">{state.pgnHeaders?.opening || ''}</span>
-        {state.gameJson?.analysis_info ? (
-          <span className="text-text-tertiary">
-            {state.gameJson.analysis_info.engine} d{state.gameJson.analysis_info.depth}
-          </span>
-        ) : null}
-        {state.pgnHeaders?.event ? (
-          <span className="ml-auto truncate text-text-tertiary">{state.pgnHeaders.event}</span>
-        ) : null}
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-        <div className="flex min-h-0 flex-1 flex-row gap-3 overflow-hidden">
-          {/* Left column: board + move list */}
-          <div className="flex min-h-0 w-[min(38vw,500px)] shrink-0 flex-col gap-3">
-            <Card
-              showHeader={false}
-              className="flex w-full shrink-0 flex-col overflow-hidden"
-              bodyClassName="flex flex-col items-center gap-1.5 px-1.5 pb-1.5 pt-1.5"
-            >
-              <MainlineChessboard />
-              <div className="w-full max-w-[460px] px-1">
-                <EvalBar />
-              </div>
-            </Card>
-
-            <Card
-              title="Moves"
-              headerClassName="!px-2.5 !py-1.5"
-              titleClassName="!text-[11px]"
-              className="flex min-h-[120px] min-h-0 flex-1 flex-col overflow-hidden"
-              bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-            >
-              <MoveList />
-            </Card>
+      {/* Split layout: board · commentary · moves, then full-width features */}
+      <div className="min-h-0 flex-1 overflow-auto p-4">
+        <div className="ca-split">
+          <div style={{ gridArea: 'board' }}>
+            <MainlineChessboard />
           </div>
-
-          {/* Right column: commentary with the player pinned inside */}
-          <Card
-            title="Commentary"
-            headerClassName="!px-2.5 !py-1.5"
-            titleClassName="!text-[11px]"
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-          >
+          <div style={{ gridArea: 'comment', minWidth: 0 }}>
             <Comments />
-          </Card>
+          </div>
+          <div style={{ gridArea: 'moves', minWidth: 0 }}>
+            <MoveList />
+          </div>
+          <div style={{ gridArea: 'feat', minWidth: 0 }}>
+            <FeatureChartsPanel />
+          </div>
         </div>
-
-        {/* Bottom strip: positional feature charts, full width */}
-        <Card
-          title="Positional features"
-          headerClassName="!px-2.5 !py-1.5"
-          titleClassName="!text-[11px]"
-          className="flex h-[230px] shrink-0 flex-col overflow-hidden"
-          bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-        >
-          <FeatureChartsPanel embedded />
-        </Card>
       </div>
     </div>
   )

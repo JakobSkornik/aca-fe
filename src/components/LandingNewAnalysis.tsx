@@ -241,7 +241,8 @@ const LandingNewAnalysis: React.FC = () => {
           type="button"
           disabled={loading || !pgn.trim()}
           onClick={submit}
-          className="w-full rounded-md bg-text-primary py-2.5 text-sm font-medium text-background-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn btn-primary w-full"
+          style={{ justifyContent: 'center', padding: '10px' }}
         >
           {loading ? 'Submitting…' : 'Analyze game'}
         </button>

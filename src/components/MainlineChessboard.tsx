@@ -4,12 +4,13 @@ import { Chessboard } from 'react-chessboard'
 import type { Arrow, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
 import { useGameState } from '../contexts/GameStateContext'
 import { useSquareFit } from '@/hooks/useSquareFit'
+import Icon from '@/components/ui/Icon'
 
 const MIN_BOARD_SIZE = 160
 const BOARD_PADDING = 6
-const MAX_BOARD_SIZE = 460
-/** Width for rank labels beside the board; board width is clamped so rank + board fits the row. */
-const RANK_GUTTER_PX = 22
+const MAX_BOARD_SIZE = 440
+/** Rank gutter + eval bar reserve so the square board fits its column. */
+const SIDE_GUTTER_PX = 22 + 34
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'] as const
@@ -31,34 +32,51 @@ function fmtElo(n: number | undefined | null): string {
   return String(n)
 }
 
-type PlayerBarProps = {
+/** Player plate (template .plate): avatar initial, name, Elo, to-move badge. */
+function PlayerPlate({
+  name,
+  elo,
+  white,
+  toMove,
+}: {
   name: string
   elo: string
-  /** Light square swatch (White) vs dark (Black) */
-  lightSwatch: boolean
-  captures: string
+  white: boolean
+  toMove: boolean
+}) {
+  const initial = (name || '?').trim()[0]?.toUpperCase() || '?'
+  return (
+    <div className={`plate ${white ? 'white' : 'black'}`}>
+      <div className="avatar">{initial}</div>
+      <div>
+        <div className="who">{name || '—'}</div>
+        <div className="elo mono">Elo {elo}</div>
+      </div>
+      {toMove ? <span className="to-move">to move</span> : null}
+    </div>
+  )
 }
 
-function PlayerBarRow({ name, elo, lightSwatch, captures }: PlayerBarProps) {
+/** Vertical eval bar beside the board (template .evalbar). */
+function VerticalEvalBar({ height, cp, mate, book }: { height: number; cp: number | null; mate: number | null | undefined; book: boolean }) {
+  let whitePct: number
+  let label: string
+  if (book) {
+    whitePct = 50
+    label = 'Book'
+  } else if (mate != null && mate !== 0) {
+    whitePct = mate > 0 ? 97 : 3
+    label = `M${Math.abs(mate)}`
+  } else {
+    const pawns = (cp ?? 0) / 100
+    whitePct = Math.max(3, Math.min(97, (1 / (1 + Math.exp(-pawns * 0.42))) * 100))
+    label = `${pawns >= 0 ? '+' : ''}${pawns.toFixed(2)}`
+  }
+  const whiteWinning = (cp ?? 0) >= 0 || (mate ?? 0) > 0
   return (
-    <div className="flex w-full max-w-[460px] items-center justify-between gap-2 rounded-md border border-border-tertiary bg-background-primary px-2 py-1">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <div
-          className={`h-2.5 w-2.5 shrink-0 rounded-sm border border-border-secondary ${
-            lightSwatch ? 'bg-board-light' : 'bg-board-dark'
-          }`}
-        />
-        <div className="min-w-0">
-          <div className="truncate text-[11px] font-medium text-text-primary">{name || '—'}</div>
-          <div className="text-[10px] text-text-tertiary">Elo {elo}</div>
-        </div>
-      </div>
-      <div
-        className="max-w-[42%] shrink-0 truncate text-right text-[10px] text-text-tertiary"
-        title={captures || undefined}
-      >
-        {captures || '—'}
-      </div>
+    <div className="evalbar" style={{ height }}>
+      <div className="white-fill" style={{ height: `${whitePct}%` }} />
+      <div className={`num ${whiteWinning ? 'bot' : 'top'}`}>{label}</div>
     </div>
   )
 }
@@ -74,6 +92,19 @@ const MainlineChessboard = () => {
     max: MAX_BOARD_SIZE,
   })
   const [renderSize, setRenderSize] = useState(0)
+  const [playing, setPlaying] = useState(false)
+  const moveCount = manager.getMainlineMoveCount()
+
+  // Autoplay: step through the mainline.
+  useEffect(() => {
+    if (!playing) return
+    if (currentMoveIndex >= moveCount - 1) {
+      setPlaying(false)
+      return
+    }
+    const t = setTimeout(() => manager.moveNext(), 900)
+    return () => clearTimeout(t)
+  }, [playing, currentMoveIndex, moveCount, manager])
 
   const filesEdge = useMemo(
     () => (boardOrientation === 'white' ? [...FILES] : [...FILES].reverse()),
@@ -91,7 +122,7 @@ const MainlineChessboard = () => {
       const w = el.getBoundingClientRect().width
       const next = Math.max(
         MIN_BOARD_SIZE,
-        Math.min(MAX_BOARD_SIZE, sizeCap, Math.floor(w - RANK_GUTTER_PX))
+        Math.min(MAX_BOARD_SIZE, sizeCap, Math.floor(w - SIDE_GUTTER_PX))
       )
       setRenderSize(next)
     }
@@ -102,41 +133,36 @@ const MainlineChessboard = () => {
   }, [sizeCap])
 
   const currentFen = manager.getCurrentPosition(currentMoveIndex)
-  const { capturedByWhite: whiteCaptures, capturedByBlack: blackCaptures } = manager.getCapturesForMove(currentMoveIndex)
 
-  const whiteCapturesString = manager.formatCapturesForDisplay(whiteCaptures, true)
-  const blackCapturesString = manager.formatCapturesForDisplay(blackCaptures, false)
+  const curMove = manager.getMainlineMove(currentMoveIndex)
+  const evalCp = curMove?.score ?? null
+  const evalMate = curMove?.mateIn
+  const isBook = (curMove as { phase?: string } | null)?.phase === 'early' && curMove?.score === undefined
 
   const whiteName = pgnHeaders?.whiteName?.trim() || 'White'
   const blackName = pgnHeaders?.blackName?.trim() || 'Black'
   const whiteElo = fmtElo(pgnHeaders?.whiteElo)
   const blackElo = fmtElo(pgnHeaders?.blackElo)
 
+  const sideToMove = currentFen ? (new Chess(currentFen).turn() === 'w' ? 'white' : 'black') : 'white'
   /** Top of the widget is Black's side when White is at bottom; swap when flipped. */
   const topIsBlack = boardOrientation === 'white'
+  const topPlate = topIsBlack
+    ? { name: blackName, elo: blackElo, white: false, toMove: sideToMove === 'black' }
+    : { name: whiteName, elo: whiteElo, white: true, toMove: sideToMove === 'white' }
+  const bottomPlate = topIsBlack
+    ? { name: whiteName, elo: whiteElo, white: true, toMove: sideToMove === 'white' }
+    : { name: blackName, elo: blackElo, white: false, toMove: sideToMove === 'black' }
 
-  /** Pieces the top player lost (opponent's captures); matches wireframe capture bars. */
-  const topCaptures = topIsBlack ? whiteCapturesString : blackCapturesString
-  const bottomCaptures = topIsBlack ? blackCapturesString : whiteCapturesString
-
-  const topBar = topIsBlack
-    ? { name: blackName, elo: blackElo, lightSwatch: false, captures: topCaptures }
-    : { name: whiteName, elo: whiteElo, lightSwatch: true, captures: topCaptures }
-
-  const bottomBar = topIsBlack
-    ? { name: whiteName, elo: whiteElo, lightSwatch: true, captures: bottomCaptures }
-    : { name: blackName, elo: blackElo, lightSwatch: false, captures: bottomCaptures }
-
-  const { lastMoveLine, turnLine, arrows, squareStyles } = useMemo(() => {
+  const { turnLine, arrows, squareStyles } = useMemo(() => {
     if (!currentFen || !isLoaded) {
-      return { lastMoveLine: '', turnLine: '', arrows: [] as Arrow[], squareStyles: {} as CustomSquareStyles }
+      return { turnLine: '', arrows: [] as Arrow[], squareStyles: {} as CustomSquareStyles }
     }
     const pos = new Chess(currentFen)
     const turn = pos.turn() === 'w' ? 'White' : 'Black'
     const turnLine = `${turn} to move`
 
     const lastMove = manager.getMainlineMove(currentMoveIndex)
-    const lastMoveLine = lastMove?.move ? `Last: ${lastMove.move}` : 'Last: —'
 
     let arr: Arrow[] = []
     if (lastMove?.move) {
@@ -158,81 +184,107 @@ const MainlineChessboard = () => {
     }
     arr = dedupeArrowsByEndpoints(arr)
     const sq: CustomSquareStyles = overlay?.squareStyles ? { ...overlay.squareStyles } : {}
-    return { lastMoveLine, turnLine, arrows: arr, squareStyles: sq }
+    return { turnLine, arrows: arr, squareStyles: sq }
   }, [currentFen, currentMoveIndex, isLoaded, manager, commentaryBoardOverlay])
 
+  const navBtn = (label: string, icon: string, onClick: () => void) => (
+    <button type="button" className="btn icon-btn" aria-label={label} title={label} onClick={onClick}>
+      <Icon name={icon} />
+    </button>
+  )
+
   return (
-    <div ref={parentRef} className="flex w-full flex-col items-center px-2 py-2">
-      {isLoaded ? (
-        <div className="mb-1 w-full max-w-[460px]">
-          <PlayerBarRow {...topBar} />
-        </div>
-      ) : null}
-      <div ref={boardLayoutRef} className="flex w-full max-w-[460px] flex-col items-center">
-        {renderSize > 0 ? (
-          <>
-            <div className="mb-0.5 flex w-full shrink-0 justify-center">
-              <div className="flex items-end">
-                <div className="w-[22px] shrink-0" aria-hidden />
-                <div className="flex shrink-0" style={{ width: renderSize }}>
-                  {filesEdge.map((f) => (
-                    <span key={`t-${f}`} className={`flex-1 ${labelClass}`}>
-                      {f}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-stretch justify-center">
-              <div className="flex w-[22px] shrink-0 flex-col" style={{ height: renderSize }}>
-                {ranksLeft.map((r) => (
-                  <div key={`rk-${r}`} className="flex min-h-0 flex-1 items-center justify-center">
-                    <span className={labelClass}>{r}</span>
+    <div className="panel" style={{ padding: 16 }}>
+      <div ref={parentRef} className="flex w-full flex-col">
+        {isLoaded ? <PlayerPlate {...topPlate} /> : null}
+        <div ref={boardLayoutRef} className="board-stage" style={{ justifyContent: 'center' }}>
+          {renderSize > 0 ? (
+            <>
+              <VerticalEvalBar height={renderSize} cp={evalCp} mate={evalMate} book={isBook} />
+              <div className="flex flex-col" style={{ width: renderSize + 22 }}>
+                <div className="flex">
+                  <div className="flex w-[22px] shrink-0 flex-col" style={{ height: renderSize }}>
+                    {ranksLeft.map((r) => (
+                      <div key={`rk-${r}`} className="flex min-h-0 flex-1 items-center justify-center">
+                        <span className={labelClass}>{r}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div className="shrink-0 overflow-hidden rounded-sm" style={{ width: renderSize, height: renderSize }}>
-                <Chessboard
-                  position={currentFen || undefined}
-                  boardWidth={renderSize}
-                  customDarkSquareStyle={{ backgroundColor: 'var(--board-dark)' }}
-                  customLightSquareStyle={{ backgroundColor: 'var(--board-light)' }}
-                  areArrowsAllowed={arrows.length > 0}
-                  customArrows={arrows}
-                  customSquareStyles={Object.keys(squareStyles).length > 0 ? squareStyles : undefined}
-                  arePiecesDraggable={false}
-                  boardOrientation={boardOrientation}
-                  showBoardNotation={false}
-                  snapToCursor={false}
-                />
-              </div>
-            </div>
-            <div className="mt-0.5 flex w-full shrink-0 justify-center">
-              <div className="flex items-start">
-                <div className="w-[22px] shrink-0" aria-hidden />
-                <div className="flex shrink-0" style={{ width: renderSize }}>
-                  {filesEdge.map((f) => (
-                    <span key={`b-${f}`} className={`flex-1 ${labelClass}`}>
-                      {f}
-                    </span>
-                  ))}
+                  <div
+                    className="shrink-0 overflow-hidden rounded-[12px]"
+                    style={{ width: renderSize, height: renderSize, boxShadow: 'var(--shadow-sm)' }}
+                  >
+                    <Chessboard
+                      position={currentFen || undefined}
+                      boardWidth={renderSize}
+                      customDarkSquareStyle={{ backgroundColor: 'var(--board-dark)' }}
+                      customLightSquareStyle={{ backgroundColor: 'var(--board-light)' }}
+                      areArrowsAllowed={arrows.length > 0}
+                      customArrows={arrows}
+                      customSquareStyles={Object.keys(squareStyles).length > 0 ? squareStyles : undefined}
+                      arePiecesDraggable={false}
+                      boardOrientation={boardOrientation}
+                      showBoardNotation={false}
+                      snapToCursor={false}
+                    />
+                  </div>
+                </div>
+                <div className="mt-0.5 flex">
+                  <div className="w-[22px] shrink-0" aria-hidden />
+                  <div className="flex shrink-0" style={{ width: renderSize }}>
+                    {filesEdge.map((f) => (
+                      <span key={`b-${f}`} className={`flex-1 ${labelClass}`}>
+                        {f}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          </>
+            </>
+          ) : null}
+        </div>
+        {isLoaded ? <PlayerPlate {...bottomPlate} /> : null}
+        {isLoaded ? (
+          <div className="board-status">
+            {curMove?.move ? (
+              <>
+                Last move <b className="mono">{curMove.move}</b> · {turnLine}
+              </>
+            ) : (
+              <>Starting position · {turnLine}</>
+            )}
+          </div>
+        ) : null}
+        {isLoaded ? (
+          <div className="navrow">
+            {navBtn('First', 'first', () => {
+              setPlaying(false)
+              manager.goToFirst()
+            })}
+            {navBtn('Previous', 'prev', () => {
+              setPlaying(false)
+              manager.movePrev()
+            })}
+            <button
+              type="button"
+              className="btn"
+              style={{ minWidth: 92, justifyContent: 'center' }}
+              onClick={() => setPlaying((p) => !p)}
+            >
+              <Icon name={playing ? 'pause' : 'play'} size={14} />
+              {playing ? 'Pause' : 'Play'}
+            </button>
+            {navBtn('Next', 'next', () => {
+              setPlaying(false)
+              manager.moveNext()
+            })}
+            {navBtn('Last', 'last', () => {
+              setPlaying(false)
+              manager.goToLast()
+            })}
+          </div>
         ) : null}
       </div>
-      {isLoaded ? (
-        <div className="mt-1 w-full max-w-[460px]">
-          <PlayerBarRow {...bottomBar} />
-        </div>
-      ) : null}
-      {isLoaded && (
-        <div className="mt-1 space-y-0.5 text-center">
-          <p className="text-[11px] font-medium text-text-primary">{lastMoveLine}</p>
-          <p className="text-[10px] text-text-secondary">{turnLine}</p>
-        </div>
-      )}
     </div>
   )
 }

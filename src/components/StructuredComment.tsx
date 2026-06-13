@@ -62,24 +62,15 @@ const PartCard: React.FC<{
   selected: boolean
   onSelect: () => void
 }> = ({ title, lineText, suffix, claims, selected, onSelect }) => (
-  <button
-    type="button"
-    onClick={onSelect}
-    aria-pressed={selected}
-    className={`block w-full rounded-md border p-2 text-left transition-colors ${
-      selected
-        ? 'border-accent-progress bg-accent-progress/10'
-        : 'border-border-tertiary bg-background-secondary/40 hover:border-border-secondary'
-    }`}
-  >
+  <button type="button" onClick={onSelect} aria-pressed={selected} className={`part-card${selected ? ' sel' : ''}`}>
     <div className="flex items-baseline justify-between gap-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+      <span className="eyebrow" style={selected ? { color: 'var(--accent)' } : undefined}>
         {selected ? '● ' : '○ '}
         {title}
       </span>
-      <span className="shrink-0 font-mono text-[10px] text-text-secondary">{suffix}</span>
+      <span className="shrink-0 mono text-[10px] text-text-secondary">{suffix}</span>
     </div>
-    <div className="mt-0.5 text-[12px] font-medium leading-snug text-text-primary">{lineText}</div>
+    <div className="mono mt-0.5 text-[13px] font-medium leading-snug text-text-primary">{lineText}</div>
     {claims.length ? (
       <ul className="mt-1 space-y-0.5">
         {claims.map((c, i) => (
@@ -124,11 +115,9 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSele
       ) : null}
 
       {debug ? (
-        <details className="rounded-md border border-border-tertiary bg-background-secondary/50 px-2 py-1">
-          <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
-            Reasoning details
-          </summary>
-          <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-[11px] text-text-secondary">
+        <details className="disclosure">
+          <summary>Reasoning details</summary>
+          <ol className="reason list-decimal pl-4">
             <li>
               Engine: eval{' '}
               {debug.eval_before_cp != null ? (debug.eval_before_cp / 100).toFixed(2) : '—'} →{' '}

@@ -265,7 +265,7 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
                 <button
                   type="button"
                   onClick={() => router.push(`/game/${jobId}`)}
-                  className="rounded-md bg-text-primary px-5 py-2.5 text-sm font-medium text-background-primary hover:opacity-90"
+                  className="btn btn-primary"
                 >
                   {job.status === 'engine_complete' ? 'Preview board →' : 'View game →'}
                 </button>

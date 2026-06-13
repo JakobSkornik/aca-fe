@@ -5,6 +5,15 @@ import type { PlayerLine } from '@/types/Line'
 import CommentItem from './CommentItem'
 import StructuredComment, { type CommentPart } from './StructuredComment'
 import VariationPlayer from './VariationPlayer'
+import Icon from '@/components/ui/Icon'
+
+function evalChipLabel(cp: number | null | undefined, mate: number | null | undefined, depth: number | null | undefined): string {
+  let head: string
+  if (mate != null && mate !== 0) head = `#${Math.abs(mate)}`
+  else if (cp != null) head = `${cp >= 0 ? '+' : ''}${(cp / 100).toFixed(2)}`
+  else return ''
+  return depth != null ? `${head} · depth ${depth}` : head
+}
 
 function formatCommentTitle(item: MainlineComment, moveNotation: string): string {
   return `Move ${Math.floor(item.moveIndex / 2) + 1}${item.moveIndex % 2 === 0 ? '.' : '...'} ${moveNotation}`
@@ -141,65 +150,55 @@ const Comments: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facts, selectedPart, gm, currentMoveIndex, state.gameJson])
 
-  const meta = state.gameJson?.metadata
+  const evalChip = evalChipLabel(
+    facts?.eval_cp ?? currentMove?.score ?? null,
+    facts?.eval_mate ?? currentMove?.mateIn,
+    facts?.depth ?? state.gameJson?.analysis_info?.depth ?? null
+  )
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background-primary">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-tertiary px-2 py-1">
-        <div className="flex items-center gap-1.5 text-[10px]">
-          {meta?.commentary_level ? (
-            <span className="rounded bg-accent-progress/20 px-1.5 py-0.5 font-medium capitalize text-text-secondary">
-              {meta.commentary_level}
-            </span>
-          ) : null}
-          {meta?.comment_side && meta.comment_side !== 'both' ? (
-            <span className="rounded bg-background-secondary px-1.5 py-0.5 font-medium capitalize text-text-tertiary">
-              {meta.comment_side} only
-            </span>
-          ) : null}
-          {commentaryGenerating ? (
-            <span className="flex items-center gap-1 font-medium text-text-warning">
-              <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-text-warning border-t-transparent" />
-              generating…
-            </span>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-1 text-[10px] text-text-tertiary">
-          <button
-            type="button"
-            disabled={!prevComment}
-            onClick={() => goToComment(prevComment)}
-            className="rounded border border-border-secondary px-1.5 py-0.5 font-medium text-text-secondary hover:bg-background-secondary disabled:opacity-40"
-            title="Previous comment"
-          >
-            ‹
+    <div className="panel flex h-full min-h-0 flex-col">
+      <div className="panel-head">
+        <Icon name="msg" size={15} />
+        <h3>Commentary</h3>
+        <div className="grow" />
+        {commentaryGenerating ? (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-text-warning">
+            <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-text-warning border-t-transparent" />
+            generating…
+          </span>
+        ) : null}
+        {evalChip ? (
+          <span className="chip adv">
+            <Icon name="cpu" size={12} />
+            {evalChip}
+          </span>
+        ) : null}
+        <div className="ml-1 flex items-center gap-1 text-[10px] text-text-tertiary">
+          <button type="button" className="btn icon-btn" style={{ width: 26, height: 26 }} disabled={!prevComment} onClick={() => goToComment(prevComment)} title="Previous comment">
+            <Icon name="prev" size={14} />
           </button>
-          <span className="tabular-nums">
+          <span className="mono tabular-nums">
             {navPos > 0 ? navPos : '–'}/{sortedForNav.length}
           </span>
-          <button
-            type="button"
-            disabled={!nextComment}
-            onClick={() => goToComment(nextComment)}
-            className="rounded border border-border-secondary px-1.5 py-0.5 font-medium text-text-secondary hover:bg-background-secondary disabled:opacity-40"
-            title="Next comment"
-          >
-            ›
+          <button type="button" className="btn icon-btn" style={{ width: 26, height: 26 }} disabled={!nextComment} onClick={() => goToComment(nextComment)} title="Next comment">
+            <Icon name="next" size={14} />
           </button>
         </div>
       </div>
 
       {/* Comment + part cards (flexible, scrolls) */}
-      <div className="min-h-0 flex-1 overflow-y-auto scroll-smooth px-2 py-1.5">
+      <div className="scroll-y min-h-0 flex-1">
         {displayedComments.length === 0 ? (
-          <div className="flex h-full min-h-[60px] flex-col items-center justify-center text-[11px] italic text-text-tertiary">
+          <div className="flex h-full min-h-[60px] flex-col items-center justify-center p-4 text-[12px] italic text-text-tertiary">
             <p>No commentary available for this game.</p>
           </div>
         ) : activeComment ? (
-          <>
+          <div className="comment-body">
+            <h2 className="comment-title">{activeMainTitle}</h2>
             <CommentItem
               id={`comment-main-${activeComment.moveId}`}
-              title={activeMainTitle}
+              title=""
               text={activeComment.text}
               isActive
               keyMomentType={activeKeyMomentType}
@@ -215,22 +214,22 @@ const Comments: React.FC = () => {
                 onSelectPart={setSelectedPart}
               />
             ) : null}
-          </>
+          </div>
         ) : (
-          <div className="flex h-full min-h-[60px] flex-col items-center justify-center px-2 text-center text-text-secondary">
-            <p className="mb-0.5 text-[11px] font-medium text-text-primary">No commentary for this move</p>
-            <p className="text-[10px] text-text-tertiary">
-              Use ‹ › above to jump between commented moves.
-            </p>
+          <div className="flex h-full min-h-[60px] flex-col items-center justify-center p-4 text-center text-text-secondary">
+            <p className="mb-0.5 text-[12px] font-medium text-text-primary">No commentary for this move</p>
+            <p className="text-[11px] text-text-tertiary">Use ‹ › above to jump between commented moves.</p>
           </div>
         )}
       </div>
 
-      {/* Player pinned directly under the comment it belongs to */}
-      <VariationPlayer
-        line={playerLine}
-        loadKey={`${currentMoveIndex}:${selectedPart}:${playerLine?.title ?? ''}`}
-      />
+      {/* PV player pinned directly under the comment it belongs to */}
+      <div className="shrink-0 border-t border-border-tertiary p-3">
+        <VariationPlayer
+          line={playerLine}
+          loadKey={`${currentMoveIndex}:${selectedPart}:${playerLine?.title ?? ''}`}
+        />
+      </div>
     </div>
   )
 }
