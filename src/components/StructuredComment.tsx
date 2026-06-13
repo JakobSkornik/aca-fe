@@ -115,7 +115,7 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSele
       ) : null}
 
       {debug ? (
-        <details className="disclosure">
+        <details className="disclosure" open>
           <summary>Reasoning details</summary>
           <ol className="reason list-decimal pl-4">
             <li>

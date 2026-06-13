@@ -99,30 +99,37 @@ const Comments: React.FC = () => {
   // it falls back to engine PV1, then the game continuation (book theory).
   const playerLine = useMemo<PlayerLine | null>(() => {
     if (facts) {
-      const src =
-        selectedPart === 'alt' && facts.better_alternative?.display_line?.san?.length
+      const useAlt = selectedPart === 'alt' && !!facts.better_alternative?.display_line?.san?.length
+      const src = useAlt
+        ? {
+            line: facts.better_alternative!.display_line!,
+            claims: facts.better_alternative!.claims,
+            evalCp: facts.better_alternative!.eval_cp,
+            evalMate: null as number | null,
+            title: `Better was ${facts.better_alternative!.san}`,
+          }
+        : facts.display_line?.san?.length
           ? {
-              line: facts.better_alternative.display_line,
-              evalCp: facts.better_alternative.eval_cp,
-              evalMate: null as number | null,
-              title: `Better was ${facts.better_alternative.san}`,
+              line: facts.display_line,
+              claims: facts.claims,
+              evalCp: facts.eval_cp,
+              evalMate: facts.eval_mate,
+              title: 'Main line',
             }
-          : facts.display_line?.san?.length
-            ? {
-                line: facts.display_line,
-                evalCp: facts.eval_cp,
-                evalMate: facts.eval_mate,
-                title: 'Main line',
-              }
-            : null
+          : null
       if (src) {
+        const chartFeatures = Array.from(
+          new Set((src.claims ?? []).flatMap((c) => c.features ?? []))
+        ).slice(0, 4)
         return {
-          steps: src.line!.san.map((san, i) => ({ san, fen: src.line!.fens[i] ?? '' })),
-          startFen: src.line!.start_fen,
+          steps: src.line.san.map((san, i) => ({ san, fen: src.line.fens[i] ?? '' })),
+          startFen: src.line.start_fen,
           evalCp: src.evalCp,
           evalMate: src.evalMate,
           depth: facts.depth,
           title: src.title,
+          featureSeries: src.line.feature_series ?? {},
+          chartFeatures,
         }
       }
     }
@@ -228,6 +235,9 @@ const Comments: React.FC = () => {
         <VariationPlayer
           line={playerLine}
           loadKey={`${currentMoveIndex}:${selectedPart}:${playerLine?.title ?? ''}`}
+          mainlineSeries={state.gameJson?.feature_series?.features ?? {}}
+          mainlinePlies={state.gameJson?.feature_series?.plies?.length ?? 0}
+          mainlinePly={currentMoveIndex}
         />
       </div>
     </div>

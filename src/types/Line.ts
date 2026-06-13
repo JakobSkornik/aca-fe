@@ -26,4 +26,8 @@ export type PlayerLine = {
   depth?: number | null
   keyFactors?: KeyFactor[]
   title?: string
+  /** Feature progression along this line (point 0 = start, then per ply), cp. */
+  featureSeries?: Record<string, number[]>
+  /** Feature names the comment fired on — the charts to show beside the board. */
+  chartFeatures?: string[]
 }

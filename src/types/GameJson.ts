@@ -110,6 +110,8 @@ export interface CommentFactsLine {
   start_fen: string;
   san: string[];
   fens: string[];
+  /** Per-point feature progression along the line (cp); keyed by feature name. */
+  feature_series?: Record<string, number[]>;
 }
 
 export interface CommentFactsClaim {
