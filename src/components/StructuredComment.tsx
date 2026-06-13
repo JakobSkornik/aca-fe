@@ -60,26 +60,33 @@ const PartCard: React.FC<{
   suffix: string
   claims: CommentFactsClaim[]
   selected: boolean
+  /** 'main' = green, 'alt' = gray — matches the tab/line colors elsewhere. */
+  tone: 'main' | 'alt'
   onSelect: () => void
-}> = ({ title, lineText, suffix, claims, selected, onSelect }) => (
-  <button type="button" onClick={onSelect} aria-pressed={selected} className={`part-card${selected ? ' sel' : ''}`}>
-    <div className="flex items-baseline justify-between gap-2">
-      <span className="eyebrow" style={selected ? { color: 'var(--accent)' } : undefined}>
-        {selected ? '● ' : '○ '}
-        {title}
-      </span>
-      <span className="shrink-0 mono text-[10px] text-text-secondary">{suffix}</span>
-    </div>
-    <div className="mono mt-0.5 text-[13px] font-medium leading-snug text-text-primary">{lineText}</div>
-    {claims.length ? (
-      <ul className="mt-1 space-y-0.5">
-        {claims.map((c, i) => (
-          <ClaimRow key={`c-${i}`} claim={c} />
-        ))}
-      </ul>
-    ) : null}
-  </button>
-)
+}> = ({ title, lineText, suffix, claims, selected, tone, onSelect }) => {
+  const toneColor = tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
+  return (
+    <button type="button" onClick={onSelect} aria-pressed={selected} className={`part-card${selected ? ' sel' : ''}`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="eyebrow" style={{ color: toneColor }}>
+          {selected ? '● ' : '○ '}
+          {title}
+        </span>
+        <span className="shrink-0 mono text-[10px] text-text-secondary">{suffix}</span>
+      </div>
+      <div className="mono mt-0.5 text-[13px] font-medium leading-snug" style={{ color: toneColor }}>
+        {lineText}
+      </div>
+      {claims.length ? (
+        <ul className="mt-1 space-y-0.5">
+          {claims.map((c, i) => (
+            <ClaimRow key={`c-${i}`} claim={c} />
+          ))}
+        </ul>
+      ) : null}
+    </button>
+  )
+}
 
 /**
  * One card per line of the comment (main line / better alternative), each with
@@ -99,6 +106,7 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSele
           suffix={evalDepthSuffix(facts.eval_cp, facts.eval_mate, facts.depth)}
           claims={facts.claims ?? []}
           selected={selectedPart === 'main'}
+          tone="main"
           onSelect={() => onSelectPart('main')}
         />
       ) : null}
@@ -110,6 +118,7 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSele
           suffix={evalDepthSuffix(alt.eval_cp, null, facts.depth)}
           claims={alt.claims ?? []}
           selected={selectedPart === 'alt'}
+          tone="alt"
           onSelect={() => onSelectPart('alt')}
         />
       ) : null}

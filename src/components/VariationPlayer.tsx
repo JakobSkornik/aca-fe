@@ -29,32 +29,78 @@ function featureLabel(name: string): string {
   return side + t
 }
 
-/** Tiny sparkline (cp series → pawns), with a marker at `markerIdx`. */
-function Mini({ values, markerIdx, accent }: { values: (number | null)[]; markerIdx: number; accent: string }) {
-  const nums = values.filter((v): v is number => v != null)
-  if (nums.length < 2) return <svg viewBox="0 0 100 24" className="block h-[24px] w-full" />
-  let lo = Math.min(...nums) / 100
-  let hi = Math.max(...nums) / 100
+function polyPoints(values: (number | null)[], lo: number, hi: number, h: number): string {
+  const n = values.length
+  if (n < 2) return ''
+  const span = hi - lo || 1
+  const out: string[] = []
+  for (let i = 0; i < n; i++) {
+    const v = values[i]
+    if (v == null) continue
+    const x = (i / (n - 1)) * 100
+    const y = h - 2 - ((v / 100 - lo) / span) * (h - 4)
+    out.push(`${x.toFixed(1)},${y.toFixed(1)}`)
+  }
+  return out.join(' ')
+}
+
+/**
+ * One merged chart per fired feature (bottom-panel style): the feature's
+ * progression over the whole game (grey) and along the displayed line (accent)
+ * on a shared y-scale so the difference is directly visible, plus a Δ pill
+ * showing how much the line shifts the feature.
+ */
+function MergedFeatureChart({
+  label,
+  gameValues,
+  lineValues,
+  gamePly,
+  lineIdx,
+}: {
+  label: string
+  gameValues: (number | null)[]
+  lineValues: (number | null)[]
+  gamePly: number
+  lineIdx: number
+}) {
+  const H = 34
+  const allNums = [...gameValues, ...lineValues].filter((v): v is number => v != null)
+  if (allNums.length < 2) return null
+  let lo = Math.min(...allNums) / 100
+  let hi = Math.max(...allNums) / 100
   if (hi - lo < 0.2) {
     const m = (hi + lo) / 2
     lo = m - 0.1
     hi = m + 0.1
   }
-  const n = values.length
-  const X = (i: number) => (i / (n - 1)) * 100
-  const Y = (v: number) => 22 - ((v / 100 - lo) / (hi - lo)) * 20 - 1
-  const pts = values
-    .map((v, i) => (v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`))
-    .filter(Boolean)
-    .join(' ')
-  const zeroY = lo <= 0 && hi >= 0 ? Y(0) : null
-  const mx = X(Math.max(0, Math.min(markerIdx, n - 1)))
+  const pad = (hi - lo) * 0.15
+  lo -= pad
+  hi += pad
+  const zeroY = lo <= 0 && hi >= 0 ? H - 2 - ((0 - lo) / (hi - lo)) * (H - 4) : null
+  const lineNums = lineValues.filter((v): v is number => v != null)
+  const delta = lineNums.length >= 2 ? lineNums[lineNums.length - 1] - lineNums[0] : 0
+  const gameMx = gameValues.length > 1 ? (Math.max(0, Math.min(gamePly, gameValues.length - 1)) / (gameValues.length - 1)) * 100 : 0
+  const lineMx = lineValues.length > 1 ? (Math.max(0, Math.min(lineIdx, lineValues.length - 1)) / (lineValues.length - 1)) * 100 : 0
   return (
-    <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="block h-[24px] w-full" style={{ background: 'var(--bg-inset)', borderRadius: 4 }}>
-      {zeroY != null ? <line x1={0} y1={zeroY} x2={100} y2={zeroY} stroke="var(--line-2)" strokeWidth={0.5} strokeDasharray="2 2" /> : null}
-      <polyline points={pts} fill="none" stroke={accent} strokeWidth={1.4} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      <line x1={mx} y1={0} x2={mx} y2={24} stroke="var(--inacc)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-    </svg>
+    <div className="feat-card">
+      <div className="feat-top">
+        <span className="feat-name">{label}</span>
+        <span className="feat-swing">Δ {(delta / 100).toFixed(2)}</span>
+      </div>
+      <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" className="feat-spark">
+        {zeroY != null ? (
+          <line x1={0} y1={zeroY} x2={100} y2={zeroY} stroke="var(--line-2)" strokeWidth={0.6} strokeDasharray="2 2" />
+        ) : null}
+        {gameValues.length > 1 ? (
+          <polyline points={polyPoints(gameValues, lo, hi, H)} fill="none" stroke="var(--fg-3)" strokeWidth={1.2} strokeLinejoin="round" opacity={0.7} vectorEffect="non-scaling-stroke" />
+        ) : null}
+        <polyline points={polyPoints(lineValues, lo, hi, H)} fill="none" stroke="var(--accent)" strokeWidth={1.6} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        {gameValues.length > 1 ? (
+          <line x1={gameMx} y1={0} x2={gameMx} y2={H} stroke="var(--fg-3)" strokeWidth={0.8} strokeDasharray="1 2" vectorEffect="non-scaling-stroke" />
+        ) : null}
+        <line x1={lineMx} y1={0} x2={lineMx} y2={H} stroke="var(--inacc)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+      </svg>
+    </div>
   )
 }
 
@@ -99,6 +145,8 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
   const arrows: Arrow[] =
     step?.from && step?.to ? [[step.from as Square, step.to as Square, 'var(--arrow)']] : []
   const suffix = evalDepthSuffix(line.evalCp, line.evalMate, line.depth)
+  // main line = green (accent), better alternative = gray (fg-3)
+  const toneColor = line.tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
   const features = (line.chartFeatures ?? []).filter(
     (f) => (line.featureSeries?.[f]?.length ?? 0) > 1 || (mainlineSeries[f]?.length ?? 0) > 1
   )
@@ -112,7 +160,7 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
   return (
     <div className="pv-card">
       <div className="pv-head">
-        <span className="eyebrow">{line.title || 'Variation'}</span>
+        <span className="eyebrow" style={{ color: toneColor }}>{line.title || 'Variation'}</span>
         <div className="grow" />
         {suffix ? <span className="mono text-[11px] text-text-tertiary">{suffix}</span> : null}
         <span className="mono text-[11px] text-text-tertiary">
@@ -168,34 +216,30 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
           </div>
         </div>
 
-        {/* Right: fired-rule charts — mainline vs along this line */}
+        {/* Right: fired-rule charts — game vs this line, merged per feature */}
         <div className="min-w-[200px] flex-1">
           {features.length ? (
             <>
               <div className="mb-1 flex items-center gap-3 text-[9px] text-text-tertiary">
                 <span className="eyebrow" style={{ fontSize: 9 }}>Fired-rule features</span>
                 <span className="ml-auto inline-flex items-center gap-1">
-                  <span className="inline-block h-0.5 w-3 rounded" style={{ background: 'var(--fg-2)' }} /> game
+                  <span className="inline-block h-0.5 w-3 rounded" style={{ background: 'var(--fg-3)' }} /> game
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <span className="inline-block h-0.5 w-3 rounded" style={{ background: 'var(--accent)' }} /> this line
                 </span>
               </div>
-              <div className="space-y-1.5">
-                {features.map((f) => {
-                  const hasGame = (mainlineSeries[f]?.length ?? 0) > 1
-                  return (
-                    <div key={f}>
-                      <div className="mb-0.5 truncate text-[10px] font-medium text-text-secondary">{featureLabel(f)}</div>
-                      <div className={`grid gap-1.5 ${hasGame ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                        {hasGame ? (
-                          <Mini values={mainlineSeries[f]} markerIdx={mainlinePly} accent="var(--fg-2)" />
-                        ) : null}
-                        <Mini values={line.featureSeries?.[f] ?? []} markerIdx={safeIdx} accent="var(--accent)" />
-                      </div>
-                    </div>
-                  )
-                })}
+              <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+                {features.map((f) => (
+                  <MergedFeatureChart
+                    key={f}
+                    label={featureLabel(f)}
+                    gameValues={mainlineSeries[f] ?? []}
+                    lineValues={line.featureSeries?.[f] ?? []}
+                    gamePly={mainlinePly}
+                    lineIdx={safeIdx}
+                  />
+                ))}
               </div>
             </>
           ) : (
@@ -206,12 +250,13 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
         </div>
       </div>
 
-      {/* Numbered move tokens (click to jump within the line) */}
+      {/* Numbered move tokens (click to jump within the line); colored by part */}
       <div className="pv-line border-t border-border-tertiary px-3 py-2">
         {numbered.map((n, i) => (
           <span
             key={`pl-${i}`}
             className={`pv-move${i === safeIdx - 1 ? ' on' : ''}`}
+            style={i === safeIdx - 1 ? undefined : { color: toneColor }}
             onClick={() => {
               setPlaying(false)
               setIdx(i + 1)

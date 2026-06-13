@@ -65,6 +65,8 @@ export interface GameMove {
   event_type: string | null;
   tactical_motifs: string[];
   is_critical: boolean;
+  /** True only for real key-moment/teaching commentary (drives the move dot). */
+  is_key_moment?: boolean;
   episode_index: number | null;
   feature_refs?: FeatureRef[];
   feature_diff?: FeatureDiff | null;

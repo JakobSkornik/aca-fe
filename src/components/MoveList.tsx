@@ -70,11 +70,20 @@ const MoveList = () => {
   const { currentMoveIndex, isAnalysisInProgress, analysisProgress, isFullyAnalyzed, commentsMainline, aiGeneration } =
     state
 
+  // Dot only on moves with real key-moment/teaching commentary — not the
+  // template-floor facts that every analyzed move carries. Move id = index+1.
   const moveIdsWithComment = useMemo(() => {
     const s = new Set<number>()
-    for (const c of commentsMainline) s.add(c.moveId)
+    const gmoves = state.gameJson?.moves
+    if (gmoves) {
+      gmoves.forEach((m, i) => {
+        if (m.is_key_moment) s.add(i + 1)
+      })
+    } else {
+      for (const c of commentsMainline) s.add(c.moveId)
+    }
     return s
-  }, [commentsMainline])
+  }, [state.gameJson, commentsMainline])
 
   const displayedMoves = manager.getDisplayedMovesList()
   const pairCount = Math.ceil(displayedMoves.length / 2)

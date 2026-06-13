@@ -38,9 +38,22 @@ const Comments: React.FC = () => {
   const currentMoveId = currentMove?.id
 
   const displayedComments = commentsMainline
+  // Nav/count covers only real key-moment commentary, not the template floor
+  // every analyzed move carries. (The reading pane still shows facts for any
+  // selected move via comment_facts.)
+  const keyMomentIdx = useMemo(() => {
+    const s = new Set<number>()
+    state.gameJson?.moves?.forEach((m, i) => {
+      if (m.is_key_moment) s.add(i)
+    })
+    return s
+  }, [state.gameJson])
   const sortedForNav = useMemo(
-    () => [...displayedComments].sort((a, b) => a.moveIndex - b.moveIndex),
-    [displayedComments]
+    () =>
+      [...displayedComments]
+        .filter((c) => keyMomentIdx.size === 0 || keyMomentIdx.has(c.moveIndex))
+        .sort((a, b) => a.moveIndex - b.moveIndex),
+    [displayedComments, keyMomentIdx]
   )
 
   const activeComment = useMemo(() => {
@@ -130,6 +143,7 @@ const Comments: React.FC = () => {
           title: src.title,
           featureSeries: src.line.feature_series ?? {},
           chartFeatures,
+          tone: useAlt ? 'alt' : 'main',
         }
       }
     }

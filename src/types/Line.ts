@@ -30,4 +30,6 @@ export type PlayerLine = {
   featureSeries?: Record<string, number[]>
   /** Feature names the comment fired on — the charts to show beside the board. */
   chartFeatures?: string[]
+  /** Which comment part this line is: 'main' (green) or 'alt' (gray). */
+  tone?: 'main' | 'alt'
 }
