@@ -40,18 +40,24 @@ function pvLineToSteps(line: unknown): LineStep[] | null {
   return out.length ? out : null
 }
 
-const TokenPv: React.FC<{ data: Record<string, unknown> | null; raw: string }> = ({ data, raw }) => {
+const TokenPv: React.FC<{ data: Record<string, unknown> | null; raw: string; tone: 'main' | 'alt' }> = ({
+  data,
+  raw,
+  tone,
+}) => {
   // Lines live in the part cards and the player; inside prose they render as
   // plain numbered text so the same line is never shown interactively twice.
+  // Colored to match the part-card tabs: main line green, alternative gray.
+  const color = tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
   const pv = pvLineToSteps(data?.line)
   if (!pv?.length) {
     const inner = raw.startsWith('[pv:') ? raw.slice(4, -1) : raw
-    return <span className="font-medium text-text-primary">{inner}</span>
+    return <span className="font-semibold" style={{ color }}>{inner}</span>
   }
   const text = formatNumberedSteps(pv)
     .map((n) => n.label)
     .join(' ')
-  return <span className="mx-0.5 font-medium text-text-primary">{text}</span>
+  return <span className="mx-0.5 font-semibold" style={{ color }}>{text}</span>
 }
 
 const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }) => {
@@ -62,6 +68,20 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
     () => parseAnnotatedText(text, resolvedTokens ?? undefined),
     [text, resolvedTokens]
   )
+
+  // The first PV in the prose is the main line (green); any later PV is the
+  // better-alternative line (gray) — matches the part-card tab colors.
+  const pvTone = useMemo(() => {
+    const tones: Record<number, 'main' | 'alt'> = {}
+    let seen = 0
+    segments.forEach((seg, i) => {
+      if (seg.kind === 'token' && seg.tokenType === 'pv') {
+        tones[i] = seen === 0 ? 'main' : 'alt'
+        seen += 1
+      }
+    })
+    return tones
+  }, [segments])
 
   const applyMoveHover = (data: Record<string, unknown> | null, san: string) => {
     const fromData = data?.from as string | undefined
@@ -134,7 +154,7 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
 
     switch (tokenType) {
       case 'pv':
-        return <TokenPv key={`pv-${i}`} data={data} raw={seg.raw} />
+        return <TokenPv key={`pv-${i}`} data={data} raw={seg.raw} tone={pvTone[i] ?? 'main'} />
       case 'move':
         return (
           <span
