@@ -22,6 +22,8 @@ export interface JobResponse {
   move_count: number | null
   llm_provider: string | null
   llm_effort: string | null
+  commentary_level?: string | null
+  comment_side?: string | null
   error: string | null
   queued_ahead: number | null
   pgn_preview: string | null

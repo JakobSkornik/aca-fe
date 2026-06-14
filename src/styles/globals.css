@@ -2,74 +2,128 @@
 @tailwind components;
 @tailwind utilities;
 
-@import '@fontsource/montserrat/400.css';
-@import '@fontsource/montserrat/500.css';
-@import '@fontsource/montserrat/600.css';
-@import '@fontsource/montserrat/700.css';
+/* Hanken Grotesk (sans) + JetBrains Mono (mono) — the chess-annotator template fonts */
+@import '@fontsource/hanken-grotesk/400.css';
+@import '@fontsource/hanken-grotesk/500.css';
+@import '@fontsource/hanken-grotesk/600.css';
+@import '@fontsource/hanken-grotesk/700.css';
+@import '@fontsource/hanken-grotesk/800.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/600.css';
+@import '@fontsource/jetbrains-mono/700.css';
 
-/* Design tokens — aligned with wireframes; Tailwind maps to these in tailwind.config.js */
-:root {
-  --font-sans: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Fira Code', monospace;
+@import './chess-annotator.css';
 
-  --color-background-primary: #ffffff;
-  --color-background-secondary: #f5f5f4;
-  --color-background-info: #eff6ff;
-  --color-background-warning: #fffbeb;
-  --color-background-success: #f0fdf4;
-  --color-background-danger: #fef2f2;
+/* ============================================================
+   Design tokens — "chess-annotator" visual system.
+   The raw --bg/--fg/--line/--accent ladder is the source of truth;
+   our legacy Tailwind tokens (--color-*) are re-pointed onto it so
+   every existing `bg-background-*`, `text-*`, `border-*`, `accent-*`
+   class inherits the new palette automatically.
+   ============================================================ */
+:root,
+[data-theme='dark'] {
+  --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --color-text-primary: #1c1c1a;
-  --color-text-secondary: #57534e;
-  --color-text-tertiary: #a8a29e;
-  --color-text-info: #1d4ed8;
-  --color-text-warning: #92400e;
-  --color-text-success: #166534;
-  --color-text-danger: #991b1b;
+  /* template ladder (dark) */
+  --bg: #0f1217;
+  --bg-2: #161a21;
+  --bg-3: #1c212a;
+  --bg-inset: #11151b;
+  --line: #262c37;
+  --line-2: #333b49;
+  --fg: #e8ebf1;
+  --fg-2: #a4adbd;
+  --fg-3: #6b7585;
+  --accent: #5fd08a;
+  --accent-2: #8be0ac;
+  --accent-bg: #14241c;
+  --good: #5fd08a;
+  --inacc: #e6b056;
+  --mistake: #e58a4b;
+  --blunder: #e55b53;
+  --info: #5b9be8;
+  --arrow: #5b9be8;
+  --board-coord: rgba(255, 255, 255, 0.55);
+  --hl-last: rgba(232, 176, 86, 0.3);
+  --eval-white: #edeff3;
+  --eval-black: #10141a;
+  --shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
 
-  --color-border-tertiary: rgba(0, 0, 0, 0.1);
-  --color-border-secondary: rgba(0, 0, 0, 0.18);
-  --color-border-primary: rgba(0, 0, 0, 0.32);
-  --color-border-info: #bfdbfe;
-  --color-border-danger: #fecaca;
+  --board-light: #e8e6d9;
+  --board-dark: #6e8c6a;
 
-  --border-radius-md: 8px;
-  --border-radius-lg: 12px;
+  --border-radius-md: 9px;
+  --border-radius-lg: 16px;
 
-  /* Chess board (classic) */
-  --board-light: #f0d9b5;
-  --board-dark: #b58863;
-  --accent-engine: #3b82f6;
-  --accent-commentary: #a855f7;
-  --accent-progress: #f59e0b;
+  /* legacy Tailwind tokens re-pointed onto the ladder */
+  --color-background-primary: var(--bg-2);
+  --color-background-secondary: var(--bg-3);
+  --color-background-info: #16263c;
+  --color-background-warning: #2c2410;
+  --color-background-success: var(--accent-bg);
+  --color-background-danger: #2e1614;
+
+  --color-text-primary: var(--fg);
+  --color-text-secondary: var(--fg-2);
+  --color-text-tertiary: var(--fg-3);
+  --color-text-info: var(--info);
+  --color-text-warning: var(--inacc);
+  --color-text-success: var(--good);
+  --color-text-danger: var(--blunder);
+
+  --color-border-tertiary: var(--line);
+  --color-border-secondary: var(--line-2);
+  --color-border-primary: var(--line-2);
+  --color-border-info: color-mix(in srgb, var(--info) 40%, var(--line));
+  --color-border-danger: color-mix(in srgb, var(--blunder) 40%, var(--line));
+
+  /* full template palette for accents (per decision) */
+  --accent-engine: var(--info);
+  --accent-commentary: var(--accent);
+  --accent-progress: var(--inacc);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background-primary: #1c1c1a;
-    --color-background-secondary: #282825;
-    --color-background-info: #1e3a5f;
-    --color-background-warning: #3d2c00;
-    --color-background-success: #14301a;
-    --color-background-danger: #3d1414;
+[data-theme='light'] {
+  --bg: #efede6;
+  --bg-2: #fbfaf6;
+  --bg-3: #f1efe7;
+  --bg-inset: #e8e5db;
+  --line: #e0dcd0;
+  --line-2: #cfc9b9;
+  --fg: #24272e;
+  --fg-2: #5c616c;
+  --fg-3: #8b9099;
+  --accent: #2e9e63;
+  --accent-2: #248152;
+  --accent-bg: #e3f3e9;
+  --good: #2e9e63;
+  --inacc: #c98a1e;
+  --mistake: #c9722e;
+  --blunder: #cf4339;
+  --info: #2f73c2;
+  --arrow: #2f73c2;
+  --board-coord: rgba(30, 40, 30, 0.55);
+  --hl-last: rgba(201, 138, 30, 0.28);
+  --eval-white: #f4f2ea;
+  --eval-black: #3a3f47;
+  --shadow: 0 18px 44px -20px rgba(60, 70, 80, 0.3);
+  --shadow-sm: 0 1px 2px rgba(60, 70, 80, 0.12);
 
-    --color-text-primary: #e8e6e1;
-    --color-text-secondary: #a8a29e;
-    --color-text-tertiary: #6b6760;
-    --color-text-info: #93c5fd;
-    --color-text-warning: #fcd34d;
-    --color-text-success: #86efac;
-    --color-text-danger: #fca5a5;
+  --board-light: #ede6d2;
+  --board-dark: #9aae84;
 
-    --color-border-tertiary: rgba(255, 255, 255, 0.08);
-    --color-border-secondary: rgba(255, 255, 255, 0.15);
-    --color-border-primary: rgba(255, 255, 255, 0.28);
-    --color-border-info: #1e40af;
-    --color-border-danger: #7f1d1d;
+  --color-background-info: #e7eefb;
+  --color-background-warning: #f6efdd;
+  --color-background-success: var(--accent-bg);
+  --color-background-danger: #f8e3e1;
+}
 
-    --board-light: #c9a882;
-    --board-dark: #6b4f3a;
-  }
+* {
+  box-sizing: border-box;
 }
 
 html {
@@ -78,13 +132,15 @@ html {
 
 body {
   font-family: var(--font-sans);
-  color: var(--color-text-primary);
-  background: var(--color-background-secondary);
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 /* Subtle hover for interactive rows */
 @layer utilities {
   .hvr-surface:hover {
-    background: var(--color-background-secondary);
+    background: var(--bg-3);
   }
 }

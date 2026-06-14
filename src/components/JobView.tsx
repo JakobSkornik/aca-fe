@@ -147,7 +147,8 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
           right={<BackendHealthIndicator backendOk={backendOk} />}
         />
 
-        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_280px] lg:items-start">
+        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_280px] lg:items-stretch">
+          <div className="flex h-full min-h-0 flex-col gap-5">
           <Card
             title={cardTitle(job.status)}
             headerRight={
@@ -155,6 +156,7 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
                 {job.job_id}
               </span>
             }
+            className="flex flex-1 flex-col"
             bodyClassName="px-5 py-6"
           >
             <JobPipeline status={job.status} failedAtEngine={failedAtEngine} />
@@ -263,7 +265,7 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
                 <button
                   type="button"
                   onClick={() => router.push(`/game/${jobId}`)}
-                  className="rounded-md bg-text-primary px-5 py-2.5 text-sm font-medium text-background-primary hover:opacity-90"
+                  className="btn btn-primary"
                 >
                   {job.status === 'engine_complete' ? 'Preview board →' : 'View game →'}
                 </button>
@@ -276,9 +278,19 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
             </div>
           </Card>
 
-          <div className="flex flex-col gap-3.5">
-            <Card title="Job details" bodyClassName="px-4 py-3">
-              <dl className="flex flex-col gap-2 text-xs">
+          {tip ? (
+            <Card title="While you wait" bodyClassName="px-4 py-3 text-xs leading-relaxed text-text-secondary">
+              {tip}
+            </Card>
+          ) : null}
+          </div>
+
+          <Card
+            title="Job details"
+            className="flex h-full min-h-0 flex-col"
+            bodyClassName="flex min-h-0 flex-1 flex-col px-4 py-3"
+          >
+              <dl className="flex shrink-0 flex-col gap-2 text-xs">
                 <div className="flex justify-between gap-2">
                   <dt className="shrink-0 text-text-tertiary">Job ID</dt>
                   <dd className="max-w-[140px] truncate text-right font-mono text-text-secondary">{job.job_id}</dd>
@@ -306,23 +318,24 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
                   <dd className="font-mono text-right text-text-secondary">{job.llm_effort || '—'}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
+                  <dt className="shrink-0 text-text-tertiary">Language</dt>
+                  <dd className="text-right capitalize text-text-secondary">{job.commentary_level || 'intermediate'}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="shrink-0 text-text-tertiary">Side</dt>
+                  <dd className="text-right capitalize text-text-secondary">{job.comment_side || 'both'}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
                   <dt className="shrink-0 text-text-tertiary">Submitted</dt>
                   <dd className="font-mono text-right text-text-secondary">{formatAgo(job.created_at)}</dd>
                 </div>
               </dl>
               {job.pgn_preview ? (
-                <pre className="mt-3 max-h-20 overflow-hidden rounded-md border border-border-tertiary bg-background-secondary p-2.5 font-mono text-[11px] leading-relaxed text-text-tertiary">
+                <pre className="mt-3 min-h-[80px] flex-1 overflow-auto rounded-md border border-border-tertiary bg-background-secondary p-2.5 font-mono text-[11px] leading-relaxed text-text-tertiary">
                   {job.pgn_preview}
                 </pre>
               ) : null}
-            </Card>
-
-            {tip ? (
-              <Card title="While you wait" bodyClassName="px-4 py-3 text-xs leading-relaxed text-text-secondary">
-                {tip}
-              </Card>
-            ) : null}
-          </div>
+          </Card>
         </div>
       </div>
     </div>

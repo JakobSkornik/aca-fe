@@ -3,13 +3,11 @@ import { useRouter } from 'next/router'
 import { useGameState } from '@/contexts/GameStateContext'
 import { jobService } from '@/services/JobService'
 import MainlineChessboard from '@/components/MainlineChessboard'
-import GameSummaryPanel from '@/components/GameSummaryPanel'
 import MoveList from '@/components/MoveList'
 import Comments from '@/components/Comments'
-import OpeningMetadataCard from '@/components/game/OpeningMetadataCard'
-import EvaluationPanel from '@/components/game/EvaluationPanel'
-import { TopBar } from '@/components/ui/TopBar'
-import { Card } from '@/components/ui/Card'
+import FeatureChartsPanel from '@/components/FeatureChartsPanel'
+import GameTopBar from '@/components/game/GameTopBar'
+import GameBar from '@/components/game/GameBar'
 import type { GameJson } from '@/types/GameJson'
 
 const GamePage = () => {
@@ -48,6 +46,29 @@ const GamePage = () => {
     }
   }, [id])
 
+  const exportGamePgn = useCallback(async () => {
+    if (!id || typeof id !== 'string') return
+    if (id === 'offline') {
+      window.alert('PGN export needs the backend; offline games can only export JSON.')
+      return
+    }
+    try {
+      const pgn = await jobService.getGamePgn(id, true)
+      const blob = new Blob([pgn], { type: 'application/x-chess-pgn' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `game_${id}.pgn`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      window.alert('Failed to export PGN')
+    }
+  }, [id])
+
   useEffect(() => {
     if (!id || typeof id !== 'string') return
 
@@ -80,7 +101,7 @@ const GamePage = () => {
         setError(null)
         const gameJson = await jobService.getGameJson(id)
         manager.loadGameFromJson(gameJson)
-        if (gameJson.game_narrative == null) {
+        if (!(gameJson.commentary_complete ?? gameJson.game_narrative != null)) {
           manager.connectToJobCommentaryWs(id)
         }
       } catch (e) {
@@ -125,81 +146,35 @@ const GamePage = () => {
     )
   }
 
-  const subtitle =
-    typeof id === 'string' ? (id === 'offline' ? 'Offline JSON' : `Job ${id.slice(0, 8)}…`) : undefined
+  const jobLabel =
+    typeof id === 'string' ? (id === 'offline' ? 'Offline JSON' : `Job ${id.slice(0, 8)}…`) : 'Job'
 
   return (
-    <div className="flex h-screen min-h-0 min-w-[1024px] flex-col overflow-hidden bg-background-secondary">
-      <TopBar
-        subtitle={subtitle}
-        onLogoClick={() => router.push('/')}
-        right={
-          <>
-            <button
-              type="button"
-              onClick={() => manager.flipBoard()}
-              className="rounded-md border border-border-secondary bg-background-primary px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-background-secondary"
-            >
-              Flip board
-            </button>
-            <button
-              type="button"
-              onClick={() => void exportGameJson()}
-              className="rounded-md border border-border-secondary bg-background-primary px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-background-secondary"
-            >
-              Export JSON
-            </button>
-          </>
-        }
+    <div className="app flex h-screen min-h-0 min-w-[1024px] flex-col overflow-hidden">
+      <GameTopBar
+        jobLabel={jobLabel}
+        onHome={() => router.push('/')}
+        onFlip={() => manager.flipBoard()}
+        onExportPgn={() => void exportGamePgn()}
+        onExportJson={() => void exportGameJson()}
       />
+      <GameBar />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-        {/* Row 1: board | opening + engine | summary */}
-        <div className="flex min-h-[260px] max-h-[46vh] shrink-0 flex-col gap-3 xl:flex-row xl:overflow-hidden">
-          <div className="flex min-h-0 shrink-0 justify-center xl:w-[min(28vw,440px)] xl:shrink-0">
-            <Card
-              title="Board"
-              headerClassName="!px-2.5 !py-1.5"
-              titleClassName="!text-[11px]"
-              className="flex w-full max-w-[440px] flex-col overflow-hidden"
-              bodyClassName="flex justify-center px-1.5 pb-1.5 pt-1"
-            >
-              <MainlineChessboard />
-            </Card>
+      {/* Split layout: board · commentary · moves, then full-width features */}
+      <div className="min-h-0 flex-1 overflow-auto p-4">
+        <div className="ca-split">
+          <div style={{ gridArea: 'board' }}>
+            <MainlineChessboard />
           </div>
-          <div className="flex min-h-0 min-w-0 w-full shrink-0 flex-col gap-3 xl:w-[min(22vw,360px)] xl:max-w-[360px]">
-            <div className="min-h-[140px] shrink-0">
-              <OpeningMetadataCard />
-            </div>
-            <div className="flex min-h-[160px] min-h-0 flex-1 flex-col overflow-hidden">
-              <EvaluationPanel />
-            </div>
-          </div>
-          <div className="min-h-[200px] min-w-0 w-full flex-1 overflow-hidden">
-            <GameSummaryPanel />
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-row gap-3 overflow-hidden">
-          <Card
-            title="Moves"
-            headerClassName="!px-2.5 !py-1.5"
-            titleClassName="!text-[11px]"
-            className="flex w-full max-w-[440px] min-h-0 shrink-0 flex-col overflow-hidden xl:w-[min(28vw,440px)]"
-            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-          >
-            <MoveList />
-          </Card>
-
-          <Card
-            title="Commentary"
-            headerClassName="!px-2.5 !py-1.5"
-            titleClassName="!text-[11px]"
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-          >
+          <div style={{ gridArea: 'comment', minWidth: 0 }}>
             <Comments />
-          </Card>
+          </div>
+          <div style={{ gridArea: 'moves', minWidth: 0 }}>
+            <MoveList />
+          </div>
+          <div style={{ gridArea: 'feat', minWidth: 0 }}>
+            <FeatureChartsPanel />
+          </div>
         </div>
       </div>
     </div>

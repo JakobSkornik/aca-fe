@@ -65,7 +65,19 @@ const RecentJobsSidebar: React.FC = () => {
 
   return (
     <>
-      <Card title="Recent jobs" bodyClassName="p-0">
+      <Card
+        title="Recent jobs"
+        headerRight={
+          <a
+            href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/jobs/export.zip`}
+            className="text-[10px] font-medium text-text-tertiary underline hover:text-text-secondary"
+            title="Zip of every finished game JSON (review repository)"
+          >
+            Download all (zip)
+          </a>
+        }
+        bodyClassName="p-0"
+      >
         <div className="max-h-[280px] overflow-y-auto px-4 py-3">
           {err ? <div className="text-xs text-text-danger">{err}</div> : null}
           {!err && jobs.length === 0 ? (

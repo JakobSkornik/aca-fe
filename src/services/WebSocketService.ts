@@ -46,7 +46,6 @@ class WebSocketService {
     }
 
     this.ws.onmessage = (event) => {
-      console.log('WebSocketService: Raw message received:', event.data);
       try {
         const serverMessage: ServerWsMessage = JSON.parse(event.data as string)
         if (this.handlers?.onMessage) {

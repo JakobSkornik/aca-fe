@@ -1,11 +1,11 @@
-import React, { Fragment, useMemo, useState } from 'react'
+import React, { Fragment, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import type { Square, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
-import PvHoverBoard from './PvHoverBoard'
+import type { LineStep } from '@/types/Line'
 import type { ResolvedAnnotationToken } from '@/types/WebSocketMessages'
 import { parseAnnotatedText, type AnnotationSegment } from '@/helpers/annotationTokens'
+import { formatNumberedSteps } from '@/helpers/chessNotation'
 import { useGameState } from '@/contexts/GameStateContext'
-import type { PvLineEntry } from './InlinePvMoves'
 
 type Props = {
   text: string
@@ -23,11 +23,9 @@ function fileSquares(file: string): Square[] {
   return ['8', '7', '6', '5', '4', '3', '2', '1'].map((r) => `${f}${r}` as Square)
 }
 
-function pvLineToPvEntries(
-  line: unknown
-): PvLineEntry[] | null {
+function pvLineToSteps(line: unknown): LineStep[] | null {
   if (!Array.isArray(line)) return null
-  const out: PvLineEntry[] = []
+  const out: LineStep[] = []
   for (const step of line) {
     if (
       typeof step === 'object' &&
@@ -35,45 +33,31 @@ function pvLineToPvEntries(
       typeof (step as { san?: string }).san === 'string' &&
       typeof (step as { fen?: string }).fen === 'string'
     ) {
-      out.push({ san: (step as { san: string }).san, fen: (step as { fen: string }).fen })
+      const s = step as { san: string; fen: string; from?: string; to?: string }
+      out.push({ san: s.san, fen: s.fen, from: s.from, to: s.to })
     }
   }
   return out.length ? out : null
 }
 
-const TokenPv: React.FC<{ data: Record<string, unknown> | null }> = ({ data }) => {
-  const lineRaw = data?.line
-  const pv = pvLineToPvEntries(lineRaw)
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
-
+const TokenPv: React.FC<{ data: Record<string, unknown> | null; raw: string; tone: 'main' | 'alt' }> = ({
+  data,
+  raw,
+  tone,
+}) => {
+  // Lines live in the part cards and the player; inside prose they render as
+  // plain numbered text so the same line is never shown interactively twice.
+  // Colored to match the part-card tabs: main line green, alternative gray.
+  const color = tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
+  const pv = pvLineToSteps(data?.line)
   if (!pv?.length) {
-    return <span className="text-sm text-accent-progress">[pv]</span>
+    const inner = raw.startsWith('[pv:') ? raw.slice(4, -1) : raw
+    return <span className="font-semibold" style={{ color }}>{inner}</span>
   }
-
-  const active = hoverIdx !== null ? pv[hoverIdx] : null
-
-  return (
-    <span className="inline-flex flex-wrap gap-1 items-center align-middle mx-0.5">
-      {pv.map((step, i) => (
-        <span
-          key={`pv-${i}-${step.fen}`}
-          className="cursor-help rounded border border-accent-progress/35 bg-accent-progress/15 px-1.5 py-0.5 text-sm font-medium text-text-primary"
-          onMouseEnter={(e) => {
-            setHoverIdx(i)
-            setAnchorEl(e.currentTarget)
-          }}
-          onMouseLeave={() => {
-            setHoverIdx(null)
-            setAnchorEl(null)
-          }}
-        >
-          {step.san}
-        </span>
-      ))}
-      {active && <PvHoverBoard fen={active.fen} visible={hoverIdx !== null} anchorEl={anchorEl} />}
-    </span>
-  )
+  const text = formatNumberedSteps(pv)
+    .map((n) => n.label)
+    .join(' ')
+  return <span className="mx-0.5 font-semibold" style={{ color }}>{text}</span>
 }
 
 const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }) => {
@@ -84,6 +68,20 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
     () => parseAnnotatedText(text, resolvedTokens ?? undefined),
     [text, resolvedTokens]
   )
+
+  // The first PV in the prose is the main line (green); any later PV is the
+  // better-alternative line (gray) — matches the part-card tab colors.
+  const pvTone = useMemo(() => {
+    const tones: Record<number, 'main' | 'alt'> = {}
+    let seen = 0
+    segments.forEach((seg, i) => {
+      if (seg.kind === 'token' && seg.tokenType === 'pv') {
+        tones[i] = seen === 0 ? 'main' : 'alt'
+        seen += 1
+      }
+    })
+    return tones
+  }, [segments])
 
   const applyMoveHover = (data: Record<string, unknown> | null, san: string) => {
     const fromData = data?.from as string | undefined
@@ -156,7 +154,7 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
 
     switch (tokenType) {
       case 'pv':
-        return <TokenPv key={`pv-${i}`} data={data} />
+        return <TokenPv key={`pv-${i}`} data={data} raw={seg.raw} tone={pvTone[i] ?? 'main'} />
       case 'move':
         return (
           <span

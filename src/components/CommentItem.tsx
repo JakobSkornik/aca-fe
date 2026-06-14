@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react'
-import InlinePvMoves, { PvLineEntry } from './InlinePvMoves'
 import AnnotatedText from './AnnotatedText'
 import RagRefChips from './RagRefChips'
 import LlmDebugPanel from './LlmDebugPanel'
@@ -20,7 +19,6 @@ type Props = {
   finalizeIfNotHighlighted?: boolean
   id?: string
   keyMomentType?: string
-  pvLine?: PvLineEntry[]
   resolvedTokens?: ResolvedAnnotationToken[] | null
   ragRefs?: RagRef[]
   llmDebug?: AiCommentLlmDebug
@@ -38,7 +36,6 @@ const CommentItem: React.FC<Props> = ({
   finalizeIfNotHighlighted = false,
   id,
   keyMomentType,
-  pvLine,
   resolvedTokens,
   ragRefs,
   llmDebug,
@@ -83,7 +80,6 @@ const CommentItem: React.FC<Props> = ({
       timeoutsRef.current.forEach((t) => clearTimeout(t))
       timeoutsRef.current = []
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, text, hasInlineAnnotations, initialDelay, typewriterSpeed])
 
   useEffect(() => {
@@ -103,30 +99,18 @@ const CommentItem: React.FC<Props> = ({
   const paragraphs = text.split('\n').filter(Boolean)
 
   return (
-    <div
-      className={`rounded-lg transition-all duration-300 ${
-        isActive
-          ? 'bg-background-secondary shadow-md ring-1 ring-border-secondary'
-          : 'border-b border-border-tertiary bg-transparent'
-      } ${className}`}
-    >
-      <div className={`flex flex-wrap items-center gap-1.5 px-2.5 pb-1 pt-2 ${titleClassName}`}>
-        <span
-          className={`font-bold ${isActive ? 'text-sm text-text-primary' : 'text-xs text-text-secondary'}`}
-        >
-          {title}
-        </span>
-        {keyMomentType && kmLabel ? (
-          <span className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${badgeClass}`}>
-            {kmLabel}
-          </span>
-        ) : null}
-      </div>
-      <div
-        className={`px-2.5 pb-2 text-text-secondary transition-all duration-300 ${
-          isActive ? 'text-sm leading-snug' : 'text-xs leading-snug'
-        } ${textClassName}`}
-      >
+    <div className={className}>
+      {title || (keyMomentType && kmLabel) ? (
+        <div className={`mb-1 flex flex-wrap items-center gap-1.5 ${titleClassName}`}>
+          {title ? <span className="font-bold text-text-primary">{title}</span> : null}
+          {keyMomentType && kmLabel ? (
+            <span className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${badgeClass}`}>
+              {kmLabel}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      <div className={`comment-text ${textClassName}`}>
         {hasInlineAnnotations ? (
           <AnnotatedText text={text} resolvedTokens={resolvedTokens} />
         ) : paragraphs.length <= 1 ? (
@@ -139,12 +123,7 @@ const CommentItem: React.FC<Props> = ({
           ))
         )}
       </div>
-      <div className="space-y-0.5 px-2.5 pb-2">
-        {pvLine && pvLine.length > 0 ? (
-          <AccordionRow label="Principal variation" defaultOpen={isActive}>
-            <InlinePvMoves pvLine={pvLine} embedded />
-          </AccordionRow>
-        ) : null}
+      <div className="mt-2 space-y-0.5">
         {ragRefs && ragRefs.length > 0 ? (
           <AccordionRow label="Reference games (RAG)">
             <RagRefChips ragRefs={ragRefs} embedded />

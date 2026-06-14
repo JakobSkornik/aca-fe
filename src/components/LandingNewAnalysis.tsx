@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import { jobService } from '@/services/JobService'
 import { useGameState } from '@/contexts/GameStateContext'
 import { Card } from '@/components/ui/Card'
+import Select from '@/components/ui/Select'
 import {
   LLM_PROVIDER_OPTIONS,
   providerSupportsEffort,
@@ -27,6 +28,8 @@ const LandingNewAnalysis: React.FC = () => {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [provider, setProvider] = useState<LlmProvider>(manager.getModelParams().provider)
   const [effort, setEffort] = useState<LlmEffort>(manager.getModelParams().effort)
+  const [commentaryLevel, setCommentaryLevel] = useState<string>('intermediate')
+  const [commentSide, setCommentSide] = useState<string>('both')
   const selectedProviderOption = useMemo(
     () => LLM_PROVIDER_OPTIONS.find((o) => o.value === provider),
     [provider],
@@ -107,7 +110,12 @@ const LandingNewAnalysis: React.FC = () => {
     setError(null)
     try {
       manager.setModelParams({ provider, effort })
-      const job = await jobService.submitJob(pgn, { llm_provider: provider, llm_effort: effort })
+      const job = await jobService.submitJob(pgn, {
+        llm_provider: provider,
+        llm_effort: effort,
+        commentary_level: commentaryLevel,
+        comment_side: commentSide,
+      })
       sessionStorage.setItem(`aca_pgn_${job.job_id}`, pgn.trim())
       router.push(`/job/${job.job_id}`)
     } catch (e) {
@@ -162,21 +170,42 @@ const LandingNewAnalysis: React.FC = () => {
       />
       <div className="mt-1 text-right text-[11px] text-text-tertiary">{moveCountHint(pgn)}</div>
 
+      <div className="mt-3.5 flex flex-col gap-3.5 sm:flex-row">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 text-[11px] text-text-tertiary">Commentary language</div>
+          <Select
+            value={commentaryLevel}
+            onChange={setCommentaryLevel}
+            options={[
+              { value: 'beginner', label: 'Beginner', hint: 'concepts explained simply' },
+              { value: 'intermediate', label: 'Intermediate', hint: 'club player' },
+              { value: 'expert', label: 'Expert', hint: 'dry, Informant style' },
+            ]}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 text-[11px] text-text-tertiary">Comment side</div>
+          <Select
+            value={commentSide}
+            onChange={setCommentSide}
+            options={[
+              { value: 'both', label: 'Both sides' },
+              { value: 'white', label: 'White only' },
+              { value: 'black', label: 'Black only' },
+            ]}
+          />
+        </div>
+      </div>
+
       {advancedOpen ? (
         <div className="mt-3.5 flex flex-col gap-3.5 rounded-md border border-border-tertiary bg-background-secondary p-4 sm:flex-row">
           <div className="min-w-0 flex-1">
             <div className="mb-1 text-[11px] text-text-tertiary">LLM provider</div>
-            <select
+            <Select
               value={provider}
-              onChange={(e) => setProvider(e.target.value as LlmProvider)}
-              className="w-full rounded-md border border-border-secondary bg-background-primary px-2.5 py-2 text-sm text-text-primary outline-none focus:border-border-primary"
-            >
-              {LLM_PROVIDER_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setProvider(v as LlmProvider)}
+              options={LLM_PROVIDER_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+            />
             {selectedProviderOption ? (
               <p className="mt-1 text-[10px] leading-snug text-text-tertiary">
                 Models: {selectedProviderOption.modelSummary}
@@ -186,15 +215,15 @@ const LandingNewAnalysis: React.FC = () => {
           {showEffort ? (
             <div className="min-w-0 flex-1">
               <div className="mb-1 text-[11px] text-text-tertiary">Reasoning effort</div>
-              <select
+              <Select
                 value={effort}
-                onChange={(e) => setEffort(e.target.value as LlmEffort)}
-                className="w-full rounded-md border border-border-secondary bg-background-primary px-2.5 py-2 text-sm text-text-primary outline-none focus:border-border-primary"
-              >
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-              </select>
+                onChange={(v) => setEffort(v as LlmEffort)}
+                options={[
+                  { value: 'low', label: 'low' },
+                  { value: 'medium', label: 'medium' },
+                  { value: 'high', label: 'high' },
+                ]}
+              />
             </div>
           ) : null}
         </div>
@@ -207,7 +236,8 @@ const LandingNewAnalysis: React.FC = () => {
           type="button"
           disabled={loading || !pgn.trim()}
           onClick={submit}
-          className="w-full rounded-md bg-text-primary py-2.5 text-sm font-medium text-background-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn btn-primary w-full"
+          style={{ justifyContent: 'center', padding: '10px' }}
         >
           {loading ? 'Submitting…' : 'Analyze game'}
         </button>
