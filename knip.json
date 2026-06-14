@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/pages/**/*.{ts,tsx}",
+    "next.config.ts",
+    "postcss.config.mjs",
+    "tailwind.config.js",
+    "eslint.config.mjs"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignoreDependencies": [
+    "eslint",
+    "eslint-config-next",
+    "postcss-load-config",
+    "@fontsource/hanken-grotesk",
+    "@fontsource/jetbrains-mono"
+  ]
+}
