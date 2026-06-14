@@ -162,7 +162,7 @@ export class MoveList {
     }
 
     // Find the move in the move list
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const [moveIdx, _] = this.findAnyMoveIndexById(payload.move.id) || [-1, -1]
     
     if (moveIdx === -1) {
@@ -229,7 +229,7 @@ export class MoveList {
     }
 
     // Find the move in the move list
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const [moveIdx, _] = this.findAnyMoveIndexById(payload.move.id) || [-1, -1]
     
     if (moveIdx === -1) {

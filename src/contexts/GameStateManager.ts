@@ -467,17 +467,6 @@ export class GameStateManager {
       const ldRaw = raw?.llm_debug
       if (ldRaw && typeof ldRaw === 'object' && ldRaw !== null) {
         commentItem.llmDebug = ldRaw as AiCommentLlmDebug
-        console.groupCollapsed(`[LLM debug] move ${aiPayload.moveId}`)
-        console.log('move_category', (ldRaw as AiCommentLlmDebug).move_category)
-        console.log('key_moment_type', (ldRaw as AiCommentLlmDebug).key_moment_type)
-        console.log('tier', (ldRaw as AiCommentLlmDebug).tier)
-        console.log('passes', (ldRaw as AiCommentLlmDebug).passes)
-        console.log('token_usage_total', (ldRaw as AiCommentLlmDebug).token_usage_total)
-        console.log('rag_query', (ldRaw as AiCommentLlmDebug).rag_query)
-        console.log('rationale', (ldRaw as AiCommentLlmDebug).rationale)
-        console.log('system_prompts', (ldRaw as AiCommentLlmDebug).system_prompts)
-        console.log('user_text', (ldRaw as AiCommentLlmDebug).user_text)
-        console.groupEnd()
       }
       this.upsertMainlineComment(commentItem)
     } catch {
@@ -624,7 +613,7 @@ export class GameStateManager {
 
       case ServerWsMessageType.ANALYSIS_UPDATE:
         const analysisPayload = srvMsg.payload as NodeAnalysisUpdatePayload
-        if (analysisPayload.move.context == "mainline") {
+        if (analysisPayload.move.context === "mainline") {
           this.state.moves.handleWsNodeAnalysisUpdatePayload(analysisPayload)
         }
         this._flushPendingComments()
