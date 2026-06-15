@@ -5,7 +5,6 @@ import { jobService } from '@/services/JobService'
 import MainlineChessboard from '@/components/MainlineChessboard'
 import MoveList from '@/components/MoveList'
 import Comments from '@/components/Comments'
-import FeatureChartsPanel from '@/components/FeatureChartsPanel'
 import GameTopBar from '@/components/game/GameTopBar'
 import GameBar from '@/components/game/GameBar'
 import type { GameJson } from '@/types/GameJson'
@@ -160,7 +159,8 @@ const GamePage = () => {
       />
       <GameBar />
 
-      {/* Split layout: board · commentary · moves, then full-width features */}
+      {/* Split layout: board · commentary · moves. Positional-feature charts
+          now live in the variation navigator inside the commentary panel. */}
       <div className="min-h-0 flex-1 overflow-auto p-4">
         <div className="ca-split">
           <div style={{ gridArea: 'board' }}>
@@ -171,9 +171,6 @@ const GamePage = () => {
           </div>
           <div style={{ gridArea: 'moves', minWidth: 0 }}>
             <MoveList />
-          </div>
-          <div style={{ gridArea: 'feat', minWidth: 0 }}>
-            <FeatureChartsPanel />
           </div>
         </div>
       </div>

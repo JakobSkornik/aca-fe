@@ -75,6 +75,20 @@ export type GameStateSnapshot = {
   commentaryBoardOverlay: CommentaryBoardOverlay
   /** Main board orientation (`react-chessboard` + player bars). */
   boardOrientation: 'white' | 'black'
+  /** Which board the arrow keys drive: the game or the variation navigator. */
+  focusedBoard: 'game' | 'variation'
+  /** Which line the variation navigator shows (main line vs better alternative). */
+  selectedPart: 'main' | 'alt'
+  /** Whether the current move has a better-alternative line (3rd focus target). */
+  hasAlternative: boolean
+}
+
+/** Stepper the variation navigator registers so keyboard nav can drive it. */
+type VariationStepper = {
+  prev: () => void
+  next: () => void
+  first: () => void
+  last: () => void
 }
 
 const getPieceFromSan = (san: string, color: 'w' | 'b'): string => {
@@ -124,7 +138,84 @@ export class GameStateManager {
       commentaryComplete: true,
       commentaryBoardOverlay: null,
       boardOrientation: 'white',
+      focusedBoard: 'game',
+      selectedPart: 'main',
+      hasAlternative: false,
     }
+  }
+
+  // --- Board focus + variation keyboard routing ---
+  /** Registered by the variation navigator; null when no line is loaded. */
+  private variationStepper: VariationStepper | null = null
+
+  setFocusedBoard(board: 'game' | 'variation') {
+    if (this.state.focusedBoard !== board) {
+      this.state.focusedBoard = board
+      this.notify()
+    }
+  }
+
+  registerVariationStepper(stepper: VariationStepper | null) {
+    this.variationStepper = stepper
+  }
+
+  setSelectedPart(part: 'main' | 'alt') {
+    if (this.state.selectedPart !== part) {
+      this.state.selectedPart = part
+      this.notify()
+    }
+  }
+
+  setHasAlternative(has: boolean) {
+    if (this.state.hasAlternative !== has) {
+      this.state.hasAlternative = has
+      this.notify()
+    }
+  }
+
+  /**
+   * Cycle keyboard focus across the boards. The ordered targets are the main
+   * board, then the variation navigator showing the main line, then (when one
+   * exists) the better-alternative line. Down moves forward, Up moves backward;
+   * both wrap around.
+   */
+  cycleFocus(dir: 'up' | 'down') {
+    const targets: Array<'game' | 'main' | 'alt'> = ['game', 'main']
+    if (this.state.hasAlternative) targets.push('alt')
+    const cur: 'game' | 'main' | 'alt' =
+      this.state.focusedBoard === 'game'
+        ? 'game'
+        : this.state.selectedPart === 'alt' && this.state.hasAlternative
+          ? 'alt'
+          : 'main'
+    const i = Math.max(0, targets.indexOf(cur))
+    const n = targets.length
+    const next = targets[dir === 'down' ? (i + 1) % n : (i - 1 + n) % n]
+    if (next === 'game') {
+      this.state.focusedBoard = 'game'
+    } else {
+      this.state.focusedBoard = 'variation'
+      this.state.selectedPart = next
+    }
+    this.notify()
+  }
+
+  /** Route an arrow/Home/End key to the focused board, or Up/Down to cycle focus. */
+  handleArrowKey(key: string) {
+    if (key === 'ArrowUp') return this.cycleFocus('up')
+    if (key === 'ArrowDown') return this.cycleFocus('down')
+    const v = this.state.focusedBoard === 'variation' ? this.variationStepper : null
+    if (v) {
+      if (key === 'ArrowLeft') v.prev()
+      else if (key === 'ArrowRight') v.next()
+      else if (key === 'Home') v.first()
+      else if (key === 'End') v.last()
+      return
+    }
+    if (key === 'ArrowLeft') this.movePrev()
+    else if (key === 'ArrowRight') this.moveNext()
+    else if (key === 'Home') this.goToFirst()
+    else if (key === 'End') this.goToLast()
   }
 
   flipBoard() {
@@ -316,6 +407,7 @@ export class GameStateManager {
     if (index >= 0 && index < this.state.moves.getMainlineMoveCount()) {
       this.state.currentMoveIndex = index
       this.state.commentaryBoardOverlay = null
+      this.state.focusedBoard = 'game'
       this.checkAndRequestCurrentMoveAnalysis()
       this.notify()
     }

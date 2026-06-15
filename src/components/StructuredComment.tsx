@@ -1,5 +1,6 @@
 import React from 'react'
 import { evalDepthSuffix, numberedLineString } from '@/helpers/chessNotation'
+import { featureLabel, featureDescription } from '@/helpers/featureMeta'
 import type { CommentFactsClaim, CommentFactsJson, MoveDebugJson } from '@/types/GameJson'
 
 export type CommentPart = 'main' | 'alt'
@@ -19,16 +20,19 @@ function flashFeature(name: string) {
   }
 }
 
-const FeatureChip: React.FC<{ name: string; delta?: number }> = ({ name, delta }) => (
-  <span
-    className="cursor-help rounded bg-accent-progress/15 px-1 py-0.5 font-mono text-[9px] text-text-tertiary hover:bg-accent-progress/30"
-    title={`${name} — hover highlights its chart`}
-    onMouseEnter={() => flashFeature(name)}
-  >
-    {name}
-    {delta != null ? ` ${delta >= 0 ? '+' : ''}${delta}` : ''}
-  </span>
-)
+const FeatureChip: React.FC<{ name: string; delta?: number }> = ({ name, delta }) => {
+  const desc = featureDescription(name)
+  return (
+    <span
+      className="cursor-help rounded bg-accent-progress/15 px-1 py-0.5 font-mono text-[9px] text-text-tertiary hover:bg-accent-progress/30"
+      title={`${featureLabel(name)}${desc ? ` — ${desc}` : ''}\n(hover highlights its chart)`}
+      onMouseEnter={() => flashFeature(name)}
+    >
+      {name}
+      {delta != null ? ` ${delta >= 0 ? '+' : ''}${delta}` : ''}
+    </span>
+  )
+}
 
 const ClaimRow: React.FC<{ claim: CommentFactsClaim }> = ({ claim }) => (
   <li className="flex flex-wrap items-center gap-1.5 text-[11px] text-text-secondary">

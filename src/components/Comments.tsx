@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback, useState } from 'react'
+import React, { useEffect, useMemo, useCallback } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
 import type { MainlineComment } from '@/contexts/GameStateManager'
 import type { PlayerLine } from '@/types/Line'
@@ -21,13 +21,32 @@ function formatCommentTitle(item: MainlineComment, moveNotation: string): string
 
 const Comments: React.FC = () => {
   const { state, manager } = useGameState()
-  const { commentsMainline, currentMoveIndex, commentaryComplete, aiGeneration } = state
-  const [selectedPart, setSelectedPart] = useState<CommentPart>('main')
+  const { commentsMainline, currentMoveIndex, commentaryComplete, aiGeneration, selectedPart } = state
+  // Selecting a line focuses the variation navigator so arrow keys drive it.
+  const setSelectedPart = useCallback(
+    (p: CommentPart) => {
+      manager.setSelectedPart(p)
+      manager.setFocusedBoard('variation')
+    },
+    [manager]
+  )
 
-  // Navigation resets the focus to the move's main line.
+  // Navigation resets the navigator to the move's main line (no focus change).
   useEffect(() => {
-    setSelectedPart('main')
-  }, [currentMoveIndex])
+    manager.setSelectedPart('main')
+  }, [currentMoveIndex, manager])
+
+  // Clicking a PV reference in the comment prose loads that line into the
+  // navigator (main/alt) and moves keyboard focus to it.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const part = (e as CustomEvent).detail?.part
+      if (part === 'main' || part === 'alt') manager.setSelectedPart(part)
+      manager.setFocusedBoard('variation')
+    }
+    window.addEventListener('aca:variation-open', onOpen)
+    return () => window.removeEventListener('aca:variation-open', onOpen)
+  }, [manager])
 
   const commentaryGenerating = useMemo(
     () => !commentaryComplete || Object.keys(aiGeneration).length > 0,
@@ -107,6 +126,13 @@ const Comments: React.FC = () => {
 
   const gm = state.gameJson?.moves?.[currentMoveIndex]
   const facts = gm?.comment_facts ?? null
+
+  // Tell the focus model whether this move has a better-alternative line, so the
+  // Up/Down focus cycle includes (or skips) the alternative board.
+  const hasAlt = !!facts?.better_alternative?.display_line?.san?.length
+  useEffect(() => {
+    manager.setHasAlternative(hasAlt)
+  }, [hasAlt, manager])
 
   // The pinned player shows the selected part's line; for moves without facts
   // it falls back to engine PV1, then the game continuation (book theory).
