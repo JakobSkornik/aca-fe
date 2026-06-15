@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
+import { useGameState } from '@/contexts/GameStateContext'
 import type { Arrow, Square } from 'react-chessboard/dist/chessboard/types'
 import type { PlayerLine } from '@/types/Line'
 import Icon from '@/components/ui/Icon'
 import { evalDepthSuffix, formatNumberedSteps } from '@/helpers/chessNotation'
+import { featureLabel, featureDescription } from '@/helpers/featureMeta'
 
 const BOARD_W = 200
 const AUTOPLAY_MS = 900
@@ -16,17 +18,6 @@ type Props = {
   mainlineSeries?: Record<string, (number | null)[]>
   mainlinePlies?: number
   mainlinePly?: number
-}
-
-function featureLabel(name: string): string {
-  const base = name.replace(/^WHITE_/, '').replace(/^BLACK_/, '')
-  const side = name.startsWith('WHITE_') ? 'W ' : name.startsWith('BLACK_') ? 'B ' : ''
-  const t = base
-    .toLowerCase()
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ')
-  return side + t
 }
 
 function polyPoints(values: (number | null)[], lo: number, hi: number, h: number): string {
@@ -52,12 +43,14 @@ function polyPoints(values: (number | null)[], lo: number, hi: number, h: number
  */
 function MergedFeatureChart({
   label,
+  description,
   gameValues,
   lineValues,
   gamePly,
   lineIdx,
 }: {
   label: string
+  description?: string
   gameValues: (number | null)[]
   lineValues: (number | null)[]
   gamePly: number
@@ -82,7 +75,7 @@ function MergedFeatureChart({
   const gameMx = gameValues.length > 1 ? (Math.max(0, Math.min(gamePly, gameValues.length - 1)) / (gameValues.length - 1)) * 100 : 0
   const lineMx = lineValues.length > 1 ? (Math.max(0, Math.min(lineIdx, lineValues.length - 1)) / (lineValues.length - 1)) * 100 : 0
   return (
-    <div className="feat-card">
+    <div className="feat-card" title={description || undefined}>
       <div className="feat-top">
         <span className="feat-name">{label}</span>
         <span className="feat-swing">Δ {(delta / 100).toFixed(2)}</span>
@@ -110,14 +103,19 @@ function MergedFeatureChart({
  * the right. Numbered move tokens run underneath.
  */
 const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, mainlinePly = 0 }) => {
+  const { manager, state } = useGameState()
   const steps = useMemo(() => line?.steps ?? [], [line])
   const lastIdx = steps.length - 1
   const [idx, setIdx] = useState(0)
   const [playing, setPlaying] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+  // Brief highlight when a PV reference in the comment prose is hovered.
+  const [extHighlight, setExtHighlight] = useState(false)
 
   useEffect(() => {
     setIdx(0)
     setPlaying(false)
+    setShowAll(false)
   }, [loadKey])
 
   useEffect(() => {
@@ -129,6 +127,24 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
     const t = window.setTimeout(() => setIdx((i) => Math.min(i + 1, lastIdx)), AUTOPLAY_MS)
     return () => window.clearTimeout(t)
   }, [playing, idx, lastIdx])
+
+  // Let keyboard arrows drive this board when it has focus.
+  useEffect(() => {
+    const stepper = {
+      prev: () => { setPlaying(false); setIdx((i) => Math.max(i - 1, 0)) },
+      next: () => { setPlaying(false); setIdx((i) => Math.min(i + 1, lastIdx)) },
+      first: () => { setPlaying(false); setIdx(0) },
+      last: () => { setPlaying(false); setIdx(lastIdx) },
+    }
+    manager.registerVariationStepper(steps.length ? stepper : null)
+    return () => manager.registerVariationStepper(null)
+  }, [manager, lastIdx, steps.length])
+
+  useEffect(() => {
+    const onHi = (e: Event) => setExtHighlight(!!(e as CustomEvent).detail?.on)
+    window.addEventListener('aca:variation-highlight', onHi)
+    return () => window.removeEventListener('aca:variation-highlight', onHi)
+  }, [])
 
   const numbered = useMemo(() => formatNumberedSteps(steps), [steps])
 
@@ -147,9 +163,16 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
   const suffix = evalDepthSuffix(line.evalCp, line.evalMate, line.depth)
   // main line = green (accent), better alternative = gray (fg-3)
   const toneColor = line.tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
-  const features = (line.chartFeatures ?? []).filter(
-    (f) => (line.featureSeries?.[f]?.length ?? 0) > 1 || (mainlineSeries[f]?.length ?? 0) > 1
+  const hasData = (f: string) =>
+    (line.featureSeries?.[f]?.length ?? 0) > 1 || (mainlineSeries[f]?.length ?? 0) > 1
+  const firedFeatures = (line.chartFeatures ?? []).filter(hasData)
+  const allFeatures = Array.from(
+    new Set([...Object.keys(mainlineSeries), ...Object.keys(line.featureSeries ?? {})])
   )
+    .filter(hasData)
+    .sort((a, b) => featureLabel(a).localeCompare(featureLabel(b)))
+  const features = showAll ? allFeatures : firedFeatures
+  const canShowMore = allFeatures.length > firedFeatures.length
 
   const navBtn = (icon: string, label: string, disabled: boolean, onClick: () => void) => (
     <button type="button" className="btn icon-btn" title={label} disabled={disabled} onClick={onClick}>
@@ -157,8 +180,13 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
     </button>
   )
 
+  const focused = state.focusedBoard === 'variation'
   return (
-    <div className="pv-card">
+    <div
+      className="pv-card"
+      style={focused || extHighlight ? { boxShadow: '0 0 0 2px var(--inacc)' } : undefined}
+      onMouseDown={() => manager.setFocusedBoard('variation')}
+    >
       <div className="pv-head">
         <span className="eyebrow" style={{ color: toneColor }}>{line.title || 'Variation'}</span>
         <div className="grow" />
@@ -218,10 +246,27 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
 
         {/* Right: fired-rule charts — game vs this line, merged per feature */}
         <div className="min-w-[200px] flex-1">
-          {features.length ? (
+          {allFeatures.length ? (
             <>
-              <div className="mb-1 flex items-center gap-3 text-[9px] text-text-tertiary">
-                <span className="eyebrow" style={{ fontSize: 9 }}>Fired-rule features</span>
+              <div className="mb-1 flex items-center gap-2 text-[9px] text-text-tertiary">
+                <span className="eyebrow" style={{ fontSize: 9 }}>
+                  {showAll ? 'All features' : 'Fired-rule features'}
+                </span>
+                {canShowMore || showAll ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: 9, padding: '1px 6px', minHeight: 0 }}
+                    onClick={() => setShowAll((s) => !s)}
+                    title={
+                      showAll
+                        ? 'Show only the features whose rules fired on this move'
+                        : 'Show every positional feature, not just the fired-rule ones'
+                    }
+                  >
+                    {showAll ? 'Fired-rule only' : `Show all (${allFeatures.length})`}
+                  </button>
+                ) : null}
                 <span className="ml-auto inline-flex items-center gap-1">
                   <span className="inline-block h-0.5 w-3 rounded" style={{ background: 'var(--fg-3)' }} /> game
                 </span>
@@ -229,22 +274,29 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
                   <span className="inline-block h-0.5 w-3 rounded" style={{ background: 'var(--accent)' }} /> this line
                 </span>
               </div>
-              <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
-                {features.map((f) => (
-                  <MergedFeatureChart
-                    key={f}
-                    label={featureLabel(f)}
-                    gameValues={mainlineSeries[f] ?? []}
-                    lineValues={line.featureSeries?.[f] ?? []}
-                    gamePly={mainlinePly}
-                    lineIdx={safeIdx}
-                  />
-                ))}
-              </div>
+              {features.length ? (
+                <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+                  {features.map((f) => (
+                    <MergedFeatureChart
+                      key={f}
+                      label={featureLabel(f)}
+                      description={featureDescription(f)}
+                      gameValues={mainlineSeries[f] ?? []}
+                      lineValues={line.featureSeries?.[f] ?? []}
+                      gamePly={mainlinePly}
+                      lineIdx={safeIdx}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="py-3 text-center text-[10px] italic text-text-tertiary">
+                  No rule-based features fired for this move — use Show all to see every feature.
+                </div>
+              )}
             </>
           ) : (
             <div className="flex h-full items-center justify-center text-[10px] italic text-text-tertiary">
-              No rule-based features for this move.
+              No positional features for this move.
             </div>
           )}
         </div>
@@ -255,11 +307,11 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
         {numbered.map((n, i) => (
           <span
             key={`pl-${i}`}
-            className={`pv-move${i === safeIdx - 1 ? ' on' : ''}`}
-            style={i === safeIdx - 1 ? undefined : { color: toneColor }}
+            className={`pv-move${i === safeIdx ? ' on' : ''}`}
+            style={i === safeIdx ? undefined : { color: toneColor }}
             onClick={() => {
               setPlaying(false)
-              setIdx(i + 1)
+              setIdx(i)
             }}
           >
             {n.label}

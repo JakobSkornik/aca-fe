@@ -58,7 +58,27 @@ export function numberedLineString(startFen: string, sans: string[]): string {
     .join(' ')
 }
 
-/** `(+0.27, depth 16)` / `(#4, depth 16)` suffix for the end of a line. */
+/**
+ * Standard chess assessment glyph for a White-POV evaluation
+ * (=, ⩲, ⩱, ±, ∓, +−, −+). `cp` is in centipawns. Thresholds mirror the
+ * backend PGN export so screen and exported NAGs always agree.
+ */
+export function evalSymbol(
+  cp: number | null | undefined,
+  mate: number | null | undefined
+): string {
+  if (mate != null && mate !== 0) return mate > 0 ? '+−' : '−+'
+  if (cp == null) return ''
+  if (cp >= 150) return '+−'
+  if (cp >= 75) return '±'
+  if (cp >= 25) return '⩲'
+  if (cp > -25) return '='
+  if (cp > -75) return '⩱'
+  if (cp > -150) return '∓'
+  return '−+'
+}
+
+/** `(+0.27 ⩲, depth 16)` / `(#4 +−, depth 16)` suffix for the end of a line. */
 export function evalDepthSuffix(
   cp: number | null | undefined,
   mate: number | null | undefined,
@@ -68,5 +88,7 @@ export function evalDepthSuffix(
   if (mate != null && mate !== 0) evalPart = `#${Math.abs(mate)}${mate < 0 ? ' for Black' : ''}`
   else if (cp != null) evalPart = `${cp >= 0 ? '+' : ''}${(cp / 100).toFixed(2)}`
   if (evalPart == null) return ''
-  return depth != null ? `(${evalPart}, depth ${depth})` : `(${evalPart})`
+  const sym = evalSymbol(cp, mate)
+  const core = sym ? `${evalPart} ${sym}` : evalPart
+  return depth != null ? `(${core}, depth ${depth})` : `(${core})`
 }

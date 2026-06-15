@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
-import type { Arrow, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
+import type { Arrow, CustomSquareStyles, Square } from 'react-chessboard/dist/chessboard/types'
 import { useGameState } from '../contexts/GameStateContext'
 import { useSquareFit } from '@/hooks/useSquareFit'
 import Icon from '@/components/ui/Icon'
@@ -72,18 +72,22 @@ function VerticalEvalBar({ height, cp, mate, book }: { height: number; cp: numbe
     whitePct = Math.max(3, Math.min(97, (1 / (1 + Math.exp(-pawns * 0.42))) * 100))
     label = `${pawns >= 0 ? '+' : ''}${pawns.toFixed(2)}`
   }
-  const whiteWinning = (cp ?? 0) >= 0 || (mate ?? 0) > 0
   return (
-    <div className="evalbar" style={{ height }}>
-      <div className="white-fill" style={{ height: `${whitePct}%` }} />
-      <div className={`num ${whiteWinning ? 'bot' : 'top'}`}>{label}</div>
+    <div className="flex flex-col items-center self-start">
+      <div className="evalbar" style={{ height }}>
+        <div className="white-fill" style={{ height: `${whitePct}%` }} />
+      </div>
+      {/* Score below the bar, in the theme's foreground colour (inverts per theme). */}
+      <div className="mono mt-1 text-[11px] font-bold tabular-nums" style={{ color: 'var(--fg)' }}>
+        {label}
+      </div>
     </div>
   )
 }
 
 const MainlineChessboard = () => {
   const { state, manager } = useGameState()
-  const { currentMoveIndex, isLoaded, commentaryBoardOverlay, boardOrientation, pgnHeaders } = state
+  const { currentMoveIndex, isLoaded, commentaryBoardOverlay, boardOrientation, pgnHeaders, focusedBoard } = state
   const parentRef = useRef<HTMLDivElement>(null)
   const boardLayoutRef = useRef<HTMLDivElement>(null)
   const sizeCap = useSquareFit(parentRef, {
@@ -164,7 +168,10 @@ const MainlineChessboard = () => {
 
     const lastMove = manager.getMainlineMove(currentMoveIndex)
 
-    let arr: Arrow[] = []
+    // Shade the last played move's from/to squares green — the standard "this
+    // move was just played" indication, clearer than an arrow about which move
+    // it marks (var(--accent) is the green used across the app).
+    const lastMoveSquares: CustomSquareStyles = {}
     if (lastMove?.move) {
       const fenBefore =
         currentMoveIndex <= 0
@@ -174,16 +181,16 @@ const MainlineChessboard = () => {
         const b = new Chess(fenBefore)
         const r = b.move(lastMove.move)
         if (r) {
-          arr = [[r.from as Arrow[0], r.to as Arrow[1], 'var(--accent-engine)']]
+          const tint = 'color-mix(in srgb, var(--accent) 45%, transparent)'
+          lastMoveSquares[r.from as Square] = { backgroundColor: tint }
+          lastMoveSquares[r.to as Square] = { backgroundColor: tint }
         }
       }
     }
     const overlay = commentaryBoardOverlay
-    if (overlay?.arrows?.length) {
-      arr = [...arr, ...overlay.arrows]
-    }
-    arr = dedupeArrowsByEndpoints(arr)
-    const sq: CustomSquareStyles = overlay?.squareStyles ? { ...overlay.squareStyles } : {}
+    const arr: Arrow[] = dedupeArrowsByEndpoints(overlay?.arrows?.length ? [...overlay.arrows] : [])
+    // Commentary hover highlights take precedence over the last-move wash.
+    const sq: CustomSquareStyles = { ...lastMoveSquares, ...(overlay?.squareStyles ?? {}) }
     return { turnLine, arrows: arr, squareStyles: sq }
   }, [currentFen, currentMoveIndex, isLoaded, manager, commentaryBoardOverlay])
 
@@ -194,7 +201,15 @@ const MainlineChessboard = () => {
   )
 
   return (
-    <div className="panel" style={{ padding: 16 }}>
+    <div
+      className="panel"
+      style={{
+        padding: 16,
+        boxShadow: focusedBoard === 'game' ? '0 0 0 2px var(--inacc)' : undefined,
+      }}
+      onMouseDown={() => manager.setFocusedBoard('game')}
+      title="Arrow keys move this board (click to focus)"
+    >
       <div ref={parentRef} className="flex w-full flex-col">
         {isLoaded ? <PlayerPlate {...topPlate} /> : null}
         <div ref={boardLayoutRef} className="board-stage" style={{ justifyContent: 'center' }}>

@@ -4,7 +4,7 @@ import type { Square, CustomSquareStyles } from 'react-chessboard/dist/chessboar
 import type { LineStep } from '@/types/Line'
 import type { ResolvedAnnotationToken } from '@/types/WebSocketMessages'
 import { parseAnnotatedText, type AnnotationSegment } from '@/helpers/annotationTokens'
-import { formatNumberedSteps } from '@/helpers/chessNotation'
+import { formatNumberedSteps, evalSymbol } from '@/helpers/chessNotation'
 import { useGameState } from '@/contexts/GameStateContext'
 
 type Props = {
@@ -48,16 +48,37 @@ const TokenPv: React.FC<{ data: Record<string, unknown> | null; raw: string; ton
   // Lines live in the part cards and the player; inside prose they render as
   // plain numbered text so the same line is never shown interactively twice.
   // Colored to match the part-card tabs: main line green, alternative gray.
+  // Hovering highlights the variation navigator; clicking loads it + focuses it.
   const color = tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
+  const fire = (type: string, detail: unknown) => {
+    try {
+      window.dispatchEvent(new CustomEvent(type, { detail }))
+    } catch {
+      /* ignore */
+    }
+  }
+  const interactive = {
+    onMouseEnter: () => fire('aca:variation-highlight', { on: true }),
+    onMouseLeave: () => fire('aca:variation-highlight', { on: false }),
+    onClick: () => fire('aca:variation-open', { part: tone }),
+  }
   const pv = pvLineToSteps(data?.line)
   if (!pv?.length) {
     const inner = raw.startsWith('[pv:') ? raw.slice(4, -1) : raw
-    return <span className="font-semibold" style={{ color }}>{inner}</span>
+    return (
+      <span className="cursor-pointer font-semibold" style={{ color }} {...interactive}>
+        {inner}
+      </span>
+    )
   }
   const text = formatNumberedSteps(pv)
     .map((n) => n.label)
     .join(' ')
-  return <span className="mx-0.5 font-semibold" style={{ color }}>{text}</span>
+  return (
+    <span className="mx-0.5 cursor-pointer font-semibold" style={{ color }} {...interactive}>
+      {text}
+    </span>
+  )
 }
 
 const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }) => {
@@ -210,16 +231,18 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
         )
       case 'eval': {
         const pawns = typeof data?.pawns === 'number' ? data.pawns : parseFloat(content.replace(',', '.'))
+        const hasPawns = typeof pawns === 'number' && !Number.isNaN(pawns)
         const tint =
-          (typeof pawns === 'number' && !Number.isNaN(pawns) && pawns > 0.05) ? 'bg-emerald-500/20 border-emerald-600/40' :
-          (typeof pawns === 'number' && !Number.isNaN(pawns) && pawns < -0.05) ? 'bg-rose-500/20 border-rose-600/40' :
+          (hasPawns && pawns > 0.05) ? 'bg-emerald-500/20 border-emerald-600/40' :
+          (hasPawns && pawns < -0.05) ? 'bg-rose-500/20 border-rose-600/40' :
           'bg-gray-400/20 border-gray-500/40'
+        const sym = hasPawns ? evalSymbol(pawns * 100, null) : ''
         return (
           <span
             key={`ev-${i}`}
             className={`px-1.5 py-0.5 rounded border text-sm font-semibold mx-0.5 align-middle ${tint}`}
           >
-            {content}
+            {content}{sym ? ` ${sym}` : ''}
           </span>
         )
       }

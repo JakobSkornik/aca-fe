@@ -91,10 +91,16 @@ const MoveList = () => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target && ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return
-      if (e.key === 'ArrowLeft') manager.movePrev()
-      else if (e.key === 'ArrowRight') manager.moveNext()
-      else if (e.key === 'Home') manager.goToFirst()
-      else if (e.key === 'End') manager.goToLast()
+      if (e.key === 'Escape') {
+        manager.setFocusedBoard('game')
+        return
+      }
+      // Left/Right/Home/End step the focused board; Up/Down cycle focus across
+      // the main board, the main-line navigator and the alternative navigator.
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
+        e.preventDefault()
+        manager.handleArrowKey(e.key)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
