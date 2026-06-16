@@ -14,11 +14,38 @@ function formatAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
+function playerLabel(name: string | undefined, elo: number | null | undefined): string {
+  const n = (name || '').trim() || '?'
+  return elo && elo > 0 ? `${n} (${elo})` : n
+}
+
+/** "1–0" with an en-dash; passes through decisive/draw/unknown. */
+function formatResult(result: string | undefined): string {
+  const r = (result || '').trim()
+  if (r === '1-0') return '1–0'
+  if (r === '0-1') return '0–1'
+  if (r === '1/2-1/2') return '½–½'
+  return r && r !== '*' ? r : '—'
+}
+
 function jobTitle(j: JobResponse): string {
   const h = j.pgn_headers
+  if (h && (h.whiteName || h.blackName)) {
+    return `${playerLabel(h.whiteName, h.whiteElo)} — ${playerLabel(h.blackName, h.blackElo)}`
+  }
   if (h?.opening) return h.opening
-  if (h?.whiteName && h?.blackName) return `${h.whiteName} vs ${h.blackName}`
   return j.job_id.slice(0, 8) + '…'
+}
+
+/** ECO · N moves · result — the metadata line under the players. */
+function metaLine(j: JobResponse): string {
+  const h = j.pgn_headers
+  const bits: string[] = []
+  if (h?.eco) bits.push(h.eco)
+  if (j.move_count && j.move_count > 0) bits.push(`${Math.ceil(j.move_count / 2)} moves`)
+  const res = formatResult(h?.result)
+  if (res !== '—') bits.push(res)
+  return bits.join(' · ')
 }
 
 function statusLine(j: JobResponse): string {
@@ -101,6 +128,11 @@ const RecentJobsSidebar: React.FC = () => {
               />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-medium text-text-primary">{jobTitle(j)}</div>
+                {metaLine(j) ? (
+                  <div className="mt-0.5 truncate font-mono text-[10px] text-text-secondary">
+                    {metaLine(j)}
+                  </div>
+                ) : null}
                 <div className="mt-0.5 text-[11px] text-text-tertiary">{statusLine(j)}</div>
               </div>
               <span className="shrink-0 text-text-tertiary">→</span>

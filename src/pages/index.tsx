@@ -12,14 +12,14 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-background-secondary text-text-primary">
-      <div className="mx-auto max-w-[900px] px-4 py-6 pb-12">
+      <div className="mx-auto max-w-[1040px] px-4 py-6 pb-12">
         <TopBar
           subtitle="Automatic game analysis"
           onLogoClick={() => router.push('/')}
           right={<BackendHealthIndicator backendOk={backendOk} />}
         />
 
-        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-[1fr_300px] md:items-start">
+        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-[1fr_400px] md:items-start">
           <div>
             <LandingNewAnalysis />
           </div>

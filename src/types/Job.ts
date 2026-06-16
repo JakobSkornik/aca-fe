@@ -8,6 +8,7 @@ export interface JobPgnHeaders {
   blackElo: number | null
   event: string
   opening: string
+  eco: string | null
   result: string
 }
 
