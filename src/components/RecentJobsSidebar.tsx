@@ -93,7 +93,7 @@ const RecentJobsSidebar: React.FC = () => {
   return (
     <>
       <Card
-        title="Recent jobs"
+        title="Recent games"
         headerRight={
           <a
             href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/jobs/export.zip`}
