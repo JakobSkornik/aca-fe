@@ -13,7 +13,8 @@ function evalChipLabel(
   depth: number | null | undefined,
 ): string {
   let head: string
-  if (mate != null && mate !== 0) head = `#${Math.abs(mate)}`
+  if (mate != null && mate !== 0)
+    head = `#${Math.abs(mate)} ${mate > 0 ? 'White' : 'Black'}`
   else if (cp != null) head = `${cp >= 0 ? '+' : ''}${(cp / 100).toFixed(2)}`
   else return ''
   return depth != null ? `${head} · depth ${depth}` : head
@@ -162,7 +163,12 @@ const Comments: React.FC = () => {
             claims: facts.better_alternative!.claims,
             evalCp: facts.better_alternative!.eval_cp,
             evalMate: null as number | null,
-            title: `Better was ${facts.better_alternative!.san}`,
+            title:
+              facts.better_alternative!.eval_cp != null &&
+              facts.eval_cp != null &&
+              Math.abs(facts.better_alternative!.eval_cp - facts.eval_cp) < 50
+                ? `Engine's choice: ${facts.better_alternative!.san}`
+                : `Better was ${facts.better_alternative!.san}`,
           }
         : facts.display_line?.san?.length
           ? {
@@ -270,22 +276,36 @@ const Comments: React.FC = () => {
 
       {/* Comment + part cards (flexible, scrolls) */}
       <div className="scroll-y min-h-0 flex-1">
-        {displayedComments.length === 0 ? (
-          <div className="flex h-full min-h-[60px] flex-col items-center justify-center p-4 text-[12px] italic text-text-tertiary">
-            <p>No commentary available for this game.</p>
+        {!activeComment && !facts ? (
+          <div className="flex h-full min-h-[60px] flex-col items-center justify-center p-4 text-center text-text-secondary">
+            <p className="mb-0.5 text-[12px] font-medium text-text-primary">
+              {displayedComments.length === 0
+                ? 'No commentary available for this game.'
+                : 'No commentary for this move'}
+            </p>
+            <p className="text-[11px] text-text-tertiary">
+              Use ‹ › above to jump between commented moves.
+            </p>
           </div>
-        ) : activeComment ? (
+        ) : (
           <div className="comment-body">
-            <h2 className="comment-title">{activeMainTitle}</h2>
-            <CommentItem
-              id={`comment-main-${activeComment.moveId}`}
-              title=""
-              text={activeComment.text}
-              isActive
-              keyMomentType={activeKeyMomentType}
-              resolvedTokens={activeComment.resolvedTokens}
-              llmDebug={activeComment.llmDebug}
-            />
+            {/* LLM prose comment (key moments only) */}
+            {activeComment ? (
+              <>
+                <h2 className="comment-title">{activeMainTitle}</h2>
+                <CommentItem
+                  id={`comment-main-${activeComment.moveId}`}
+                  title=""
+                  text={activeComment.text}
+                  isActive
+                  keyMomentType={activeKeyMomentType}
+                  resolvedTokens={activeComment.resolvedTokens}
+                  llmDebug={activeComment.llmDebug}
+                />
+              </>
+            ) : null}
+            {/* Structured facts (MAIN LINE / BETTER WAS / charts) — shown for any
+                analyzed move, even without an LLM prose comment. */}
             {facts ? (
               <StructuredComment
                 facts={facts}
@@ -294,15 +314,6 @@ const Comments: React.FC = () => {
                 onSelectPart={setSelectedPart}
               />
             ) : null}
-          </div>
-        ) : (
-          <div className="flex h-full min-h-[60px] flex-col items-center justify-center p-4 text-center text-text-secondary">
-            <p className="mb-0.5 text-[12px] font-medium text-text-primary">
-              No commentary for this move
-            </p>
-            <p className="text-[11px] text-text-tertiary">
-              Use ‹ › above to jump between commented moves.
-            </p>
           </div>
         )}
       </div>

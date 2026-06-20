@@ -33,16 +33,23 @@ function MoveCell({
   move,
   active,
   hasComment,
+  unread,
   generating,
   onClick,
 }: {
   move: Move | undefined
   active: boolean
   hasComment: boolean
+  unread: boolean
   generating: boolean
   onClick: () => void
 }) {
-  if (!move?.move) return <div className="move-cell ca-muted" style={{ cursor: 'default' }}>—</div>
+  if (!move?.move)
+    return (
+      <div className="move-cell ca-muted" style={{ cursor: 'default' }}>
+        —
+      </div>
+    )
   const annot = moveAnnotation(move)
   const score = formatScore(move)
   return (
@@ -56,7 +63,19 @@ function MoveCell({
             aria-label="generating"
           />
         ) : hasComment ? (
-          <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: 'var(--accent)' }} title="has commentary" />
+          <span
+            className="ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle"
+            style={
+              unread
+                ? { background: 'var(--accent)' }
+                : {
+                    background: 'transparent',
+                    border: '1px solid var(--accent)',
+                    opacity: 0.5,
+                  }
+            }
+            title={unread ? 'new commentary' : 'commentary (read)'}
+          />
         ) : null}
       </span>
       {score != null ? <span className="ev">{score}</span> : null}
@@ -67,8 +86,14 @@ function MoveCell({
 const MoveList = () => {
   const listRef = useRef<HTMLDivElement>(null)
   const { state, manager } = useGameState()
-  const { currentMoveIndex, isAnalysisInProgress, analysisProgress, isFullyAnalyzed, commentsMainline, aiGeneration } =
-    state
+  const {
+    currentMoveIndex,
+    isAnalysisInProgress,
+    analysisProgress,
+    isFullyAnalyzed,
+    commentsMainline,
+    aiGeneration,
+  } = state
 
   // Dot only on moves with real key-moment/teaching commentary — not the
   // template-floor facts that every analyzed move carries. Move id = index+1.
@@ -90,14 +115,27 @@ const MoveList = () => {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target && ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return
+      if (
+        e.target &&
+        ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)
+      )
+        return
       if (e.key === 'Escape') {
         manager.setFocusedBoard('game')
         return
       }
       // Left/Right/Home/End step the focused board; Up/Down cycle focus across
       // the main board, the main-line navigator and the alternative navigator.
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
+      if (
+        [
+          'ArrowLeft',
+          'ArrowRight',
+          'ArrowUp',
+          'ArrowDown',
+          'Home',
+          'End',
+        ].includes(e.key)
+      ) {
         e.preventDefault()
         manager.handleArrowKey(e.key)
       }
@@ -108,7 +146,9 @@ const MoveList = () => {
 
   useEffect(() => {
     if (listRef.current && displayedMoves?.length) {
-      const activeItem = listRef.current.querySelector(`.move-item-${currentMoveIndex}`) as HTMLElement
+      const activeItem = listRef.current.querySelector(
+        `.move-item-${currentMoveIndex}`,
+      ) as HTMLElement
       if (activeItem) UIHelpers.scrollIntoView(activeItem, listRef.current)
     }
   }, [currentMoveIndex, displayedMoves?.length])
@@ -126,10 +166,16 @@ const MoveList = () => {
           <div className="relative h-2.5 w-full rounded-full bg-background-secondary">
             <div
               className="absolute h-full rounded-full transition-[width] duration-500"
-              style={{ width: `${analysisProgress}%`, left: 0, background: 'var(--info)' }}
+              style={{
+                width: `${analysisProgress}%`,
+                left: 0,
+                background: 'var(--info)',
+              }}
             />
           </div>
-          <p className="mt-1 text-[10px] text-text-tertiary">Analyzing… {analysisProgress.toFixed(0)}%</p>
+          <p className="mt-1 text-[10px] text-text-tertiary">
+            Analyzing… {analysisProgress.toFixed(0)}%
+          </p>
         </div>
       ) : null}
       <div ref={listRef} className="movelist scroll-y min-h-0 flex-1">
@@ -145,7 +191,12 @@ const MoveList = () => {
                 <MoveCell
                   move={whiteMove}
                   active={currentMoveIndex === whiteIdx}
-                  hasComment={!!whiteMove && moveIdsWithComment.has(whiteMove.id)}
+                  hasComment={
+                    !!whiteMove && moveIdsWithComment.has(whiteMove.id)
+                  }
+                  unread={
+                    !!whiteMove && !state.readCommentMoveIds.has(whiteMove.id)
+                  }
                   generating={!!whiteMove && aiGeneration[whiteMove.id] != null}
                   onClick={() => manager.goToMove(whiteIdx)}
                 />
@@ -154,7 +205,12 @@ const MoveList = () => {
                 <MoveCell
                   move={blackMove}
                   active={currentMoveIndex === blackIdx}
-                  hasComment={!!blackMove && moveIdsWithComment.has(blackMove.id)}
+                  hasComment={
+                    !!blackMove && moveIdsWithComment.has(blackMove.id)
+                  }
+                  unread={
+                    !!blackMove && !state.readCommentMoveIds.has(blackMove.id)
+                  }
                   generating={!!blackMove && aiGeneration[blackMove.id] != null}
                   onClick={() => blackMove && manager.goToMove(blackIdx)}
                 />

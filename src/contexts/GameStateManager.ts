@@ -77,6 +77,8 @@ export type GameStateSnapshot = {
   moves: MoveList
   currentMoveIndex: number
   commentsMainline: MainlineComment[]
+  /** Move ids whose LLM comment has been viewed — drives the read/unread dot. */
+  readCommentMoveIds: Set<number>
   pendingComments: {
     moveId: number
     context: 'mainline' | 'preview'
@@ -158,6 +160,7 @@ export class GameStateManager {
       moves: new MoveList(),
       currentMoveIndex: 0,
       commentsMainline: [],
+      readCommentMoveIds: new Set(),
       pendingComments: [],
       aiComments: [],
       modelParams: {
@@ -288,6 +291,7 @@ export class GameStateManager {
     this.state.analysisProgress = 100
     this.state.wsError = null
     this.state.commentsMainline = []
+    this.state.readCommentMoveIds = new Set()
     this.state.commentaryBoardOverlay = null
     this.state.gameJson = data
     this.state.commentaryComplete = data.commentary_complete ?? false
@@ -442,11 +446,18 @@ export class GameStateManager {
   }
 
   // --- Unified Navigation ---
+  /** Mark the current move's comment as read (dims its move-list dot). */
+  private markCurrentMoveRead() {
+    const mv = this.getMainlineMove(this.state.currentMoveIndex)
+    if (mv) this.state.readCommentMoveIds.add(mv.id)
+  }
+
   goToMove(index: number) {
     if (index >= 0 && index < this.state.moves.getMainlineMoveCount()) {
       this.state.currentMoveIndex = index
       this.state.commentaryBoardOverlay = null
       this.state.focusedBoard = 'game'
+      this.markCurrentMoveRead()
       this.checkAndRequestCurrentMoveAnalysis()
       this.notify()
     }
@@ -457,6 +468,7 @@ export class GameStateManager {
     if (nextIndex < this.state.moves.getMainlineMoveCount()) {
       this.state.currentMoveIndex = nextIndex
       this.state.commentaryBoardOverlay = null
+      this.markCurrentMoveRead()
       this.checkAndRequestCurrentMoveAnalysis()
       this.notify()
     }
@@ -467,6 +479,7 @@ export class GameStateManager {
     if (prevIndex >= 0) {
       this.state.currentMoveIndex = prevIndex
       this.state.commentaryBoardOverlay = null
+      this.markCurrentMoveRead()
       this.checkAndRequestCurrentMoveAnalysis()
       this.notify()
     }
@@ -794,6 +807,7 @@ export class GameStateManager {
         }
         // New model settings invalidate existing AI-generated commentary
         this.state.commentsMainline = []
+        this.state.readCommentMoveIds = new Set()
         this.state.aiComments = []
         this.state.pendingComments = []
         this.state.commentaryComplete = false

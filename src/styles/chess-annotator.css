@@ -229,7 +229,12 @@
   display: grid;
   gap: 18px;
   align-items: start;
-  grid-template-columns: minmax(360px, 440px) minmax(380px, 1.1fr) minmax(280px, 360px);
+  /* Board column tracks the board's own max size (~520) + eval bar + labels,
+     so it never leaves dead space around the board. */
+  grid-template-columns: minmax(360px, 580px) minmax(360px, 1fr) minmax(
+      280px,
+      340px
+    );
   grid-template-areas: 'board comment moves';
 }
 /* Board column sets the row height; comment/moves scroll internally to match. */

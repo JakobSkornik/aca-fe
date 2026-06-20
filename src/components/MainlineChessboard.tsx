@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
-import type { Arrow, CustomSquareStyles, Square } from 'react-chessboard/dist/chessboard/types'
+import type {
+  Arrow,
+  CustomSquareStyles,
+  Square,
+} from 'react-chessboard/dist/chessboard/types'
 import { useGameState } from '../contexts/GameStateContext'
 import { useSquareFit } from '@/hooks/useSquareFit'
 import Icon from '@/components/ui/Icon'
 
 const MIN_BOARD_SIZE = 160
 const BOARD_PADDING = 6
-const MAX_BOARD_SIZE = 440
+const MAX_BOARD_SIZE = 520
 /** Rank gutter + eval bar reserve so the square board fits its column. */
 const SIDE_GUTTER_PX = 22 + 34
 
@@ -58,7 +62,17 @@ function PlayerPlate({
 }
 
 /** Vertical eval bar beside the board (template .evalbar). */
-function VerticalEvalBar({ height, cp, mate, book }: { height: number; cp: number | null; mate: number | null | undefined; book: boolean }) {
+function VerticalEvalBar({
+  height,
+  cp,
+  mate,
+  book,
+}: {
+  height: number
+  cp: number | null
+  mate: number | null | undefined
+  book: boolean
+}) {
   let whitePct: number
   let label: string
   if (book) {
@@ -69,7 +83,10 @@ function VerticalEvalBar({ height, cp, mate, book }: { height: number; cp: numbe
     label = `M${Math.abs(mate)}`
   } else {
     const pawns = (cp ?? 0) / 100
-    whitePct = Math.max(3, Math.min(97, (1 / (1 + Math.exp(-pawns * 0.42))) * 100))
+    whitePct = Math.max(
+      3,
+      Math.min(97, (1 / (1 + Math.exp(-pawns * 0.42))) * 100),
+    )
     label = `${pawns >= 0 ? '+' : ''}${pawns.toFixed(2)}`
   }
   return (
@@ -78,7 +95,10 @@ function VerticalEvalBar({ height, cp, mate, book }: { height: number; cp: numbe
         <div className="white-fill" style={{ height: `${whitePct}%` }} />
       </div>
       {/* Score below the bar, in the theme's foreground colour (inverts per theme). */}
-      <div className="mono mt-1 text-[11px] font-bold tabular-nums" style={{ color: 'var(--fg)' }}>
+      <div
+        className="mono mt-1 text-[11px] font-bold tabular-nums"
+        style={{ color: 'var(--fg)' }}
+      >
         {label}
       </div>
     </div>
@@ -87,7 +107,14 @@ function VerticalEvalBar({ height, cp, mate, book }: { height: number; cp: numbe
 
 const MainlineChessboard = () => {
   const { state, manager } = useGameState()
-  const { currentMoveIndex, isLoaded, commentaryBoardOverlay, boardOrientation, pgnHeaders, focusedBoard } = state
+  const {
+    currentMoveIndex,
+    isLoaded,
+    commentaryBoardOverlay,
+    boardOrientation,
+    pgnHeaders,
+    focusedBoard,
+  } = state
   const parentRef = useRef<HTMLDivElement>(null)
   const boardLayoutRef = useRef<HTMLDivElement>(null)
   const sizeCap = useSquareFit(parentRef, {
@@ -112,11 +139,11 @@ const MainlineChessboard = () => {
 
   const filesEdge = useMemo(
     () => (boardOrientation === 'white' ? [...FILES] : [...FILES].reverse()),
-    [boardOrientation]
+    [boardOrientation],
   )
   const ranksLeft = useMemo(
     () => (boardOrientation === 'white' ? [...RANKS] : [...RANKS].reverse()),
-    [boardOrientation]
+    [boardOrientation],
   )
 
   useEffect(() => {
@@ -126,7 +153,7 @@ const MainlineChessboard = () => {
       const w = el.getBoundingClientRect().width
       const next = Math.max(
         MIN_BOARD_SIZE,
-        Math.min(MAX_BOARD_SIZE, sizeCap, Math.floor(w - SIDE_GUTTER_PX))
+        Math.min(MAX_BOARD_SIZE, sizeCap, Math.floor(w - SIDE_GUTTER_PX)),
       )
       setRenderSize(next)
     }
@@ -141,26 +168,56 @@ const MainlineChessboard = () => {
   const curMove = manager.getMainlineMove(currentMoveIndex)
   const evalCp = curMove?.score ?? null
   const evalMate = curMove?.mateIn
-  const isBook = (curMove as { phase?: string } | null)?.phase === 'early' && curMove?.score === undefined
+  const isBook =
+    (curMove as { phase?: string } | null)?.phase === 'early' &&
+    curMove?.score === undefined
 
   const whiteName = pgnHeaders?.whiteName?.trim() || 'White'
   const blackName = pgnHeaders?.blackName?.trim() || 'Black'
   const whiteElo = fmtElo(pgnHeaders?.whiteElo)
   const blackElo = fmtElo(pgnHeaders?.blackElo)
 
-  const sideToMove = currentFen ? (new Chess(currentFen).turn() === 'w' ? 'white' : 'black') : 'white'
+  const sideToMove = currentFen
+    ? new Chess(currentFen).turn() === 'w'
+      ? 'white'
+      : 'black'
+    : 'white'
   /** Top of the widget is Black's side when White is at bottom; swap when flipped. */
   const topIsBlack = boardOrientation === 'white'
   const topPlate = topIsBlack
-    ? { name: blackName, elo: blackElo, white: false, toMove: sideToMove === 'black' }
-    : { name: whiteName, elo: whiteElo, white: true, toMove: sideToMove === 'white' }
+    ? {
+        name: blackName,
+        elo: blackElo,
+        white: false,
+        toMove: sideToMove === 'black',
+      }
+    : {
+        name: whiteName,
+        elo: whiteElo,
+        white: true,
+        toMove: sideToMove === 'white',
+      }
   const bottomPlate = topIsBlack
-    ? { name: whiteName, elo: whiteElo, white: true, toMove: sideToMove === 'white' }
-    : { name: blackName, elo: blackElo, white: false, toMove: sideToMove === 'black' }
+    ? {
+        name: whiteName,
+        elo: whiteElo,
+        white: true,
+        toMove: sideToMove === 'white',
+      }
+    : {
+        name: blackName,
+        elo: blackElo,
+        white: false,
+        toMove: sideToMove === 'black',
+      }
 
   const { turnLine, arrows, squareStyles } = useMemo(() => {
     if (!currentFen || !isLoaded) {
-      return { turnLine: '', arrows: [] as Arrow[], squareStyles: {} as CustomSquareStyles }
+      return {
+        turnLine: '',
+        arrows: [] as Arrow[],
+        squareStyles: {} as CustomSquareStyles,
+      }
     }
     const pos = new Chess(currentFen)
     const turn = pos.turn() === 'w' ? 'White' : 'Black'
@@ -188,14 +245,46 @@ const MainlineChessboard = () => {
       }
     }
     const overlay = commentaryBoardOverlay
-    const arr: Arrow[] = dedupeArrowsByEndpoints(overlay?.arrows?.length ? [...overlay.arrows] : [])
+    const arr: Arrow[] = dedupeArrowsByEndpoints(
+      overlay?.arrows?.length ? [...overlay.arrows] : [],
+    )
+    // Gray arrow for the engine's better move at this point (played move is the
+    // green-tinted squares above). Only when no hover overlay is active.
+    if (!overlay?.arrows?.length) {
+      const altUci =
+        state.gameJson?.moves?.[currentMoveIndex]?.comment_facts
+          ?.better_alternative?.uci
+      if (altUci && altUci.length >= 4) {
+        arr.push([
+          altUci.slice(0, 2) as Square,
+          altUci.slice(2, 4) as Square,
+          'var(--fg-3)',
+        ])
+      }
+    }
     // Commentary hover highlights take precedence over the last-move wash.
-    const sq: CustomSquareStyles = { ...lastMoveSquares, ...(overlay?.squareStyles ?? {}) }
+    const sq: CustomSquareStyles = {
+      ...lastMoveSquares,
+      ...(overlay?.squareStyles ?? {}),
+    }
     return { turnLine, arrows: arr, squareStyles: sq }
-  }, [currentFen, currentMoveIndex, isLoaded, manager, commentaryBoardOverlay])
+  }, [
+    currentFen,
+    currentMoveIndex,
+    isLoaded,
+    manager,
+    commentaryBoardOverlay,
+    state.gameJson,
+  ])
 
   const navBtn = (label: string, icon: string, onClick: () => void) => (
-    <button type="button" className="btn icon-btn" aria-label={label} title={label} onClick={onClick}>
+    <button
+      type="button"
+      className="btn icon-btn"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
       <Icon name={icon} />
     </button>
   )
@@ -204,39 +293,67 @@ const MainlineChessboard = () => {
     <div
       className="panel"
       style={{
-        padding: 16,
-        boxShadow: focusedBoard === 'game' ? '0 0 0 2px var(--inacc)' : undefined,
+        padding: 10,
+        boxShadow:
+          focusedBoard === 'game' ? '0 0 0 2px var(--inacc)' : undefined,
       }}
       onMouseDown={() => manager.setFocusedBoard('game')}
       title="Arrow keys move this board (click to focus)"
     >
       <div ref={parentRef} className="flex w-full flex-col">
         {isLoaded ? <PlayerPlate {...topPlate} /> : null}
-        <div ref={boardLayoutRef} className="board-stage" style={{ justifyContent: 'center' }}>
+        <div
+          ref={boardLayoutRef}
+          className="board-stage"
+          style={{ justifyContent: 'center' }}
+        >
           {renderSize > 0 ? (
             <>
-              <VerticalEvalBar height={renderSize} cp={evalCp} mate={evalMate} book={isBook} />
+              <VerticalEvalBar
+                height={renderSize}
+                cp={evalCp}
+                mate={evalMate}
+                book={isBook}
+              />
               <div className="flex flex-col" style={{ width: renderSize + 22 }}>
                 <div className="flex">
-                  <div className="flex w-[22px] shrink-0 flex-col" style={{ height: renderSize }}>
+                  <div
+                    className="flex w-[22px] shrink-0 flex-col"
+                    style={{ height: renderSize }}
+                  >
                     {ranksLeft.map((r) => (
-                      <div key={`rk-${r}`} className="flex min-h-0 flex-1 items-center justify-center">
+                      <div
+                        key={`rk-${r}`}
+                        className="flex min-h-0 flex-1 items-center justify-center"
+                      >
                         <span className={labelClass}>{r}</span>
                       </div>
                     ))}
                   </div>
                   <div
                     className="shrink-0 overflow-hidden rounded-[12px]"
-                    style={{ width: renderSize, height: renderSize, boxShadow: 'var(--shadow-sm)' }}
+                    style={{
+                      width: renderSize,
+                      height: renderSize,
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
                   >
                     <Chessboard
                       position={currentFen || undefined}
                       boardWidth={renderSize}
-                      customDarkSquareStyle={{ backgroundColor: 'var(--board-dark)' }}
-                      customLightSquareStyle={{ backgroundColor: 'var(--board-light)' }}
+                      customDarkSquareStyle={{
+                        backgroundColor: 'var(--board-dark)',
+                      }}
+                      customLightSquareStyle={{
+                        backgroundColor: 'var(--board-light)',
+                      }}
                       areArrowsAllowed={arrows.length > 0}
                       customArrows={arrows}
-                      customSquareStyles={Object.keys(squareStyles).length > 0 ? squareStyles : undefined}
+                      customSquareStyles={
+                        Object.keys(squareStyles).length > 0
+                          ? squareStyles
+                          : undefined
+                      }
                       arePiecesDraggable={false}
                       boardOrientation={boardOrientation}
                       showBoardNotation={false}
