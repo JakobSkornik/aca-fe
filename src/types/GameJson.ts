@@ -94,6 +94,9 @@ export interface CommentFactsClaim {
   beneficiary?: string | null
   /** True when the claim favors the opponent of the mover (a trade-off). */
   is_concession?: boolean
+  /** "immediate" if realized on the move, "envisioned" if it only develops
+   * deeper in the line. */
+  realization?: string
 }
 
 export interface CommentFactsJson {

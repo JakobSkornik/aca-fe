@@ -59,6 +59,14 @@ const ClaimRow: React.FC<{ claim: CommentFactsClaim }> = ({ claim }) => (
     {claim.features.slice(0, 2).map((f) => (
       <FeatureChip key={f} name={f} delta={claim.delta_cp} />
     ))}
+    {claim.realization === 'envisioned' ? (
+      <span
+        className="rounded bg-text-tertiary/15 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-text-tertiary"
+        title="Not realized on the move itself — this develops deeper in the line"
+      >
+        in the line
+      </span>
+    ) : null}
     {claim.flag_note ? (
       <span className="font-mono text-[9px] text-text-tertiary">
         [{claim.flag_note}]
