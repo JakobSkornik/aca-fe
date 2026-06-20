@@ -2,32 +2,51 @@ import { Chess } from 'chess.js'
 import webSocketService from '../services/WebSocketService'
 import { Move } from '../types/chess/Move'
 import { PgnHeaders } from '../types/chess/PgnHeaders'
-import { MoveList, formatCapturesForDisplay, convertMoveArrayToMoveList, integratePvsIntoMoveList } from '../helpers/moveListUtils'
-import { applyCaptureFromMoveResult, cloneCaptureCount, emptyCaptureCount } from '../helpers/captureUtils'
-import { ClientWsMessageType, ServerWsMessage, ServerWsMessageType, SessionMetadataServerPayload, ErrorServerPayload, MoveListServerPayload, NodeAnalysisUpdatePayload, AnalysisProgressServerPayload, FullAnalysisCompleteServerPayload, AiCommentUpdateServerPayload, AiGenerationStatusServerPayload, ModelParamsUpdatedServerPayload, SetModelParamsClientPayload, EpisodeNarrativeServerPayload, GameNarrativeServerPayload } from '../types/WebSocketMessages'
+import {
+  MoveList,
+  formatCapturesForDisplay,
+  convertMoveArrayToMoveList,
+  integratePvsIntoMoveList,
+} from '../helpers/moveListUtils'
+import {
+  applyCaptureFromMoveResult,
+  cloneCaptureCount,
+  emptyCaptureCount,
+} from '../helpers/captureUtils'
+import {
+  ClientWsMessageType,
+  ServerWsMessage,
+  ServerWsMessageType,
+  SessionMetadataServerPayload,
+  ErrorServerPayload,
+  MoveListServerPayload,
+  NodeAnalysisUpdatePayload,
+  AnalysisProgressServerPayload,
+  FullAnalysisCompleteServerPayload,
+  AiCommentUpdateServerPayload,
+  AiGenerationStatusServerPayload,
+  ModelParamsUpdatedServerPayload,
+  SetModelParamsClientPayload,
+} from '../types/WebSocketMessages'
 import { jobService } from '../services/JobService'
 import { CaptureCount } from '../types/chess/CaptureCount'
 import { chessPositionManager } from '../helpers/ChessPositionManager'
 import { GameJson, GameMove } from '../types/GameJson'
 import { isEngineKeyMomentScoreComment } from '../helpers/commentaryText'
-import type { AiCommentLlmDebug, ResolvedAnnotationToken } from '../types/WebSocketMessages'
-import type { Arrow, CustomSquareStyles } from 'react-chessboard/dist/chessboard/types'
+import type {
+  AiCommentLlmDebug,
+  ResolvedAnnotationToken,
+} from '../types/WebSocketMessages'
+import type {
+  Arrow,
+  CustomSquareStyles,
+} from 'react-chessboard/dist/chessboard/types'
 import {
   DEFAULT_LLM_EFFORT,
   DEFAULT_LLM_PROVIDER,
   type LlmEffort,
   type LlmProvider,
 } from '../constants/llmProviders'
-
-/** Retrieved master-game annotation reference (Chroma RAG). */
-export type RagRef = {
-  source: string
-  fen: string
-  text: string
-  score: number
-  san?: string
-  phase?: string
-}
 
 /** Commentary for a mainline move; optional PV line for hover boards (from AI payload). */
 export type MainlineComment = {
@@ -39,7 +58,6 @@ export type MainlineComment = {
   pvLine?: { san: string; fen: string }[]
   resolvedTokens?: ResolvedAnnotationToken[]
   resolvedTokensByLevel?: Record<string, ResolvedAnnotationToken[]>
-  ragRefs?: RagRef[]
   llmDebug?: AiCommentLlmDebug
 }
 
@@ -62,13 +80,28 @@ export type GameStateSnapshot = {
   moves: MoveList
   currentMoveIndex: number
   commentsMainline: MainlineComment[]
-  pendingComments: { moveId: number; context: 'mainline' | 'preview'; text: string }[]
-  aiComments: { moveId: number; moveIndex: number; context: 'mainline' | 'preview'; data: Record<string, unknown> }[]
+  pendingComments: {
+    moveId: number
+    context: 'mainline' | 'preview'
+    text: string
+  }[]
+  aiComments: {
+    moveId: number
+    moveIndex: number
+    context: 'mainline' | 'preview'
+    data: Record<string, unknown>
+  }[]
   modelParams: { provider: LlmProvider; effort: LlmEffort }
-  aiGeneration: Record<number, { context: 'mainline' | 'preview'; startedAt: number; model?: string; effort?: string }>
-  episodeNarratives: { episodeIndex: number; title: string; narrative: string }[]
-  gameNarrative: string | null
-  /** Raw loaded game (feature_series, per-move feature_refs/phase for the charts panel). */
+  aiGeneration: Record<
+    number,
+    {
+      context: 'mainline' | 'preview'
+      startedAt: number
+      model?: string
+      effort?: string
+    }
+  >
+  /** Raw loaded game (feature_series + per-move phase feed the commentary charts). */
   gameJson: GameJson | null
   commentaryComplete: boolean
   /** Hover-driven overlay from inline commentary tokens (merged in MainlineChessboard). */
@@ -95,17 +128,17 @@ const getPieceFromSan = (san: string, color: 'w' | 'b'): string => {
   // Common piece letters in SAN (English)
   // N = Knight, B = Bishop, R = Rook, Q = Queen, K = King
   // If no letter, it's a Pawn (P)
-  const firstChar = san.charAt(0);
-  let pieceChar = 'P';
+  const firstChar = san.charAt(0)
+  let pieceChar = 'P'
   if (['N', 'B', 'R', 'Q', 'K'].includes(firstChar)) {
-    pieceChar = firstChar;
+    pieceChar = firstChar
   }
   // Check for castling
   if (san.startsWith('O-O')) {
-    pieceChar = 'K';
+    pieceChar = 'K'
   }
-  
-  return `${color}${pieceChar}`;
+
+  return `${color}${pieceChar}`
 }
 
 export class GameStateManager {
@@ -130,10 +163,11 @@ export class GameStateManager {
       commentsMainline: [],
       pendingComments: [],
       aiComments: [],
-      modelParams: { provider: DEFAULT_LLM_PROVIDER, effort: DEFAULT_LLM_EFFORT },
+      modelParams: {
+        provider: DEFAULT_LLM_PROVIDER,
+        effort: DEFAULT_LLM_EFFORT,
+      },
       aiGeneration: {},
-      episodeNarratives: [],
-      gameNarrative: null,
       gameJson: null,
       commentaryComplete: true,
       commentaryBoardOverlay: null,
@@ -204,7 +238,8 @@ export class GameStateManager {
   handleArrowKey(key: string) {
     if (key === 'ArrowUp') return this.cycleFocus('up')
     if (key === 'ArrowDown') return this.cycleFocus('down')
-    const v = this.state.focusedBoard === 'variation' ? this.variationStepper : null
+    const v =
+      this.state.focusedBoard === 'variation' ? this.variationStepper : null
     if (v) {
       if (key === 'ArrowLeft') v.prev()
       else if (key === 'ArrowRight') v.next()
@@ -219,7 +254,8 @@ export class GameStateManager {
   }
 
   flipBoard() {
-    this.state.boardOrientation = this.state.boardOrientation === 'white' ? 'black' : 'white'
+    this.state.boardOrientation =
+      this.state.boardOrientation === 'white' ? 'black' : 'white'
     this.notify()
   }
 
@@ -227,12 +263,12 @@ export class GameStateManager {
   subscribe(listener: () => void) {
     this.listeners.push(listener)
     return () => {
-      this.listeners = this.listeners.filter(l => l !== listener)
+      this.listeners = this.listeners.filter((l) => l !== listener)
     }
   }
 
   private notify() {
-    this.listeners.forEach(l => l())
+    this.listeners.forEach((l) => l())
   }
 
   // --- State access ---
@@ -249,23 +285,15 @@ export class GameStateManager {
   loadGameFromJson(data: GameJson) {
     this.disconnectJobCommentaryWs()
     this.state.boardOrientation = 'white'
-    this.state.isLoaded = false;
-    this.state.isAnalysisInProgress = false;
-    this.state.isFullyAnalyzed = true;
-    this.state.analysisProgress = 100;
-    this.state.wsError = null;
-    this.state.commentsMainline = [];
-    this.state.commentaryBoardOverlay = null;
-    this.state.episodeNarratives = (data.episodes || [])
-      .filter((e) => e.narrative)
-      .map((e) => ({
-        episodeIndex: e.episode_index,
-        title: e.title,
-        narrative: e.narrative as string,
-      }));
-    this.state.gameNarrative = data.game_narrative ?? null;
-    this.state.gameJson = data;
-    this.state.commentaryComplete = data.commentary_complete ?? !!data.game_narrative;
+    this.state.isLoaded = false
+    this.state.isAnalysisInProgress = false
+    this.state.isFullyAnalyzed = true
+    this.state.analysisProgress = 100
+    this.state.wsError = null
+    this.state.commentsMainline = []
+    this.state.commentaryBoardOverlay = null
+    this.state.gameJson = data
+    this.state.commentaryComplete = data.commentary_complete ?? false
 
     // Set headers
     this.state.pgnHeaders = {
@@ -275,115 +303,138 @@ export class GameStateManager {
       blackElo: data.metadata.blackElo ?? 0,
       result: data.metadata.result,
       opening: data.metadata.opening || '',
-      event: data.metadata.eventId || ''
-    };
+      event: data.metadata.eventId || '',
+    }
 
     // Reconstruct Moves
-    const moveList = new MoveList();
-    const chess = new Chess(); // Replay mainline; PVs use position before each move
+    const moveList = new MoveList()
+    const chess = new Chess() // Replay mainline; PVs use position before each move
     let capW = emptyCaptureCount()
     let capB = emptyCaptureCount()
 
     data.moves.forEach((gm: GameMove, index: number) => {
-        // Mainline move
-        const move: Move = {
-            id: index + 1, // Simple ID
-            depth: data.analysis_info.depth, // Use global depth for now
-            position: gm.fen,
-            move: gm.san, // Use SAN for display
-            isAnalyzed: true,
-            context: 'mainline',
-            score: gm.score ? (gm.score.mate ? (gm.score.mate > 0 ? 100000 - gm.score.mate : -100000 - gm.score.mate) : gm.score.cp || 0) : undefined,
-            mateIn: gm.score?.mate != null ? gm.score.mate : undefined,
-            annotation: gm.comment || undefined,
-            phase: gm.phase,
-            piece: getPieceFromSan(gm.san, gm.color),
-            hiddenFeatures: {}
-        };
+      // Mainline move
+      const move: Move = {
+        id: index + 1, // Simple ID
+        depth: data.analysis_info.depth, // Use global depth for now
+        position: gm.fen,
+        move: gm.san, // Use SAN for display
+        isAnalyzed: true,
+        context: 'mainline',
+        score: gm.score
+          ? gm.score.mate
+            ? gm.score.mate > 0
+              ? 100000 - gm.score.mate
+              : -100000 - gm.score.mate
+            : gm.score.cp || 0
+          : undefined,
+        mateIn: gm.score?.mate != null ? gm.score.mate : undefined,
+        annotation: gm.comment || undefined,
+        phase: gm.phase,
+        piece: getPieceFromSan(gm.san, gm.color),
+        hiddenFeatures: {},
+      }
 
-        // AI commentary list only (exclude engine key-moment + score lines)
-        if (gm.comment && !isEngineKeyMomentScoreComment(gm.comment)) {
-            const item: MainlineComment = {
-                moveId: move.id,
-                moveIndex: index,
-                text: gm.comment,
-            }
-            if (gm.resolved_tokens && gm.resolved_tokens.length > 0) {
-                item.resolvedTokens = gm.resolved_tokens
-            }
-            if (gm.comments && Object.keys(gm.comments).length > 0) {
-                item.texts = gm.comments
-            }
-            if (gm.resolved_tokens_by_level && Object.keys(gm.resolved_tokens_by_level).length > 0) {
-                item.resolvedTokensByLevel = gm.resolved_tokens_by_level
-            }
-            this.state.commentsMainline.push(item)
+      // AI commentary list only (exclude engine key-moment + score lines)
+      if (gm.comment && !isEngineKeyMomentScoreComment(gm.comment)) {
+        const item: MainlineComment = {
+          moveId: move.id,
+          moveIndex: index,
+          text: gm.comment,
         }
+        if (gm.resolved_tokens && gm.resolved_tokens.length > 0) {
+          item.resolvedTokens = gm.resolved_tokens
+        }
+        if (gm.comments && Object.keys(gm.comments).length > 0) {
+          item.texts = gm.comments
+        }
+        if (
+          gm.resolved_tokens_by_level &&
+          Object.keys(gm.resolved_tokens_by_level).length > 0
+        ) {
+          item.resolvedTokensByLevel = gm.resolved_tokens_by_level
+        }
+        this.state.commentsMainline.push(item)
+      }
 
-        // PVs (from position before this mainline move)
-        const pvs: Move[][] = [];
-        
-        gm.variations.forEach(variation => {
-             const pvLine: Move[] = [];
-             const pvChess = new Chess(chess.fen()); // Clone state before move
-             
-             variation.line.forEach((pvMoveStr, pvIndex) => {
-                 try {
-                     // pvMoveStr is SAN from backend
-                     const result = pvChess.move(pvMoveStr);
-                     if (result) {
-                         const pvMove: Move = {
-                             id: (index + 1) * 1000 + pvIndex,
-                             depth: data.analysis_info.depth,
-                             position: pvChess.fen(),
-                             move: result.san, // Store SAN
-                             isAnalyzed: true,
-                             context: `pv${variation.rank}`,
-                             score: pvIndex === 0 ? (variation.score ? (variation.score.mate ? (variation.score.mate > 0 ? 100000 : -100000) : variation.score.cp || 0) : undefined) : undefined,
-                             piece: getPieceFromSan(result.san, result.color)
-                         };
-                         pvLine.push(pvMove);
-                     }
-                 } catch (e) {
-                     console.warn("Failed to replay PV move", pvMoveStr, e);
-                 }
-             });
-             if (pvLine.length > 0) {
-                pvs.push(pvLine);
-             }
-        });
+      // PVs (from position before this mainline move)
+      const pvs: Move[][] = []
 
-        const pv1 = pvs.length > 0 ? pvs[0] : [];
-        const pv2 = pvs.length > 1 ? pvs[1] : [];
+      gm.variations.forEach((variation) => {
+        const pvLine: Move[] = []
+        const pvChess = new Chess(chess.fen()) // Clone state before move
 
-        // Advance mainline and track material captured
-        let last: ReturnType<Chess['move']> | null = null
+        variation.line.forEach((pvMoveStr, pvIndex) => {
+          try {
+            // pvMoveStr is SAN from backend
+            const result = pvChess.move(pvMoveStr)
+            if (result) {
+              const pvMove: Move = {
+                id: (index + 1) * 1000 + pvIndex,
+                depth: data.analysis_info.depth,
+                position: pvChess.fen(),
+                move: result.san, // Store SAN
+                isAnalyzed: true,
+                context: `pv${variation.rank}`,
+                score:
+                  pvIndex === 0
+                    ? variation.score
+                      ? variation.score.mate
+                        ? variation.score.mate > 0
+                          ? 100000
+                          : -100000
+                        : variation.score.cp || 0
+                      : undefined
+                    : undefined,
+                piece: getPieceFromSan(result.san, result.color),
+              }
+              pvLine.push(pvMove)
+            }
+          } catch (e) {
+            console.warn('Failed to replay PV move', pvMoveStr, e)
+          }
+        })
+        if (pvLine.length > 0) {
+          pvs.push(pvLine)
+        }
+      })
+
+      const pv1 = pvs.length > 0 ? pvs[0] : []
+      const pv2 = pvs.length > 1 ? pvs[1] : []
+
+      // Advance mainline and track material captured
+      let last: ReturnType<Chess['move']> | null = null
+      try {
+        last = chess.move(gm.san)
+      } catch {
         try {
-            last = chess.move(gm.san)
-        } catch {
-             try {
-                last = chess.move(gm.uci)
-             } catch (e) {
-                 console.error("Failed to make move", gm.san, gm.uci, e);
-             }
+          last = chess.move(gm.uci)
+        } catch (e) {
+          console.error('Failed to make move', gm.san, gm.uci, e)
         }
-        if (last?.captured) {
-          const u = applyCaptureFromMoveResult(capW, capB, last.captured, last.color)
-          capW = u.capW
-          capB = u.capB
-        }
-        move.capturedByWhite = cloneCaptureCount(capW)
-        move.capturedByBlack = cloneCaptureCount(capB)
+      }
+      if (last?.captured) {
+        const u = applyCaptureFromMoveResult(
+          capW,
+          capB,
+          last.captured,
+          last.color,
+        )
+        capW = u.capW
+        capB = u.capB
+      }
+      move.capturedByWhite = cloneCaptureCount(capW)
+      move.capturedByBlack = cloneCaptureCount(capB)
 
-        moveList.addMove(move, pv1, pv2);
-    });
-    
+      moveList.addMove(move, pv1, pv2)
+    })
+
     // Apply classifications
-    moveList.applyClassificationsToAllMoves();
+    moveList.applyClassificationsToAllMoves()
 
-    this.state.moves = moveList;
-    this.state.isLoaded = true;
-    this.notify();
+    this.state.moves = moveList
+    this.state.isLoaded = true
+    this.notify()
   }
 
   // --- Unified Move Analysis ---
@@ -519,9 +570,17 @@ export class GameStateManager {
     try {
       const raw = aiPayload.data as Record<string, unknown>
       const summary = String(raw?.summary || raw?.commentary || '')
-      const bullets = Array.isArray(raw?.bullets) ? (raw.bullets as unknown[]).map(String) : []
-      const text = [summary, ...bullets.map((b) => `- ${b}`)].filter(Boolean).join('\n')
-      const commentItem: MainlineComment = { moveId: aiPayload.moveId, moveIndex: idx, text }
+      const bullets = Array.isArray(raw?.bullets)
+        ? (raw.bullets as unknown[]).map(String)
+        : []
+      const text = [summary, ...bullets.map((b) => `- ${b}`)]
+        .filter(Boolean)
+        .join('\n')
+      const commentItem: MainlineComment = {
+        moveId: aiPayload.moveId,
+        moveIndex: idx,
+        text,
+      }
       const pvRaw = raw?.pv_line
       if (Array.isArray(pvRaw)) {
         const parsed = pvRaw.filter(
@@ -529,32 +588,13 @@ export class GameStateManager {
             typeof x === 'object' &&
             x !== null &&
             typeof (x as { san?: string }).san === 'string' &&
-            typeof (x as { fen?: string }).fen === 'string'
+            typeof (x as { fen?: string }).fen === 'string',
         )
         if (parsed.length > 0) commentItem.pvLine = parsed
       }
       const rtRaw = raw?.resolved_tokens
       if (Array.isArray(rtRaw) && rtRaw.length > 0) {
         commentItem.resolvedTokens = rtRaw as ResolvedAnnotationToken[]
-      }
-      const ragRaw = raw?.rag_refs
-      if (Array.isArray(ragRaw) && ragRaw.length > 0) {
-        const parsed: RagRef[] = ragRaw
-          .filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
-          .map((x) => {
-            const sc = x.score
-            const score = typeof sc === 'number' && !Number.isNaN(sc) ? sc : 0
-            return {
-              source: String(x.source ?? ''),
-              fen: String(x.fen ?? ''),
-              text: String(x.text ?? ''),
-              score,
-              san: typeof x.san === 'string' ? x.san : undefined,
-              phase: typeof x.phase === 'string' ? x.phase : undefined,
-            }
-          })
-          .filter((r) => r.source && r.fen && r.text)
-        if (parsed.length > 0) commentItem.ragRefs = parsed
       }
       const ldRaw = raw?.llm_debug
       if (ldRaw && typeof ldRaw === 'object' && ldRaw !== null) {
@@ -581,9 +621,16 @@ export class GameStateManager {
     const ws = new WebSocket(url)
     this.jobCommentaryWs = ws
     ws.onmessage = (ev) => {
-      if (this.jobCommentaryWs !== ws || this.jobCommentaryActiveJobId !== jobId) return
+      if (
+        this.jobCommentaryWs !== ws ||
+        this.jobCommentaryActiveJobId !== jobId
+      )
+        return
       try {
-        const msg = JSON.parse(ev.data as string) as { type: string; payload: unknown }
+        const msg = JSON.parse(ev.data as string) as {
+          type: string
+          payload: unknown
+        }
         this.handleJobCommentaryMessage(msg)
       } catch {
         /* ignore */
@@ -634,23 +681,6 @@ export class GameStateManager {
         const p = msg.payload as AiCommentUpdateServerPayload
         if (this.findMoveIndexById(p.moveId) === -1) break
         this.applyAiCommentUpdatePayload(p)
-        break
-      }
-      case 'EPISODE_NARRATIVE': {
-        const p = msg.payload as EpisodeNarrativeServerPayload
-        this.state.episodeNarratives = [
-          ...this.state.episodeNarratives.filter((e) => e.episodeIndex !== p.episode_index),
-          { episodeIndex: p.episode_index, title: p.title, narrative: p.narrative },
-        ]
-        this.notify()
-        break
-      }
-      case 'GAME_NARRATIVE': {
-        const p = msg.payload as GameNarrativeServerPayload
-        this.state.gameNarrative = p.narrative
-        this.state.commentaryComplete = true
-        this.disconnectJobCommentaryWs()
-        this.notify()
         break
       }
       case 'COMMENTARY_COMPLETE': {
@@ -705,7 +735,7 @@ export class GameStateManager {
 
       case ServerWsMessageType.ANALYSIS_UPDATE:
         const analysisPayload = srvMsg.payload as NodeAnalysisUpdatePayload
-        if (analysisPayload.move.context === "mainline") {
+        if (analysisPayload.move.context === 'mainline') {
           this.state.moves.handleWsNodeAnalysisUpdatePayload(analysisPayload)
         }
         this._flushPendingComments()
@@ -719,10 +749,13 @@ export class GameStateManager {
         break
 
       case ServerWsMessageType.FULL_ANALYSIS_COMPLETE:
-        const completePayload = srvMsg.payload as FullAnalysisCompleteServerPayload
+        const completePayload =
+          srvMsg.payload as FullAnalysisCompleteServerPayload
         // full analysis complete
         const convertedMoves = convertMoveArrayToMoveList(completePayload.moves)
-        const finalMoves = completePayload.pvs ? integratePvsIntoMoveList(convertedMoves, completePayload.pvs) : convertedMoves
+        const finalMoves = completePayload.pvs
+          ? integratePvsIntoMoveList(convertedMoves, completePayload.pvs)
+          : convertedMoves
 
         // Apply classifications to the new move list
         finalMoves.applyClassificationsToAllMoves()
@@ -740,7 +773,9 @@ export class GameStateManager {
         break
 
       case ServerWsMessageType.AI_COMMENT_UPDATE:
-        this.applyAiCommentUpdatePayload(srvMsg.payload as AiCommentUpdateServerPayload)
+        this.applyAiCommentUpdatePayload(
+          srvMsg.payload as AiCommentUpdateServerPayload,
+        )
         break
 
       case ServerWsMessageType.AI_GENERATION_STATUS:
@@ -773,8 +808,6 @@ export class GameStateManager {
         this.state.commentsMainline = []
         this.state.aiComments = []
         this.state.pendingComments = []
-        this.state.episodeNarratives = []
-        this.state.gameNarrative = null
         this.state.commentaryComplete = false
         this.notify()
         break
@@ -800,7 +833,9 @@ export class GameStateManager {
   }
 
   requestPgnHeaders() {
-    webSocketService.sendMessage({ type: ClientWsMessageType.GET_SESSION_METADATA })
+    webSocketService.sendMessage({
+      type: ClientWsMessageType.GET_SESSION_METADATA,
+    })
   }
 
   requestMoveList() {
@@ -809,7 +844,10 @@ export class GameStateManager {
 
   // --- Model Params Controls ---
   setModelParams(params: Partial<SetModelParamsClientPayload>) {
-    webSocketService.sendMessage({ type: ClientWsMessageType.SET_MODEL_PARAMS, payload: params })
+    webSocketService.sendMessage({
+      type: ClientWsMessageType.SET_MODEL_PARAMS,
+      payload: params,
+    })
   }
 
   getModelParams() {
@@ -885,7 +923,10 @@ export class GameStateManager {
     return this.state.moves.getMainlineMoveCount()
   }
 
-  formatCapturesForDisplay(captures: CaptureCount | undefined, isWhitePerspective: boolean) {
+  formatCapturesForDisplay(
+    captures: CaptureCount | undefined,
+    isWhitePerspective: boolean,
+  ) {
     return formatCapturesForDisplay(captures, isWhitePerspective)
   }
 
@@ -917,7 +958,11 @@ export class GameStateManager {
     for (const pending of this.state.pendingComments) {
       const idx = this.state.moves.findMoveIndexById(pending.moveId)
       if (idx !== -1) {
-        const commentItem: MainlineComment = { moveId: pending.moveId, moveIndex: idx, text: pending.text }
+        const commentItem: MainlineComment = {
+          moveId: pending.moveId,
+          moveIndex: idx,
+          text: pending.text,
+        }
         this.upsertMainlineComment(commentItem)
       } else {
         remaining.push(pending)
@@ -933,5 +978,4 @@ export class GameStateManager {
       item,
     ]
   }
-
 }

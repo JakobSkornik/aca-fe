@@ -5,10 +5,18 @@ type Props = {
   debug: AiCommentLlmDebug
 }
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
+function Block({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
   return (
     <section>
-      <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">{title}</h4>
+      <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
+        {title}
+      </h4>
       {children}
     </section>
   )
@@ -34,15 +42,21 @@ const LlmDebugPanel: React.FC<Props> = ({ debug }) => {
           .join(', ')
       : null
   const passes = Array.isArray(debug.passes) ? debug.passes : []
-  const systemPrompts = Array.isArray(debug.system_prompts) ? debug.system_prompts : []
+  const systemPrompts = Array.isArray(debug.system_prompts)
+    ? debug.system_prompts
+    : []
   const claims = Array.isArray(debug.claims) ? debug.claims : []
-  const featureRefs = Array.isArray(debug.feature_refs) ? debug.feature_refs : []
+  const featureRefs = Array.isArray(debug.feature_refs)
+    ? debug.feature_refs
+    : []
 
   const summaryBits = [
     debug.move_category,
     debug.key_moment_type,
     renderings ? `render ${renderings}` : null,
-    debug.facts_contract_ok != null ? `contract ${debug.facts_contract_ok ? 'ok' : 'fallback'}` : null,
+    debug.facts_contract_ok != null
+      ? `contract ${debug.facts_contract_ok ? 'ok' : 'fallback'}`
+      : null,
     debug.token_usage_total != null ? `${debug.token_usage_total} tok` : null,
   ].filter(Boolean)
 
@@ -55,7 +69,11 @@ const LlmDebugPanel: React.FC<Props> = ({ debug }) => {
         aria-expanded={open}
       >
         <span>LLM debug</span>
-        {summaryBits.length ? <span className="font-normal text-text-tertiary">{summaryBits.join(' · ')}</span> : null}
+        {summaryBits.length ? (
+          <span className="font-normal text-text-tertiary">
+            {summaryBits.join(' · ')}
+          </span>
+        ) : null}
       </button>
       {open ? (
         <div className="max-h-[60vh] space-y-3 overflow-y-auto border-t border-border-tertiary p-2">
@@ -70,14 +88,18 @@ const LlmDebugPanel: React.FC<Props> = ({ debug }) => {
           ) : null}
           {featureRefs.length ? (
             <Block title="Feature refs">
-              <div className="mono text-[11px] text-text-secondary">{featureRefs.join(', ')}</div>
+              <div className="mono text-[11px] text-text-secondary">
+                {featureRefs.join(', ')}
+              </div>
             </Block>
           ) : null}
           {renderings ? (
             <Block title="Renderings">
               <div className="mono text-[11px] text-text-secondary">
                 {renderings}
-                {debug.forbidden_phrase_hits != null ? ` · forbidden ${debug.forbidden_phrase_hits}` : ''}
+                {debug.forbidden_phrase_hits != null
+                  ? ` · forbidden ${debug.forbidden_phrase_hits}`
+                  : ''}
               </div>
             </Block>
           ) : null}
@@ -91,18 +113,20 @@ const LlmDebugPanel: React.FC<Props> = ({ debug }) => {
               <Json value={debug.rationale} />
             </Block>
           ) : null}
-          {debug.rag_query ? (
-            <Block title="RAG query">
-              <Json value={debug.rag_query} />
-            </Block>
-          ) : null}
           {systemPrompts.length ? (
             <Block title="System prompts">
               <div className="space-y-2">
                 {systemPrompts.map((sp, i) => (
-                  <div key={sp.name ?? i} className="rounded border border-border-tertiary bg-background-secondary p-2">
-                    <div className="mb-1 font-medium text-text-primary">{sp.name}</div>
-                    <pre className="mono whitespace-pre-wrap break-words text-[11px] leading-snug text-text-secondary">{sp.text}</pre>
+                  <div
+                    key={sp.name ?? i}
+                    className="rounded border border-border-tertiary bg-background-secondary p-2"
+                  >
+                    <div className="mb-1 font-medium text-text-primary">
+                      {sp.name}
+                    </div>
+                    <pre className="mono whitespace-pre-wrap break-words text-[11px] leading-snug text-text-secondary">
+                      {sp.text}
+                    </pre>
                   </div>
                 ))}
               </div>

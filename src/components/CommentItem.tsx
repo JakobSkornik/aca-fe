@@ -1,11 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react'
 import AnnotatedText from './AnnotatedText'
-import RagRefChips from './RagRefChips'
 import LlmDebugPanel from './LlmDebugPanel'
 import { AccordionRow } from '@/components/ui/AccordionRow'
-import type { AiCommentLlmDebug, ResolvedAnnotationToken } from '@/types/WebSocketMessages'
-import type { RagRef } from '@/contexts/GameStateManager'
-import { keyMomentLabel, keyMomentSeverity, severityBadgeClass } from '@/helpers/keyMoments'
+import type {
+  AiCommentLlmDebug,
+  ResolvedAnnotationToken,
+} from '@/types/WebSocketMessages'
+import {
+  keyMomentLabel,
+  keyMomentSeverity,
+  severityBadgeClass,
+} from '@/helpers/keyMoments'
 
 type Props = {
   title: string
@@ -20,7 +25,6 @@ type Props = {
   id?: string
   keyMomentType?: string
   resolvedTokens?: ResolvedAnnotationToken[] | null
-  ragRefs?: RagRef[]
   llmDebug?: AiCommentLlmDebug
 }
 
@@ -37,11 +41,11 @@ const CommentItem: React.FC<Props> = ({
   id,
   keyMomentType,
   resolvedTokens,
-  ragRefs,
   llmDebug,
 }) => {
   const hasInlineAnnotations =
-    (resolvedTokens && resolvedTokens.length > 0) || /\[(\w+):[^\]]+\]/.test(text)
+    (resolvedTokens && resolvedTokens.length > 0) ||
+    /\[(\w+):[^\]]+\]/.test(text)
 
   const [displayedText, setDisplayedText] = useState<string>('')
   const [isComplete, setIsComplete] = useState<boolean>(false)
@@ -101,10 +105,16 @@ const CommentItem: React.FC<Props> = ({
   return (
     <div className={className}>
       {title || (keyMomentType && kmLabel) ? (
-        <div className={`mb-1 flex flex-wrap items-center gap-1.5 ${titleClassName}`}>
-          {title ? <span className="font-bold text-text-primary">{title}</span> : null}
+        <div
+          className={`mb-1 flex flex-wrap items-center gap-1.5 ${titleClassName}`}
+        >
+          {title ? (
+            <span className="font-bold text-text-primary">{title}</span>
+          ) : null}
           {keyMomentType && kmLabel ? (
-            <span className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${badgeClass}`}>
+            <span
+              className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${badgeClass}`}
+            >
               {kmLabel}
             </span>
           ) : null}
@@ -124,11 +134,6 @@ const CommentItem: React.FC<Props> = ({
         )}
       </div>
       <div className="mt-2 space-y-0.5">
-        {ragRefs && ragRefs.length > 0 ? (
-          <AccordionRow label="Reference games (RAG)">
-            <RagRefChips ragRefs={ragRefs} embedded />
-          </AccordionRow>
-        ) : null}
         {llmDebug ? (
           <AccordionRow label="LLM debug">
             <LlmDebugPanel debug={llmDebug} />

@@ -48,7 +48,9 @@ const GamePage = () => {
   const exportGamePgn = useCallback(async () => {
     if (!id || typeof id !== 'string') return
     if (id === 'offline') {
-      window.alert('PGN export needs the backend; offline games can only export JSON.')
+      window.alert(
+        'PGN export needs the backend; offline games can only export JSON.',
+      )
       return
     }
     try {
@@ -76,7 +78,9 @@ const GamePage = () => {
       setError(null)
       const raw = sessionStorage.getItem('aca_offline_json')
       if (!raw) {
-        setError('No offline game in session. Open the app and load a JSON file again.')
+        setError(
+          'No offline game in session. Open the app and load a JSON file again.',
+        )
         setLoading(false)
         return
       }
@@ -100,7 +104,7 @@ const GamePage = () => {
         setError(null)
         const gameJson = await jobService.getGameJson(id)
         manager.loadGameFromJson(gameJson)
-        if (!(gameJson.commentary_complete ?? gameJson.game_narrative != null)) {
+        if (!gameJson.commentary_complete) {
           manager.connectToJobCommentaryWs(id)
         }
       } catch (e) {
@@ -146,7 +150,11 @@ const GamePage = () => {
   }
 
   const jobLabel =
-    typeof id === 'string' ? (id === 'offline' ? 'Offline JSON' : `Job ${id.slice(0, 8)}…`) : 'Job'
+    typeof id === 'string'
+      ? id === 'offline'
+        ? 'Offline JSON'
+        : `Job ${id.slice(0, 8)}…`
+      : 'Job'
 
   return (
     <div className="app flex h-screen min-h-0 min-w-[1024px] flex-col overflow-hidden">
