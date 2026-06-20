@@ -7,28 +7,42 @@ import StructuredComment, { type CommentPart } from './StructuredComment'
 import VariationPlayer from './VariationPlayer'
 import Icon from '@/components/ui/Icon'
 
-function evalChipLabel(cp: number | null | undefined, mate: number | null | undefined, depth: number | null | undefined): string {
+function evalChipLabel(
+  cp: number | null | undefined,
+  mate: number | null | undefined,
+  depth: number | null | undefined,
+): string {
   let head: string
-  if (mate != null && mate !== 0) head = `#${Math.abs(mate)}`
+  if (mate != null && mate !== 0)
+    head = `#${Math.abs(mate)} ${mate > 0 ? 'White' : 'Black'}`
   else if (cp != null) head = `${cp >= 0 ? '+' : ''}${(cp / 100).toFixed(2)}`
   else return ''
   return depth != null ? `${head} · depth ${depth}` : head
 }
 
-function formatCommentTitle(item: MainlineComment, moveNotation: string): string {
+function formatCommentTitle(
+  item: MainlineComment,
+  moveNotation: string,
+): string {
   return `Move ${Math.floor(item.moveIndex / 2) + 1}${item.moveIndex % 2 === 0 ? '.' : '...'} ${moveNotation}`
 }
 
 const Comments: React.FC = () => {
   const { state, manager } = useGameState()
-  const { commentsMainline, currentMoveIndex, commentaryComplete, aiGeneration, selectedPart } = state
+  const {
+    commentsMainline,
+    currentMoveIndex,
+    commentaryComplete,
+    aiGeneration,
+    selectedPart,
+  } = state
   // Selecting a line focuses the variation navigator so arrow keys drive it.
   const setSelectedPart = useCallback(
     (p: CommentPart) => {
       manager.setSelectedPart(p)
       manager.setFocusedBoard('variation')
     },
-    [manager]
+    [manager],
   )
 
   // Navigation resets the navigator to the move's main line (no focus change).
@@ -50,7 +64,7 @@ const Comments: React.FC = () => {
 
   const commentaryGenerating = useMemo(
     () => !commentaryComplete || Object.keys(aiGeneration).length > 0,
-    [commentaryComplete, aiGeneration]
+    [commentaryComplete, aiGeneration],
   )
 
   const currentMove = manager.getMainlineMove(currentMoveIndex)
@@ -72,7 +86,7 @@ const Comments: React.FC = () => {
       [...displayedComments]
         .filter((c) => keyMomentIdx.size === 0 || keyMomentIdx.has(c.moveIndex))
         .sort((a, b) => a.moveIndex - b.moveIndex),
-    [displayedComments, keyMomentIdx]
+    [displayedComments, keyMomentIdx],
   )
 
   const activeComment = useMemo(() => {
@@ -86,7 +100,9 @@ const Comments: React.FC = () => {
     if (moveIdx === -1) return undefined
     const moveData = state.moves.getMoveAtIndex(moveIdx)
     if (!moveData?.hiddenFeatures) return undefined
-    const km = (moveData.hiddenFeatures as Record<string, unknown>)['keyMomentType']
+    const km = (moveData.hiddenFeatures as Record<string, unknown>)[
+      'keyMomentType'
+    ]
     return typeof km === 'string' ? km : undefined
   }, [activeComment, manager, state.moves])
 
@@ -121,7 +137,7 @@ const Comments: React.FC = () => {
       const idx = manager.findMoveIndexById(item.moveId)
       if (idx !== -1) manager.goToMove(idx)
     },
-    [manager]
+    [manager],
   )
 
   const gm = state.gameJson?.moves?.[currentMoveIndex]
@@ -138,14 +154,21 @@ const Comments: React.FC = () => {
   // it falls back to engine PV1, then the game continuation (book theory).
   const playerLine = useMemo<PlayerLine | null>(() => {
     if (facts) {
-      const useAlt = selectedPart === 'alt' && !!facts.better_alternative?.display_line?.san?.length
+      const useAlt =
+        selectedPart === 'alt' &&
+        !!facts.better_alternative?.display_line?.san?.length
       const src = useAlt
         ? {
             line: facts.better_alternative!.display_line!,
             claims: facts.better_alternative!.claims,
             evalCp: facts.better_alternative!.eval_cp,
             evalMate: null as number | null,
-            title: `Better was ${facts.better_alternative!.san}`,
+            title:
+              facts.better_alternative!.eval_cp != null &&
+              facts.eval_cp != null &&
+              Math.abs(facts.better_alternative!.eval_cp - facts.eval_cp) < 50
+                ? `Engine's choice: ${facts.better_alternative!.san}`
+                : `Better was ${facts.better_alternative!.san}`,
           }
         : facts.display_line?.san?.length
           ? {
@@ -158,10 +181,13 @@ const Comments: React.FC = () => {
           : null
       if (src) {
         const chartFeatures = Array.from(
-          new Set((src.claims ?? []).flatMap((c) => c.features ?? []))
+          new Set((src.claims ?? []).flatMap((c) => c.features ?? [])),
         ).slice(0, 4)
         return {
-          steps: src.line.san.map((san, i) => ({ san, fen: src.line.fens[i] ?? '' })),
+          steps: src.line.san.map((san, i) => ({
+            san,
+            fen: src.line.fens[i] ?? '',
+          })),
           startFen: src.line.start_fen,
           evalCp: src.evalCp,
           evalMate: src.evalMate,
@@ -200,7 +226,7 @@ const Comments: React.FC = () => {
   const evalChip = evalChipLabel(
     facts?.eval_cp ?? currentMove?.score ?? null,
     facts?.eval_mate ?? currentMove?.mateIn,
-    facts?.depth ?? state.gameJson?.analysis_info?.depth ?? null
+    facts?.depth ?? state.gameJson?.analysis_info?.depth ?? null,
   )
 
   return (
@@ -222,13 +248,27 @@ const Comments: React.FC = () => {
           </span>
         ) : null}
         <div className="ml-1 flex items-center gap-1 text-[10px] text-text-tertiary">
-          <button type="button" className="btn icon-btn" style={{ width: 26, height: 26 }} disabled={!prevComment} onClick={() => goToComment(prevComment)} title="Previous comment">
+          <button
+            type="button"
+            className="btn icon-btn"
+            style={{ width: 26, height: 26 }}
+            disabled={!prevComment}
+            onClick={() => goToComment(prevComment)}
+            title="Previous comment"
+          >
             <Icon name="prev" size={14} />
           </button>
           <span className="mono tabular-nums">
             {navPos > 0 ? navPos : '–'}/{sortedForNav.length}
           </span>
-          <button type="button" className="btn icon-btn" style={{ width: 26, height: 26 }} disabled={!nextComment} onClick={() => goToComment(nextComment)} title="Next comment">
+          <button
+            type="button"
+            className="btn icon-btn"
+            style={{ width: 26, height: 26 }}
+            disabled={!nextComment}
+            onClick={() => goToComment(nextComment)}
+            title="Next comment"
+          >
             <Icon name="next" size={14} />
           </button>
         </div>
@@ -236,23 +276,36 @@ const Comments: React.FC = () => {
 
       {/* Comment + part cards (flexible, scrolls) */}
       <div className="scroll-y min-h-0 flex-1">
-        {displayedComments.length === 0 ? (
-          <div className="flex h-full min-h-[60px] flex-col items-center justify-center p-4 text-[12px] italic text-text-tertiary">
-            <p>No commentary available for this game.</p>
+        {!activeComment && !facts ? (
+          <div className="flex h-full min-h-[60px] flex-col items-center justify-center p-4 text-center text-text-secondary">
+            <p className="mb-0.5 text-[12px] font-medium text-text-primary">
+              {displayedComments.length === 0
+                ? 'No commentary available for this game.'
+                : 'No commentary for this move'}
+            </p>
+            <p className="text-[11px] text-text-tertiary">
+              Use ‹ › above to jump between commented moves.
+            </p>
           </div>
-        ) : activeComment ? (
+        ) : (
           <div className="comment-body">
-            <h2 className="comment-title">{activeMainTitle}</h2>
-            <CommentItem
-              id={`comment-main-${activeComment.moveId}`}
-              title=""
-              text={activeComment.text}
-              isActive
-              keyMomentType={activeKeyMomentType}
-              resolvedTokens={activeComment.resolvedTokens}
-              ragRefs={activeComment.ragRefs}
-              llmDebug={activeComment.llmDebug}
-            />
+            {/* LLM prose comment (key moments only) */}
+            {activeComment ? (
+              <>
+                <h2 className="comment-title">{activeMainTitle}</h2>
+                <CommentItem
+                  id={`comment-main-${activeComment.moveId}`}
+                  title=""
+                  text={activeComment.text}
+                  isActive
+                  keyMomentType={activeKeyMomentType}
+                  resolvedTokens={activeComment.resolvedTokens}
+                  llmDebug={activeComment.llmDebug}
+                />
+              </>
+            ) : null}
+            {/* Structured facts (MAIN LINE / BETTER WAS / charts) — shown for any
+                analyzed move, even without an LLM prose comment. */}
             {facts ? (
               <StructuredComment
                 facts={facts}
@@ -261,11 +314,6 @@ const Comments: React.FC = () => {
                 onSelectPart={setSelectedPart}
               />
             ) : null}
-          </div>
-        ) : (
-          <div className="flex h-full min-h-[60px] flex-col items-center justify-center p-4 text-center text-text-secondary">
-            <p className="mb-0.5 text-[12px] font-medium text-text-primary">No commentary for this move</p>
-            <p className="text-[11px] text-text-tertiary">Use ‹ › above to jump between commented moves.</p>
           </div>
         )}
       </div>

@@ -1,7 +1,11 @@
 import React from 'react'
 import { evalDepthSuffix, numberedLineString } from '@/helpers/chessNotation'
 import { featureLabel, featureDescription } from '@/helpers/featureMeta'
-import type { CommentFactsClaim, CommentFactsJson, MoveDebugJson } from '@/types/GameJson'
+import type {
+  CommentFactsClaim,
+  CommentFactsJson,
+  MoveDebugJson,
+} from '@/types/GameJson'
 
 export type CommentPart = 'main' | 'alt'
 
@@ -20,7 +24,10 @@ function flashFeature(name: string) {
   }
 }
 
-const FeatureChip: React.FC<{ name: string; delta?: number }> = ({ name, delta }) => {
+const FeatureChip: React.FC<{ name: string; delta?: number }> = ({
+  name,
+  delta,
+}) => {
   const desc = featureDescription(name)
   return (
     <span
@@ -53,7 +60,9 @@ const ClaimRow: React.FC<{ claim: CommentFactsClaim }> = ({ claim }) => (
       <FeatureChip key={f} name={f} delta={claim.delta_cp} />
     ))}
     {claim.flag_note ? (
-      <span className="font-mono text-[9px] text-text-tertiary">[{claim.flag_note}]</span>
+      <span className="font-mono text-[9px] text-text-tertiary">
+        [{claim.flag_note}]
+      </span>
     ) : null}
   </li>
 )
@@ -70,15 +79,25 @@ const PartCard: React.FC<{
 }> = ({ title, lineText, suffix, claims, selected, tone, onSelect }) => {
   const toneColor = tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
   return (
-    <button type="button" onClick={onSelect} aria-pressed={selected} className={`part-card${selected ? ' sel' : ''}`}>
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`part-card${selected ? ' sel' : ''}`}
+    >
       <div className="flex items-baseline justify-between gap-2">
         <span className="eyebrow" style={{ color: toneColor }}>
           {selected ? '● ' : '○ '}
           {title}
         </span>
-        <span className="shrink-0 mono text-[10px] text-text-secondary">{suffix}</span>
+        <span className="shrink-0 mono text-[10px] text-text-secondary">
+          {suffix}
+        </span>
       </div>
-      <div className="mono mt-0.5 text-[13px] font-medium leading-snug" style={{ color: toneColor }}>
+      <div
+        className="mono mt-0.5 text-[13px] font-medium leading-snug"
+        style={{ color: toneColor }}
+      >
         {lineText}
       </div>
       {claims.length ? (
@@ -97,7 +116,27 @@ const PartCard: React.FC<{
  * its numbered line, (eval, depth) and rule-based reasons. Selecting a card
  * loads it into the player pinned below.
  */
-const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSelectPart }) => {
+/** "Better was X" only when X is meaningfully better; otherwise it's just the
+ * engine's (roughly equal) preference. */
+function altTitle(
+  alt: NonNullable<CommentFactsJson['better_alternative']>,
+  playedCp: number | null,
+): string {
+  const gap =
+    alt.eval_cp != null && playedCp != null
+      ? Math.abs(alt.eval_cp - playedCp)
+      : null
+  return gap != null && gap < 50
+    ? `Engine's choice: ${alt.san}`
+    : `Better was ${alt.san}`
+}
+
+const StructuredComment: React.FC<Props> = ({
+  facts,
+  debug,
+  selectedPart,
+  onSelectPart,
+}) => {
   const line = facts.display_line
   const alt = facts.better_alternative
 
@@ -117,8 +156,11 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSele
 
       {alt?.display_line?.san?.length ? (
         <PartCard
-          title={`Better was ${alt.san}`}
-          lineText={numberedLineString(alt.display_line.start_fen, alt.display_line.san)}
+          title={altTitle(alt, facts.eval_cp)}
+          lineText={numberedLineString(
+            alt.display_line.start_fen,
+            alt.display_line.san,
+          )}
           suffix={evalDepthSuffix(alt.eval_cp, null, facts.depth)}
           claims={alt.claims ?? []}
           selected={selectedPart === 'alt'}
@@ -133,8 +175,13 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSele
           <ol className="reason list-decimal pl-4">
             <li>
               Engine: eval{' '}
-              {debug.eval_before_cp != null ? (debug.eval_before_cp / 100).toFixed(2) : '—'} →{' '}
-              {debug.eval_after_cp != null ? (debug.eval_after_cp / 100).toFixed(2) : '—'}
+              {debug.eval_before_cp != null
+                ? (debug.eval_before_cp / 100).toFixed(2)
+                : '—'}{' '}
+              →{' '}
+              {debug.eval_after_cp != null
+                ? (debug.eval_after_cp / 100).toFixed(2)
+                : '—'}
               {debug.eval_swing_cp != null
                 ? ` (swing ${(debug.eval_swing_cp / 100).toFixed(2)})`
                 : ''}
@@ -148,21 +195,25 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSele
               .
             </li>
             <li>
-              Classification: {debug.key_moment_type ?? 'none'}; quality: {debug.move_quality ?? '—'}.
+              Classification: {debug.key_moment_type ?? 'none'}; quality:{' '}
+              {debug.move_quality ?? '—'}.
             </li>
             {debug.envisioned ? (
               <li>
-                Envisioned line: kept {debug.envisioned.kept_plies} plies (trimmed{' '}
-                {debug.envisioned.trimmed_plies} forcing); start quiescent:{' '}
-                {String(debug.envisioned.start_quiescent)}; leaf quiescent:{' '}
-                {String(debug.envisioned.leaf_quiescent)}.
+                Envisioned line: kept {debug.envisioned.kept_plies} plies
+                (trimmed {debug.envisioned.trimmed_plies} forcing); start
+                quiescent: {String(debug.envisioned.start_quiescent)}; leaf
+                quiescent: {String(debug.envisioned.leaf_quiescent)}.
               </li>
             ) : null}
             <li>
               Fired rules:{' '}
               {debug.fired_rules.length
                 ? debug.fired_rules
-                    .map((r) => `${r.rule_id} (Δ${r.delta_cp}cp${r.flag_note ? `, ${r.flag_note}` : ''})`)
+                    .map(
+                      (r) =>
+                        `${r.rule_id} (Δ${r.delta_cp}cp${r.flag_note ? `, ${r.flag_note}` : ''})`,
+                    )
                     .join('; ')
                 : 'none'}
               {debug.muted_claims.length
@@ -176,7 +227,9 @@ const StructuredComment: React.FC<Props> = ({ facts, debug, selectedPart, onSele
                 {Object.entries(debug.renderings)
                   .map(([lvl, r]) => `${lvl}=${r}`)
                   .join(', ')}
-                {debug.contract_ok === false ? ' (fact-contract violation → template)' : ''}
+                {debug.contract_ok === false
+                  ? ' (fact-contract violation → template)'
+                  : ''}
                 .
               </li>
             ) : null}

@@ -20,7 +20,12 @@ type Props = {
   mainlinePly?: number
 }
 
-function polyPoints(values: (number | null)[], lo: number, hi: number, h: number): string {
+function polyPoints(
+  values: (number | null)[],
+  lo: number,
+  hi: number,
+  h: number,
+): string {
   const n = values.length
   if (n < 2) return ''
   const span = hi - lo || 1
@@ -46,18 +51,18 @@ function MergedFeatureChart({
   description,
   gameValues,
   lineValues,
-  gamePly,
   lineIdx,
 }: {
   label: string
   description?: string
   gameValues: (number | null)[]
   lineValues: (number | null)[]
-  gamePly: number
   lineIdx: number
 }) {
   const H = 34
-  const allNums = [...gameValues, ...lineValues].filter((v): v is number => v != null)
+  const allNums = [...gameValues, ...lineValues].filter(
+    (v): v is number => v != null,
+  )
   if (allNums.length < 2) return null
   let lo = Math.min(...allNums) / 100
   let hi = Math.max(...allNums) / 100
@@ -69,29 +74,77 @@ function MergedFeatureChart({
   const pad = (hi - lo) * 0.15
   lo -= pad
   hi += pad
-  const zeroY = lo <= 0 && hi >= 0 ? H - 2 - ((0 - lo) / (hi - lo)) * (H - 4) : null
-  const lineNums = lineValues.filter((v): v is number => v != null)
-  const delta = lineNums.length >= 2 ? lineNums[lineNums.length - 1] - lineNums[0] : 0
-  const gameMx = gameValues.length > 1 ? (Math.max(0, Math.min(gamePly, gameValues.length - 1)) / (gameValues.length - 1)) * 100 : 0
-  const lineMx = lineValues.length > 1 ? (Math.max(0, Math.min(lineIdx, lineValues.length - 1)) / (lineValues.length - 1)) * 100 : 0
+  const zeroY =
+    lo <= 0 && hi >= 0 ? H - 2 - ((0 - lo) / (hi - lo)) * (H - 4) : null
+  // Δ is dynamic: the feature's change from the line's start up to the ply
+  // currently shown in the player (lineIdx), not the whole-line swing.
+  const firstV = lineValues.find((v): v is number => v != null) ?? null
+  let curV: number | null = null
+  for (let i = Math.min(lineIdx, lineValues.length - 1); i >= 0; i--) {
+    if (lineValues[i] != null) {
+      curV = lineValues[i] as number
+      break
+    }
+  }
+  const delta = firstV != null && curV != null ? curV - firstV : 0
+  // Both series are windowed to the same plies, so one cursor at the active
+  // ply reads both the line (green) and the game's actual path (gray).
+  const cursorX =
+    lineValues.length > 1
+      ? (Math.max(0, Math.min(lineIdx, lineValues.length - 1)) /
+          (lineValues.length - 1)) *
+        100
+      : 0
   return (
     <div className="feat-card" title={description || undefined}>
       <div className="feat-top">
         <span className="feat-name">{label}</span>
         <span className="feat-swing">Δ {(delta / 100).toFixed(2)}</span>
       </div>
-      <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" className="feat-spark">
+      <svg
+        viewBox={`0 0 100 ${H}`}
+        preserveAspectRatio="none"
+        className="feat-spark"
+      >
         {zeroY != null ? (
-          <line x1={0} y1={zeroY} x2={100} y2={zeroY} stroke="var(--line-2)" strokeWidth={0.6} strokeDasharray="2 2" />
+          <line
+            x1={0}
+            y1={zeroY}
+            x2={100}
+            y2={zeroY}
+            stroke="var(--line-2)"
+            strokeWidth={0.6}
+            strokeDasharray="2 2"
+          />
         ) : null}
         {gameValues.length > 1 ? (
-          <polyline points={polyPoints(gameValues, lo, hi, H)} fill="none" stroke="var(--fg-3)" strokeWidth={1.2} strokeLinejoin="round" opacity={0.7} vectorEffect="non-scaling-stroke" />
+          <polyline
+            points={polyPoints(gameValues, lo, hi, H)}
+            fill="none"
+            stroke="var(--fg-3)"
+            strokeWidth={1.2}
+            strokeLinejoin="round"
+            opacity={0.7}
+            vectorEffect="non-scaling-stroke"
+          />
         ) : null}
-        <polyline points={polyPoints(lineValues, lo, hi, H)} fill="none" stroke="var(--accent)" strokeWidth={1.6} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        {gameValues.length > 1 ? (
-          <line x1={gameMx} y1={0} x2={gameMx} y2={H} stroke="var(--fg-3)" strokeWidth={0.8} strokeDasharray="1 2" vectorEffect="non-scaling-stroke" />
-        ) : null}
-        <line x1={lineMx} y1={0} x2={lineMx} y2={H} stroke="var(--inacc)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        <polyline
+          points={polyPoints(lineValues, lo, hi, H)}
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth={1.6}
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        <line
+          x1={cursorX}
+          y1={0}
+          x2={cursorX}
+          y2={H}
+          stroke="var(--inacc)"
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
       </svg>
     </div>
   )
@@ -102,7 +155,12 @@ function MergedFeatureChart({
  * the left, with the fired-rule feature charts (mainline + along-the-line) on
  * the right. Numbered move tokens run underneath.
  */
-const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, mainlinePly = 0 }) => {
+const VariationPlayer: React.FC<Props> = ({
+  line,
+  loadKey,
+  mainlineSeries = {},
+  mainlinePly = 0,
+}) => {
   const { manager, state } = useGameState()
   const steps = useMemo(() => line?.steps ?? [], [line])
   const lastIdx = steps.length - 1
@@ -124,17 +182,32 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
       setPlaying(false)
       return
     }
-    const t = window.setTimeout(() => setIdx((i) => Math.min(i + 1, lastIdx)), AUTOPLAY_MS)
+    const t = window.setTimeout(
+      () => setIdx((i) => Math.min(i + 1, lastIdx)),
+      AUTOPLAY_MS,
+    )
     return () => window.clearTimeout(t)
   }, [playing, idx, lastIdx])
 
   // Let keyboard arrows drive this board when it has focus.
   useEffect(() => {
     const stepper = {
-      prev: () => { setPlaying(false); setIdx((i) => Math.max(i - 1, 0)) },
-      next: () => { setPlaying(false); setIdx((i) => Math.min(i + 1, lastIdx)) },
-      first: () => { setPlaying(false); setIdx(0) },
-      last: () => { setPlaying(false); setIdx(lastIdx) },
+      prev: () => {
+        setPlaying(false)
+        setIdx((i) => Math.max(i - 1, 0))
+      },
+      next: () => {
+        setPlaying(false)
+        setIdx((i) => Math.min(i + 1, lastIdx))
+      },
+      first: () => {
+        setPlaying(false)
+        setIdx(0)
+      },
+      last: () => {
+        setPlaying(false)
+        setIdx(lastIdx)
+      },
     }
     manager.registerVariationStepper(steps.length ? stepper : null)
     return () => manager.registerVariationStepper(null)
@@ -159,23 +232,40 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
   const safeIdx = Math.max(0, Math.min(idx, lastIdx))
   const step = steps[safeIdx]
   const arrows: Arrow[] =
-    step?.from && step?.to ? [[step.from as Square, step.to as Square, 'var(--arrow)']] : []
+    step?.from && step?.to
+      ? [[step.from as Square, step.to as Square, 'var(--arrow)']]
+      : []
   const suffix = evalDepthSuffix(line.evalCp, line.evalMate, line.depth)
   // main line = green (accent), better alternative = gray (fg-3)
   const toneColor = line.tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
   const hasData = (f: string) =>
-    (line.featureSeries?.[f]?.length ?? 0) > 1 || (mainlineSeries[f]?.length ?? 0) > 1
+    (line.featureSeries?.[f]?.length ?? 0) > 1 ||
+    (mainlineSeries[f]?.length ?? 0) > 1
   const firedFeatures = (line.chartFeatures ?? []).filter(hasData)
   const allFeatures = Array.from(
-    new Set([...Object.keys(mainlineSeries), ...Object.keys(line.featureSeries ?? {})])
+    new Set([
+      ...Object.keys(mainlineSeries),
+      ...Object.keys(line.featureSeries ?? {}),
+    ]),
   )
     .filter(hasData)
     .sort((a, b) => featureLabel(a).localeCompare(featureLabel(b)))
   const features = showAll ? allFeatures : firedFeatures
   const canShowMore = allFeatures.length > firedFeatures.length
 
-  const navBtn = (icon: string, label: string, disabled: boolean, onClick: () => void) => (
-    <button type="button" className="btn icon-btn" title={label} disabled={disabled} onClick={onClick}>
+  const navBtn = (
+    icon: string,
+    label: string,
+    disabled: boolean,
+    onClick: () => void,
+  ) => (
+    <button
+      type="button"
+      className="btn icon-btn"
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
       <Icon name={icon} size={15} />
     </button>
   )
@@ -184,13 +274,21 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
   return (
     <div
       className="pv-card"
-      style={focused || extHighlight ? { boxShadow: '0 0 0 2px var(--inacc)' } : undefined}
+      style={
+        focused || extHighlight
+          ? { boxShadow: '0 0 0 2px var(--inacc)' }
+          : undefined
+      }
       onMouseDown={() => manager.setFocusedBoard('variation')}
     >
       <div className="pv-head">
-        <span className="eyebrow" style={{ color: toneColor }}>{line.title || 'Variation'}</span>
+        <span className="eyebrow" style={{ color: toneColor }}>
+          {line.title || 'Variation'}
+        </span>
         <div className="grow" />
-        {suffix ? <span className="mono text-[11px] text-text-tertiary">{suffix}</span> : null}
+        {suffix ? (
+          <span className="mono text-[11px] text-text-tertiary">{suffix}</span>
+        ) : null}
         <span className="mono text-[11px] text-text-tertiary">
           {safeIdx}/{lastIdx}
         </span>
@@ -199,7 +297,10 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
       <div className="flex flex-wrap gap-3 p-3">
         {/* Left: tight vertical board + slider + controls */}
         <div className="shrink-0" style={{ width: BOARD_W }}>
-          <div className="overflow-hidden rounded-[8px]" style={{ width: BOARD_W, height: BOARD_W }}>
+          <div
+            className="overflow-hidden rounded-[8px]"
+            style={{ width: BOARD_W, height: BOARD_W }}
+          >
             <Chessboard
               position={step.fen}
               boardWidth={BOARD_W}
@@ -207,7 +308,7 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
               customLightSquareStyle={{ backgroundColor: 'var(--board-light)' }}
               customArrows={arrows}
               arePiecesDraggable={false}
-              boardOrientation="white"
+              boardOrientation={state.boardOrientation}
               showBoardNotation={false}
             />
           </div>
@@ -225,8 +326,14 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
             aria-label="Variation position"
           />
           <div className="navrow mt-1" style={{ width: BOARD_W }}>
-            {navBtn('first', 'First', safeIdx === 0, () => { setPlaying(false); setIdx(0) })}
-            {navBtn('prev', 'Previous', safeIdx === 0, () => { setPlaying(false); setIdx((i) => Math.max(i - 1, 0)) })}
+            {navBtn('first', 'First', safeIdx === 0, () => {
+              setPlaying(false)
+              setIdx(0)
+            })}
+            {navBtn('prev', 'Previous', safeIdx === 0, () => {
+              setPlaying(false)
+              setIdx((i) => Math.max(i - 1, 0))
+            })}
             <button
               type="button"
               className="btn"
@@ -239,8 +346,14 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
               <Icon name={playing ? 'pause' : 'play'} size={14} />
               {playing ? 'Pause' : 'Play'}
             </button>
-            {navBtn('next', 'Next', safeIdx >= lastIdx, () => { setPlaying(false); setIdx((i) => Math.min(i + 1, lastIdx)) })}
-            {navBtn('last', 'Last', safeIdx >= lastIdx, () => { setPlaying(false); setIdx(lastIdx) })}
+            {navBtn('next', 'Next', safeIdx >= lastIdx, () => {
+              setPlaying(false)
+              setIdx((i) => Math.min(i + 1, lastIdx))
+            })}
+            {navBtn('last', 'Last', safeIdx >= lastIdx, () => {
+              setPlaying(false)
+              setIdx(lastIdx)
+            })}
           </div>
         </div>
 
@@ -264,33 +377,63 @@ const VariationPlayer: React.FC<Props> = ({ line, loadKey, mainlineSeries = {}, 
                         : 'Show every positional feature, not just the fired-rule ones'
                     }
                   >
-                    {showAll ? 'Fired-rule only' : `Show all (${allFeatures.length})`}
+                    {showAll
+                      ? 'Fired-rule only'
+                      : `Show all (${allFeatures.length})`}
                   </button>
                 ) : null}
                 <span className="ml-auto inline-flex items-center gap-1">
-                  <span className="inline-block h-0.5 w-3 rounded" style={{ background: 'var(--fg-3)' }} /> game
+                  <span
+                    className="inline-block h-0.5 w-3 rounded"
+                    style={{ background: 'var(--fg-3)' }}
+                  />{' '}
+                  game
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <span className="inline-block h-0.5 w-3 rounded" style={{ background: 'var(--accent)' }} /> this line
+                  <span
+                    className="inline-block h-0.5 w-3 rounded"
+                    style={{ background: 'var(--accent)' }}
+                  />{' '}
+                  this line
                 </span>
               </div>
               {features.length ? (
-                <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-                  {features.map((f) => (
-                    <MergedFeatureChart
-                      key={f}
-                      label={featureLabel(f)}
-                      description={featureDescription(f)}
-                      gameValues={mainlineSeries[f] ?? []}
-                      lineValues={line.featureSeries?.[f] ?? []}
-                      gamePly={mainlinePly}
-                      lineIdx={safeIdx}
-                    />
-                  ))}
+                <div
+                  className="grid gap-1.5"
+                  style={{
+                    gridTemplateColumns:
+                      'repeat(auto-fill, minmax(200px, 1fr))',
+                  }}
+                >
+                  {features.map((f) => {
+                    const lineSeries = line.featureSeries?.[f] ?? []
+                    // Align the gray "game" line to the same plies as the PV.
+                    // The line series leads with its start position (point 0 =
+                    // before this move), while the game series has one point per
+                    // played move. So line point i maps to game[mainlinePly-1+i];
+                    // window from mainlinePly-1 for the line's length to share
+                    // one x-axis and point count.
+                    const startPly = Math.max(0, mainlinePly - 1)
+                    const gameSeries = (mainlineSeries[f] ?? []).slice(
+                      startPly,
+                      startPly + lineSeries.length,
+                    )
+                    return (
+                      <MergedFeatureChart
+                        key={f}
+                        label={featureLabel(f)}
+                        description={featureDescription(f)}
+                        gameValues={gameSeries}
+                        lineValues={lineSeries}
+                        lineIdx={safeIdx}
+                      />
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="py-3 text-center text-[10px] italic text-text-tertiary">
-                  No rule-based features fired for this move — use Show all to see every feature.
+                  No rule-based features fired for this move — use Show all to
+                  see every feature.
                 </div>
               )}
             </>

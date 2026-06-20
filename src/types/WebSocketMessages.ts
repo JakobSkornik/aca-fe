@@ -21,8 +21,6 @@ export enum ServerWsMessageType {
   COMMENT_UPDATE = 'COMMENT_UPDATE',
   COMMENT_HISTORY = 'COMMENT_HISTORY',
   AI_COMMENT_UPDATE = 'AI_COMMENT_UPDATE',
-  EPISODE_NARRATIVE = 'EPISODE_NARRATIVE',
-  GAME_NARRATIVE = 'GAME_NARRATIVE',
   AI_GENERATION_STATUS = 'AI_GENERATION_STATUS',
   MODEL_PARAMS_UPDATED = 'MODEL_PARAMS_UPDATED',
 }
@@ -104,24 +102,12 @@ export interface ResolvedAnnotationToken {
   data: Record<string, unknown> | null
 }
 
-/** Chroma RAG reference (master-game position + snippet) streamed with AI commentary. */
-export interface AiCommentRagRef {
-  source: string
-  fen: string
-  text: string
-  score: number
-  san?: string
-  phase?: string
-}
-
-/** Full LLM + RAG debug (mirrors server `llm_debug` on AI_COMMENT_UPDATE). */
-/** Loose by design: the facts composer and the legacy composer emit different
- * shapes, so every field is optional and the panel guards each one. */
+/** Full LLM debug (mirrors server `llm_debug` on AI_COMMENT_UPDATE). */
+/** Loose by design: every field is optional and the panel guards each one. */
 export interface AiCommentLlmDebug {
   move_category?: string | null
   key_moment_type?: string | null
   tier?: { steps: number; effort: string; max_tokens?: number }
-  rag_query?: Record<string, unknown>
   rationale?: Record<string, unknown>
   system_prompts?: { name: string; text: string }[]
   user_text?: string
@@ -144,19 +130,8 @@ export interface AiCommentUpdateServerPayload {
     bullets?: string[]
     pv_line?: AiCommentPvLineEntry[]
     resolved_tokens?: ResolvedAnnotationToken[]
-    rag_refs?: AiCommentRagRef[]
     llm_debug?: AiCommentLlmDebug
   }
-}
-
-export interface EpisodeNarrativeServerPayload {
-  episode_index: number
-  title: string
-  narrative: string
-}
-
-export interface GameNarrativeServerPayload {
-  narrative: string
 }
 
 export interface AiGenerationStatusServerPayload {
@@ -178,25 +153,23 @@ export interface ModelParamsUpdatedServerPayload {
 export interface ClientWsMessage {
   type: ClientWsMessageType
   payload?:
-  | GetSessionMetadataClientPayload
-  | RequestAnalysisClientPayload
-  | SetModelParamsClientPayload
+    | GetSessionMetadataClientPayload
+    | RequestAnalysisClientPayload
+    | SetModelParamsClientPayload
 }
 
 export interface ServerWsMessage {
   type: ServerWsMessageType
   payload:
-  | ErrorServerPayload
-  | SessionMetadataServerPayload
-  | MoveListServerPayload
-  | NodeAnalysisUpdatePayload
-  | AnalysisProgressServerPayload
-  | FullAnalysisCompleteServerPayload
-  | CommentUpdateServerPayload
-  | CommentHistoryServerPayload
-  | AiCommentUpdateServerPayload
-  | EpisodeNarrativeServerPayload
-  | GameNarrativeServerPayload
-  | AiGenerationStatusServerPayload
-  | ModelParamsUpdatedServerPayload
+    | ErrorServerPayload
+    | SessionMetadataServerPayload
+    | MoveListServerPayload
+    | NodeAnalysisUpdatePayload
+    | AnalysisProgressServerPayload
+    | FullAnalysisCompleteServerPayload
+    | CommentUpdateServerPayload
+    | CommentHistoryServerPayload
+    | AiCommentUpdateServerPayload
+    | AiGenerationStatusServerPayload
+    | ModelParamsUpdatedServerPayload
 }
