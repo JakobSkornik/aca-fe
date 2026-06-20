@@ -124,7 +124,16 @@ const MainlineChessboard = () => {
   })
   const [renderSize, setRenderSize] = useState(0)
   const [playing, setPlaying] = useState(false)
+  // Hovering a PV/line reference in the comment dims this board to draw the
+  // eye to the variation viewer (same event the PV card listens to).
+  const [pvHover, setPvHover] = useState(false)
   const moveCount = manager.getMainlineMoveCount()
+
+  useEffect(() => {
+    const onHi = (e: Event) => setPvHover(!!(e as CustomEvent).detail?.on)
+    window.addEventListener('aca:variation-highlight', onHi)
+    return () => window.removeEventListener('aca:variation-highlight', onHi)
+  }, [])
 
   // Autoplay: step through the mainline.
   useEffect(() => {
@@ -294,8 +303,9 @@ const MainlineChessboard = () => {
       className="panel"
       style={{
         padding: 10,
-        // Focus cue: the board that arrow keys don't drive is dimmed.
-        opacity: focusedBoard === 'game' ? 1 : 0.75,
+        // Focus cue: the board arrow keys don't drive is dimmed; a PV/line
+        // hover also dims it to spotlight the variation viewer.
+        opacity: focusedBoard === 'game' && !pvHover ? 1 : 0.75,
         transition: 'opacity 0.15s ease',
       }}
       onMouseDown={() => manager.setFocusedBoard('game')}
