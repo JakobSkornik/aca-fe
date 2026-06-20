@@ -39,6 +39,8 @@ export interface GameMove {
   variations: Variation[]
   comment: string | null
   classification: string | null
+  /** NAG-style symbol from the key-moment classification (!!, !, ?!, ?, ??). */
+  annotation?: string | null
   /** True only for real key-moment commentary (drives the move dot). */
   is_key_moment?: boolean
   resolved_tokens?: ResolvedAnnotationToken[]

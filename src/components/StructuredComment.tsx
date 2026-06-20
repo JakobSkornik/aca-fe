@@ -81,7 +81,8 @@ const PartCard: React.FC<{
   suffix: string
   claims: CommentFactsClaim[]
   selected: boolean
-  /** 'main' = green, 'alt' = gray — matches the tab/line colors elsewhere. */
+  /** 'main' = green, 'alt' = gray — matches the tab/line colors elsewhere.
+   * (Only the selected-box outline is orange; see .part-card.sel.) */
   tone: 'main' | 'alt'
   onSelect: () => void
 }> = ({ title, lineText, suffix, claims, selected, tone, onSelect }) => {

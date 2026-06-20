@@ -330,7 +330,7 @@ export class GameStateManager {
             : gm.score.cp || 0
           : undefined,
         mateIn: gm.score?.mate != null ? gm.score.mate : undefined,
-        annotation: gm.comment || undefined,
+        annotation: gm.annotation || undefined,
         phase: gm.phase,
         piece: getPieceFromSan(gm.san, gm.color),
         hiddenFeatures: {},
