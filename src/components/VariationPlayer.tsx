@@ -275,11 +275,10 @@ const VariationPlayer: React.FC<Props> = ({
     <div
       className="pv-card"
       style={{
-        // Focus cue: dim this board when arrow keys are driving the other one.
-        opacity: focused ? 1 : 0.75,
+        // Focus cue: dim this board when arrow keys drive the other one. A
+        // PV/line hover keeps it lit (and dims the main board instead).
+        opacity: focused || extHighlight ? 1 : 0.75,
         transition: 'opacity 0.15s ease',
-        // A transient hover from a PV reference still rings it.
-        boxShadow: extHighlight ? '0 0 0 2px var(--inacc)' : undefined,
       }}
       onMouseDown={() => manager.setFocusedBoard('variation')}
     >
