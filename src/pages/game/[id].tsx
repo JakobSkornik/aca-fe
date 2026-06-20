@@ -54,7 +54,7 @@ const GamePage = () => {
       return
     }
     try {
-      const pgn = await jobService.getGamePgn(id, true)
+      const pgn = await jobService.getGamePgn(id)
       const blob = new Blob([pgn], { type: 'application/x-chess-pgn' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

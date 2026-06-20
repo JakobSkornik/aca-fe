@@ -39,14 +39,9 @@ export interface GameMove {
   variations: Variation[]
   comment: string | null
   classification: string | null
-  /** PGN-export NAGs only (not rendered by the FE). */
-  move_quality: string | null
-  /** True only for real key-moment/teaching commentary (drives the move dot). */
+  /** True only for real key-moment commentary (drives the move dot). */
   is_key_moment?: boolean
   resolved_tokens?: ResolvedAnnotationToken[]
-  /** Per-audience-level renderings of the same facts; `comment` mirrors intermediate. */
-  comments?: Record<string, string>
-  resolved_tokens_by_level?: Record<string, ResolvedAnnotationToken[]>
   /** Trimmed CommentFacts (verdict, display line, claims, better alternative). */
   comment_facts?: CommentFactsJson | null
   /** Academic reasoning trace (debug mode). */
@@ -124,7 +119,6 @@ export interface GameMetadata {
   white: string
   black: string
   result: string
-  date: string | null
   eventId: string | null
   whiteElo: number | null
   blackElo: number | null
