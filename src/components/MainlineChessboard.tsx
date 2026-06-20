@@ -294,8 +294,9 @@ const MainlineChessboard = () => {
       className="panel"
       style={{
         padding: 10,
-        boxShadow:
-          focusedBoard === 'game' ? '0 0 0 2px var(--inacc)' : undefined,
+        // Focus cue: the board that arrow keys don't drive is dimmed.
+        opacity: focusedBoard === 'game' ? 1 : 0.75,
+        transition: 'opacity 0.15s ease',
       }}
       onMouseDown={() => manager.setFocusedBoard('game')}
       title="Arrow keys move this board (click to focus)"

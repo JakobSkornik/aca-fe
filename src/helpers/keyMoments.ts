@@ -1,7 +1,12 @@
 /**
  * Collapse backend `keyMomentType` strings into 4 UI severity levels (wireframe).
  */
-export type KeyMomentSeverity = 'brilliant' | 'critical' | 'inaccuracy' | 'blunder' | 'info'
+export type KeyMomentSeverity =
+  | 'brilliant'
+  | 'critical'
+  | 'inaccuracy'
+  | 'blunder'
+  | 'info'
 
 const BRILLIANT = new Set(['brilliant'])
 
@@ -21,7 +26,9 @@ const INACCURACY = new Set([
 
 const BLUNDER = new Set(['blunder', 'king_safety_crisis'])
 
-export function keyMomentSeverity(keyMomentType: string | undefined): KeyMomentSeverity {
+export function keyMomentSeverity(
+  keyMomentType: string | undefined,
+): KeyMomentSeverity {
   if (!keyMomentType) return 'info'
   if (BRILLIANT.has(keyMomentType)) return 'brilliant'
   if (BLUNDER.has(keyMomentType)) return 'blunder'
@@ -35,6 +42,7 @@ export function keyMomentLabel(keyMomentType: string | undefined): string {
   if (!keyMomentType) return ''
   const map: Record<string, string> = {
     brilliant: 'Brilliant',
+    best_move: 'Best',
     great_move: 'Great',
     good_defense: 'Defense',
     inaccuracy: 'Inaccuracy',

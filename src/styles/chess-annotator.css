@@ -551,8 +551,8 @@
   border-color: var(--line-2);
 }
 .part-card.sel {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--inacc);
+  box-shadow: 0 0 0 1px var(--inacc);
 }
 
 /* ---------- features ---------- */
