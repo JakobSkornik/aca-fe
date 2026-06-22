@@ -7,6 +7,9 @@ export interface JobPgnHeaders {
   whiteElo: number | null
   blackElo: number | null
   event: string
+  site: string
+  /** [Round] header — the game number identifying the game within a match. */
+  round: string
   opening: string
   eco: string | null
   result: string

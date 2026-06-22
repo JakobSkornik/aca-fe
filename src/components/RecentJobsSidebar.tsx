@@ -48,6 +48,21 @@ function metaLine(j: JobResponse): string {
   return bits.join(' · ')
 }
 
+/** Tournament (Event) · Game N (Round) — so each game is identifiable (Guid). */
+function tournamentLine(j: JobResponse): string {
+  const h = j.pgn_headers
+  const clean = (s: string | undefined) => {
+    const t = (s || '').trim()
+    return t && t !== '?' && t !== '-' ? t : ''
+  }
+  const bits: string[] = []
+  const event = clean(h?.event)
+  if (event) bits.push(event)
+  const round = clean(h?.round)
+  if (round) bits.push(`Game ${round}`)
+  return bits.join(' · ')
+}
+
 function statusLine(j: JobResponse): string {
   switch (j.status) {
     case 'completed':
@@ -111,32 +126,48 @@ const RecentJobsSidebar: React.FC = () => {
             <div className="py-2 text-xs text-text-tertiary">No jobs yet</div>
           ) : null}
           {jobs.map((j) => (
-            <button
+            <div
               key={j.job_id}
-              type="button"
-              onClick={() => go(j)}
-              className="flex w-full items-center gap-2.5 border-b border-border-tertiary py-2.5 text-left last:border-b-0 hover:bg-background-secondary"
+              className="flex w-full items-center gap-2.5 border-b border-border-tertiary py-2.5 last:border-b-0 hover:bg-background-secondary"
             >
-              <span
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                  j.status === 'completed'
-                    ? 'bg-emerald-500'
-                    : j.status === 'failed'
-                      ? 'bg-red-500'
-                      : 'bg-accent-progress'
-                }`}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-medium text-text-primary">{jobTitle(j)}</div>
-                {metaLine(j) ? (
-                  <div className="mt-0.5 truncate font-mono text-[10px] text-text-secondary">
-                    {metaLine(j)}
-                  </div>
-                ) : null}
-                <div className="mt-0.5 text-[11px] text-text-tertiary">{statusLine(j)}</div>
-              </div>
-              <span className="shrink-0 text-text-tertiary">→</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => go(j)}
+                className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+              >
+                <span
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                    j.status === 'completed'
+                      ? 'bg-emerald-500'
+                      : j.status === 'failed'
+                        ? 'bg-red-500'
+                        : 'bg-accent-progress'
+                  }`}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium text-text-primary">{jobTitle(j)}</div>
+                  {tournamentLine(j) ? (
+                    <div className="mt-0.5 truncate text-[10px] text-text-secondary">
+                      {tournamentLine(j)}
+                    </div>
+                  ) : null}
+                  {metaLine(j) ? (
+                    <div className="mt-0.5 truncate font-mono text-[10px] text-text-secondary">
+                      {metaLine(j)}
+                    </div>
+                  ) : null}
+                  <div className="mt-0.5 text-[11px] text-text-tertiary">{statusLine(j)}</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/job/${j.job_id}`)}
+                className="shrink-0 rounded border border-border-tertiary px-2 py-1 text-[10px] font-medium text-text-tertiary hover:bg-background-tertiary hover:text-text-secondary"
+                title="View analysis job progress"
+              >
+                Progress
+              </button>
+            </div>
           ))}
         </div>
       </Card>

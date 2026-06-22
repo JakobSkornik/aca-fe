@@ -52,12 +52,15 @@ function MergedFeatureChart({
   gameValues,
   lineValues,
   lineIdx,
+  commented = false,
 }: {
   label: string
   description?: string
   gameValues: (number | null)[]
   lineValues: (number | null)[]
   lineIdx: number
+  /** This feature drove the move's commentary (a rule fired on it). */
+  commented?: boolean
 }) {
   const H = 34
   const allNums = [...gameValues, ...lineValues].filter(
@@ -76,9 +79,20 @@ function MergedFeatureChart({
   hi += pad
   const zeroY =
     lo <= 0 && hi >= 0 ? H - 2 - ((0 - lo) / (hi - lo)) * (H - 4) : null
-  // Δ is dynamic: the feature's change from the line's start up to the ply
-  // currently shown in the player (lineIdx), not the whole-line swing.
+  // Δ is the whole-line swing (start -> leaf), matching how the panel is sorted.
+  // (A cursor-relative Δ reads 0.00 at ply 0, which misleads — the cursor line
+  // already shows the progression.)
   const firstV = lineValues.find((v): v is number => v != null) ?? null
+  let lastV: number | null = null
+  for (let i = lineValues.length - 1; i >= 0; i--) {
+    if (lineValues[i] != null) {
+      lastV = lineValues[i] as number
+      break
+    }
+  }
+  const delta = firstV != null && lastV != null ? lastV - firstV : 0
+  // The "current" readout follows the cursor: the feature's change from the
+  // line's start up to the ply now shown in the player.
   let curV: number | null = null
   for (let i = Math.min(lineIdx, lineValues.length - 1); i >= 0; i--) {
     if (lineValues[i] != null) {
@@ -86,7 +100,17 @@ function MergedFeatureChart({
       break
     }
   }
-  const delta = firstV != null && curV != null ? curV - firstV : 0
+  const curDelta = firstV != null && curV != null ? curV - firstV : 0
+  // Dashed baseline at the line's starting value, and a faint tint of the area
+  // between that baseline and the line — so the swing reads at a glance.
+  const span = hi - lo || 1
+  const yForCp = (vCp: number) => H - 2 - ((vCp / 100 - lo) / span) * (H - 4)
+  const startY = firstV != null ? yForCp(firstV) : null
+  const linePts = polyPoints(lineValues, lo, hi, H)
+  const areaPts =
+    startY != null && linePts
+      ? `0,${startY.toFixed(1)} ${linePts} 100,${startY.toFixed(1)}`
+      : ''
   // Both series are windowed to the same plies, so one cursor at the active
   // ply reads both the line (green) and the game's actual path (gray).
   const cursorX =
@@ -98,7 +122,17 @@ function MergedFeatureChart({
   return (
     <div className="feat-card" title={description || undefined}>
       <div className="feat-top">
-        <span className="feat-name">{label}</span>
+        <span className="feat-name">
+          {commented ? (
+            <span
+              title="This feature drove the commentary"
+              style={{ color: 'var(--accent)' }}
+            >
+              ●{' '}
+            </span>
+          ) : null}
+          {label}
+        </span>
         <span className="feat-swing">Δ {(delta / 100).toFixed(2)}</span>
       </div>
       <svg
@@ -106,6 +140,14 @@ function MergedFeatureChart({
         preserveAspectRatio="none"
         className="feat-spark"
       >
+        {areaPts ? (
+          <polygon
+            points={areaPts}
+            fill="var(--accent)"
+            fillOpacity={0.12}
+            stroke="none"
+          />
+        ) : null}
         {zeroY != null ? (
           <line
             x1={0}
@@ -115,6 +157,18 @@ function MergedFeatureChart({
             stroke="var(--line-2)"
             strokeWidth={0.6}
             strokeDasharray="2 2"
+          />
+        ) : null}
+        {startY != null ? (
+          <line
+            x1={0}
+            y1={startY}
+            x2={100}
+            y2={startY}
+            stroke="var(--accent)"
+            strokeWidth={0.6}
+            strokeDasharray="1.5 2"
+            opacity={0.6}
           />
         ) : null}
         {gameValues.length > 1 ? (
@@ -129,7 +183,7 @@ function MergedFeatureChart({
           />
         ) : null}
         <polyline
-          points={polyPoints(lineValues, lo, hi, H)}
+          points={linePts}
           fill="none"
           stroke="var(--accent)"
           strokeWidth={1.6}
@@ -146,6 +200,14 @@ function MergedFeatureChart({
           vectorEffect="non-scaling-stroke"
         />
       </svg>
+      <div
+        className="mt-0.5 text-right font-mono text-[9px] leading-none"
+        style={{ color: 'var(--accent)' }}
+        title="Change from the line's start up to the position currently shown"
+      >
+        now {curDelta >= 0 ? '+' : ''}
+        {(curDelta / 100).toFixed(2)}
+      </div>
     </div>
   )
 }
@@ -241,17 +303,45 @@ const VariationPlayer: React.FC<Props> = ({
   const hasData = (f: string) =>
     (line.featureSeries?.[f]?.length ?? 0) > 1 ||
     (mainlineSeries[f]?.length ?? 0) > 1
-  const firedFeatures = (line.chartFeatures ?? []).filter(hasData)
-  const allFeatures = Array.from(
+  // Material is shown separately (it is not a positional feature), so it is
+  // dropped from this panel entirely (Guid).
+  const isMaterial = (f: string) => f === 'MATERIAL_BALANCE'
+  // Prefer the along-the-line series for ranking; fall back to the mainline.
+  const featValues = (f: string): number[] => {
+    const ls = line.featureSeries?.[f]
+    const src = ls && ls.length > 1 ? ls : (mainlineSeries[f] ?? [])
+    return src.filter((v): v is number => v != null)
+  }
+  // |Δ| across the variation: how much the feature moved start → leaf.
+  const featDelta = (f: string): number => {
+    const s = featValues(f)
+    return s.length ? Math.abs(s[s.length - 1] - s[0]) : 0
+  }
+  // Std-dev along the variation: did something happen during the line?
+  const featStd = (f: string): number => {
+    const s = featValues(f)
+    if (s.length < 2) return 0
+    const mean = s.reduce((a, b) => a + b, 0) / s.length
+    return Math.sqrt(s.reduce((a, b) => a + (b - mean) ** 2, 0) / s.length)
+  }
+  // Sort by absolute difference first; tie-break by std-dev; then by name (Guid).
+  const byMagnitude = (a: string, b: string) =>
+    featDelta(b) - featDelta(a) ||
+    featStd(b) - featStd(a) ||
+    featureLabel(a).localeCompare(featureLabel(b))
+  const everyFeature = Array.from(
     new Set([
       ...Object.keys(mainlineSeries),
       ...Object.keys(line.featureSeries ?? {}),
     ]),
-  )
-    .filter(hasData)
-    .sort((a, b) => featureLabel(a).localeCompare(featureLabel(b)))
-  const features = showAll ? allFeatures : firedFeatures
-  const canShowMore = allFeatures.length > firedFeatures.length
+  ).filter((f) => hasData(f) && !isMaterial(f))
+  // Default view: every feature that actually changes along the line.
+  const activeFeatures = everyFeature.filter((f) => featDelta(f) > 0)
+  const sortedActive = activeFeatures.slice().sort(byMagnitude)
+  const sortedAll = everyFeature.slice().sort(byMagnitude)
+  const fired = new Set((line.chartFeatures ?? []).filter((f) => !isMaterial(f)))
+  const features = showAll ? sortedAll : sortedActive
+  const canShowMore = sortedAll.length > sortedActive.length
 
   const navBtn = (
     icon: string,
@@ -358,13 +448,13 @@ const VariationPlayer: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Right: fired-rule charts — game vs this line, merged per feature */}
+        {/* Right: feature charts — game vs this line, merged per feature */}
         <div className="min-w-[200px] flex-1">
-          {allFeatures.length ? (
+          {everyFeature.length ? (
             <>
               <div className="mb-1 flex items-center gap-2 text-[9px] text-text-tertiary">
                 <span className="eyebrow" style={{ fontSize: 9 }}>
-                  {showAll ? 'All features' : 'Fired-rule features'}
+                  {showAll ? 'All features' : 'Active features'}
                 </span>
                 {canShowMore || showAll ? (
                   <button
@@ -374,13 +464,13 @@ const VariationPlayer: React.FC<Props> = ({
                     onClick={() => setShowAll((s) => !s)}
                     title={
                       showAll
-                        ? 'Show only the features whose rules fired on this move'
-                        : 'Show every positional feature, not just the fired-rule ones'
+                        ? 'Show only the features that change along this line'
+                        : 'Show every positional feature, including ones that do not change here'
                     }
                   >
                     {showAll
-                      ? 'Fired-rule only'
-                      : `Show all (${allFeatures.length})`}
+                      ? 'Active only'
+                      : `Show all (${sortedAll.length})`}
                   </button>
                 ) : null}
                 <span className="ml-auto inline-flex items-center gap-1">
@@ -400,10 +490,14 @@ const VariationPlayer: React.FC<Props> = ({
               </div>
               {features.length ? (
                 <div
-                  className="grid gap-1.5"
+                  className="grid gap-1.5 overflow-y-auto"
                   style={{
                     gridTemplateColumns:
                       'repeat(auto-fill, minmax(200px, 1fr))',
+                    // The chart grid is the only part allowed to overflow/scroll
+                    // (esp. under "Show all") — so it never steals the comment's
+                    // space and pushes the prose out of view (Guid).
+                    maxHeight: 280,
                   }}
                 >
                   {features.map((f) => {
@@ -427,13 +521,14 @@ const VariationPlayer: React.FC<Props> = ({
                         gameValues={gameSeries}
                         lineValues={lineSeries}
                         lineIdx={safeIdx}
+                        commented={fired.has(f)}
                       />
                     )
                   })}
                 </div>
               ) : (
                 <div className="py-3 text-center text-[10px] italic text-text-tertiary">
-                  No rule-based features fired for this move — use Show all to
+                  No features change along this move — use Show all to
                   see every feature.
                 </div>
               )}

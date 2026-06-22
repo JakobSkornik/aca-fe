@@ -135,6 +135,12 @@ function altTitle(
     alt.eval_cp != null && playedCp != null
       ? Math.abs(alt.eval_cp - playedCp)
       : null
+  if (alt.is_inferior) {
+    // Runner-up to a played best move: "weaker" only when clearly so.
+    return gap != null && gap >= 60
+      ? `Weaker was ${alt.san}`
+      : `Comparable: ${alt.san}`
+  }
   return gap != null && gap < 50
     ? `Engine's choice: ${alt.san}`
     : `Better was ${alt.san}`

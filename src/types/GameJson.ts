@@ -43,6 +43,9 @@ export interface GameMove {
   annotation?: string | null
   /** True only for real key-moment commentary (drives the move dot). */
   is_key_moment?: boolean
+  /** True when this comment would actually be used in the final annotated game
+   * (a substantive key-moment comment, not a back-to-back stub). */
+  final_comment?: boolean
   resolved_tokens?: ResolvedAnnotationToken[]
   /** Trimmed CommentFacts (verdict, display line, claims, better alternative). */
   comment_facts?: CommentFactsJson | null
@@ -116,6 +119,9 @@ export interface CommentFactsJson {
     eval_cp: number | null
     display_line: CommentFactsLine | null
     claims: CommentFactsClaim[]
+    /** When true this is the clearly-worse runner-up shown to contrast a top
+     * move that was played — not a better move that was missed. */
+    is_inferior?: boolean
   }
 }
 

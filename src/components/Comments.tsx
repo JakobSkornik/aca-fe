@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useCallback } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
 import type { MainlineComment } from '@/contexts/GameStateManager'
-import type { PlayerLine } from '@/types/Line'
+import type { PlayerLine, LineStep } from '@/types/Line'
+import type { GameMove } from '@/types/GameJson'
 import CommentItem from './CommentItem'
 import StructuredComment, { type CommentPart } from './StructuredComment'
 import VariationPlayer from './VariationPlayer'
@@ -25,6 +26,27 @@ function formatCommentTitle(
   moveNotation: string,
 ): string {
   return `Move ${Math.floor(item.moveIndex / 2) + 1}${item.moveIndex % 2 === 0 ? '.' : '...'} ${moveNotation}`
+}
+
+/**
+ * A lead-in step so the PV viewer opens one ply earlier — on the position the
+ * commented move was played from, carrying the previous move's arrow. This way
+ * the reader sees the move that led in and what the feature changes are measured
+ * against (point 0 of the chart series), instead of jumping straight to the
+ * position after the move (Guid).
+ */
+function leadInStep(
+  startFen: string | null | undefined,
+  prevMove?: GameMove | null,
+): LineStep | null {
+  if (!startFen || !prevMove) return null
+  const uci = prevMove.uci ?? ''
+  return {
+    san: prevMove.san ?? '',
+    fen: startFen,
+    from: uci.slice(0, 2) || undefined,
+    to: uci.slice(2, 4) || undefined,
+  }
 }
 
 const Comments: React.FC = () => {
@@ -163,12 +185,20 @@ const Comments: React.FC = () => {
             claims: facts.better_alternative!.claims,
             evalCp: facts.better_alternative!.eval_cp,
             evalMate: null as number | null,
-            title:
-              facts.better_alternative!.eval_cp != null &&
-              facts.eval_cp != null &&
-              Math.abs(facts.better_alternative!.eval_cp - facts.eval_cp) < 50
-                ? `Engine's choice: ${facts.better_alternative!.san}`
-                : `Better was ${facts.better_alternative!.san}`,
+            title: (() => {
+              const a = facts.better_alternative!
+              const gap =
+                a.eval_cp != null && facts.eval_cp != null
+                  ? Math.abs(a.eval_cp - facts.eval_cp)
+                  : null
+              if (a.is_inferior)
+                return gap != null && gap >= 60
+                  ? `Weaker was ${a.san}`
+                  : `Comparable: ${a.san}`
+              return gap != null && gap < 50
+                ? `Engine's choice: ${a.san}`
+                : `Better was ${a.san}`
+            })(),
           }
         : facts.display_line?.san?.length
           ? {
@@ -183,11 +213,16 @@ const Comments: React.FC = () => {
         const chartFeatures = Array.from(
           new Set((src.claims ?? []).flatMap((c) => c.features ?? [])),
         ).slice(0, 4)
+        const baseSteps = src.line.san.map((san, i) => ({
+          san,
+          fen: src.line.fens[i] ?? '',
+        }))
+        const lead = leadInStep(
+          src.line.start_fen,
+          state.gameJson?.moves?.[currentMoveIndex - 1],
+        )
         return {
-          steps: src.line.san.map((san, i) => ({
-            san,
-            fen: src.line.fens[i] ?? '',
-          })),
+          steps: lead ? [lead, ...baseSteps] : baseSteps,
           startFen: src.line.start_fen,
           evalCp: src.evalCp,
           evalMate: src.evalMate,
@@ -199,11 +234,15 @@ const Comments: React.FC = () => {
         }
       }
     }
+    const prevMove = state.gameJson?.moves?.[currentMoveIndex - 1]
     if (gm?.variations?.[0]?.line?.length) {
       const v = gm.variations[0]
+      const startFen = manager.getPositionForIndex(currentMoveIndex - 1)
+      const baseSteps = v.line.map((san, i) => ({ san, fen: v.fens?.[i] ?? '' }))
+      const lead = leadInStep(startFen, prevMove)
       return {
-        steps: v.line.map((san, i) => ({ san, fen: v.fens?.[i] ?? '' })),
-        startFen: manager.getPositionForIndex(currentMoveIndex - 1),
+        steps: lead ? [lead, ...baseSteps] : baseSteps,
+        startFen,
         evalCp: v.score?.cp ?? null,
         evalMate: v.score?.mate ?? null,
         depth: v.depth ?? null,
@@ -213,9 +252,12 @@ const Comments: React.FC = () => {
     const moves = state.gameJson?.moves ?? []
     const cont = moves.slice(currentMoveIndex, currentMoveIndex + 8)
     if (cont.length) {
+      const startFen = manager.getPositionForIndex(currentMoveIndex - 1)
+      const baseSteps = cont.map((m) => ({ san: m.san, fen: m.fen }))
+      const lead = leadInStep(startFen, prevMove)
       return {
-        steps: cont.map((m) => ({ san: m.san, fen: m.fen })),
-        startFen: manager.getPositionForIndex(currentMoveIndex - 1),
+        steps: lead ? [lead, ...baseSteps] : baseSteps,
+        startFen,
         title: 'Game continuation',
       }
     }
@@ -292,7 +334,17 @@ const Comments: React.FC = () => {
             {/* LLM prose comment (key moments only) */}
             {activeComment ? (
               <>
-                <h2 className="comment-title">{activeMainTitle}</h2>
+                <h2 className="comment-title flex items-center gap-2">
+                  {activeMainTitle}
+                  {gm?.final_comment ? (
+                    <span
+                      className="rounded-full bg-emerald-500/15 px-1.5 py-px text-[10px] font-semibold text-emerald-600"
+                      title="This comment would be used in the final annotated game"
+                    >
+                      Final
+                    </span>
+                  ) : null}
+                </h2>
                 <CommentItem
                   id={`comment-main-${activeComment.moveId}`}
                   title=""
