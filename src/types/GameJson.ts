@@ -131,9 +131,13 @@ export interface GameMetadata {
   black: string
   result: string
   eventId: string | null
+  site: string | null
+  round: string | null
+  date: string | null
   whiteElo: number | null
   blackElo: number | null
   opening: string | null
+  opening_eco: string | null
   /** Pre-analysis options the commentary was generated with. */
   commentary_level?: string | null
   comment_side?: string | null

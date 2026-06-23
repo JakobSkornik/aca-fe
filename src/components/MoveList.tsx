@@ -52,8 +52,23 @@ function MoveCell({
     )
   const annot = moveAnnotation(move)
   const score = formatScore(move)
+  // A move with commentary tints the whole cell green; once the comment has
+  // been read ("seen") the tint is fainter. The active cell keeps its own
+  // highlight, so the tint only applies when it is not the current move.
+  const commentTint = hasComment
+    ? unread
+      ? 'color-mix(in srgb, var(--accent) 24%, transparent)'
+      : 'color-mix(in srgb, var(--accent) 9%, transparent)'
+    : undefined
   return (
-    <div className={`move-cell${active ? ' active' : ''}`} onClick={onClick}>
+    <div
+      className={`move-cell${active ? ' active' : ''}`}
+      onClick={onClick}
+      style={!active && commentTint ? { background: commentTint } : undefined}
+      title={
+        hasComment ? (unread ? 'new commentary' : 'commentary (read)') : undefined
+      }
+    >
       <span className="san">
         {move.move}
         {annot ? <span className={`q ${qClass(annot)}`}>{annot}</span> : null}
@@ -61,20 +76,6 @@ function MoveCell({
           <span
             className="ml-1 inline-block h-2 w-2 animate-spin rounded-full border-2 border-text-warning border-t-transparent align-middle"
             aria-label="generating"
-          />
-        ) : hasComment ? (
-          <span
-            className="ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle"
-            style={
-              unread
-                ? { background: 'var(--accent)' }
-                : {
-                    background: 'transparent',
-                    border: '1px solid var(--accent)',
-                    opacity: 0.5,
-                  }
-            }
-            title={unread ? 'new commentary' : 'commentary (read)'}
           />
         ) : null}
       </span>
@@ -95,7 +96,7 @@ const MoveList = () => {
     aiGeneration,
   } = state
 
-  // Dot only on moves with real key-moment/teaching commentary — not the
+  // Green tint only on moves with real key-moment/teaching commentary — not the
   // template-floor facts that every analyzed move carries. Move id = index+1.
   const moveIdsWithComment = useMemo(() => {
     const s = new Set<number>()

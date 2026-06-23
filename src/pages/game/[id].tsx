@@ -165,14 +165,16 @@ const GamePage = () => {
         onExportPgn={() => void exportGamePgn()}
         onExportJson={() => void exportGameJson()}
       />
-      <GameBar />
-
-      {/* Split layout: board · commentary · moves. Positional-feature charts
-          now live in the variation navigator inside the commentary panel. */}
-      <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="ca-split">
-          <div style={{ gridArea: 'board' }}>
+      {/* Split layout: board (+ game info) · commentary · moves. Positional-
+          feature charts live in the variation navigator inside commentary. */}
+      <div className="min-h-0 flex-1 overflow-hidden p-4">
+        <div className="ca-split h-full">
+          <div
+            style={{ gridArea: 'board' }}
+            className="flex min-h-0 flex-col gap-3"
+          >
             <MainlineChessboard />
+            <GameBar />
           </div>
           <div style={{ gridArea: 'comment', minWidth: 0 }}>
             <Comments />

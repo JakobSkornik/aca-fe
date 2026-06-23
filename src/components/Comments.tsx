@@ -1,12 +1,57 @@
-import React, { useEffect, useMemo, useCallback } from 'react'
+import React, { useEffect, useMemo, useCallback, useState } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
 import type { MainlineComment } from '@/contexts/GameStateManager'
 import type { PlayerLine, LineStep } from '@/types/Line'
-import type { GameMove } from '@/types/GameJson'
+import type { GameMove, CommentFactsLine, CommentFactsClaim } from '@/types/GameJson'
 import CommentItem from './CommentItem'
 import StructuredComment, { type CommentPart } from './StructuredComment'
-import VariationPlayer from './VariationPlayer'
+import PvBoard from './PvBoard'
+import FeatureCharts from './FeatureCharts'
 import Icon from '@/components/ui/Icon'
+
+/** Build a player line (steps + chart series) from a CommentFacts line, with a
+ * gray lead-in step (the position before the move) prepended. */
+function factsLineToPlayer(
+  line: CommentFactsLine,
+  claims: CommentFactsClaim[] | undefined,
+  evalCp: number | null | undefined,
+  evalMate: number | null | undefined,
+  depth: number | null | undefined,
+  title: string,
+  tone: 'main' | 'alt',
+  prevMove: GameMove | null | undefined,
+): PlayerLine {
+  const chartFeatures = Array.from(
+    new Set((claims ?? []).flatMap((c) => c.features ?? [])),
+  ).slice(0, 4)
+  const baseSteps = line.san.map((san, i) => ({ san, fen: line.fens[i] ?? '' }))
+  const lead = leadInStep(line.start_fen, prevMove)
+  return {
+    steps: lead ? [lead, ...baseSteps] : baseSteps,
+    startFen: line.start_fen,
+    evalCp: evalCp ?? null,
+    evalMate: evalMate ?? null,
+    depth: depth ?? null,
+    title,
+    featureSeries: line.feature_series ?? {},
+    chartFeatures,
+    tone,
+  }
+}
+
+/** Title for the alternative card/line (better / engine's choice / weaker). */
+function altLineTitle(
+  san: string,
+  isInferior: boolean,
+  altCp: number | null,
+  playedCp: number | null,
+): string {
+  const gap = altCp != null && playedCp != null ? Math.abs(altCp - playedCp) : null
+  if (isInferior) {
+    return gap != null && gap >= 60 ? `Weaker was ${san}` : `Comparable: ${san}`
+  }
+  return gap != null && gap < 50 ? `Engine's choice: ${san}` : `Better was ${san}`
+}
 
 function evalChipLabel(
   cp: number | null | undefined,
@@ -58,11 +103,26 @@ const Comments: React.FC = () => {
     aiGeneration,
     selectedPart,
   } = state
+  // The current ply along the shown line — shared by the board, the move cards
+  // and the charts so they stay in sync. Reset when the move changes.
+  const [pvIdx, setPvIdx] = useState(0)
+  useEffect(() => setPvIdx(0), [currentMoveIndex])
+
   // Selecting a line focuses the variation navigator so arrow keys drive it.
   const setSelectedPart = useCallback(
     (p: CommentPart) => {
       manager.setSelectedPart(p)
       manager.setFocusedBoard('variation')
+    },
+    [manager],
+  )
+
+  // Clicking a ply token selects its line and jumps the board to that ply.
+  const onSelectPly = useCallback(
+    (part: CommentPart, ply: number) => {
+      manager.setSelectedPart(part)
+      manager.setFocusedBoard('variation')
+      setPvIdx(ply)
     },
     [manager],
   )
@@ -172,69 +232,22 @@ const Comments: React.FC = () => {
     manager.setHasAlternative(hasAlt)
   }, [hasAlt, manager])
 
-  // The pinned player shows the selected part's line; for moves without facts
-  // it falls back to engine PV1, then the game continuation (book theory).
-  const playerLine = useMemo<PlayerLine | null>(() => {
-    if (facts) {
-      const useAlt =
-        selectedPart === 'alt' &&
-        !!facts.better_alternative?.display_line?.san?.length
-      const src = useAlt
-        ? {
-            line: facts.better_alternative!.display_line!,
-            claims: facts.better_alternative!.claims,
-            evalCp: facts.better_alternative!.eval_cp,
-            evalMate: null as number | null,
-            title: (() => {
-              const a = facts.better_alternative!
-              const gap =
-                a.eval_cp != null && facts.eval_cp != null
-                  ? Math.abs(a.eval_cp - facts.eval_cp)
-                  : null
-              if (a.is_inferior)
-                return gap != null && gap >= 60
-                  ? `Weaker was ${a.san}`
-                  : `Comparable: ${a.san}`
-              return gap != null && gap < 50
-                ? `Engine's choice: ${a.san}`
-                : `Better was ${a.san}`
-            })(),
-          }
-        : facts.display_line?.san?.length
-          ? {
-              line: facts.display_line,
-              claims: facts.claims,
-              evalCp: facts.eval_cp,
-              evalMate: facts.eval_mate,
-              title: 'Main line',
-            }
-          : null
-      if (src) {
-        const chartFeatures = Array.from(
-          new Set((src.claims ?? []).flatMap((c) => c.features ?? [])),
-        ).slice(0, 4)
-        const baseSteps = src.line.san.map((san, i) => ({
-          san,
-          fen: src.line.fens[i] ?? '',
-        }))
-        const lead = leadInStep(
-          src.line.start_fen,
-          state.gameJson?.moves?.[currentMoveIndex - 1],
-        )
-        return {
-          steps: lead ? [lead, ...baseSteps] : baseSteps,
-          startFen: src.line.start_fen,
-          evalCp: src.evalCp,
-          evalMate: src.evalMate,
-          depth: facts.depth,
-          title: src.title,
-          featureSeries: src.line.feature_series ?? {},
-          chartFeatures,
-          tone: useAlt ? 'alt' : 'main',
-        }
-      }
-    }
+  // The main line (played move's envisioned continuation), or — for moves
+  // without facts — engine PV1, then the game continuation (book theory).
+  const mainLine = useMemo<PlayerLine | null>(() => {
     const prevMove = state.gameJson?.moves?.[currentMoveIndex - 1]
+    if (facts?.display_line?.san?.length) {
+      return factsLineToPlayer(
+        facts.display_line,
+        facts.claims,
+        facts.eval_cp,
+        facts.eval_mate,
+        facts.depth,
+        'Main line',
+        'main',
+        prevMove,
+      )
+    }
     if (gm?.variations?.[0]?.line?.length) {
       const v = gm.variations[0]
       const startFen = manager.getPositionForIndex(currentMoveIndex - 1)
@@ -262,8 +275,34 @@ const Comments: React.FC = () => {
       }
     }
     return null
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [facts, selectedPart, gm, currentMoveIndex, state.gameJson])
+  }, [facts, gm, currentMoveIndex, state.gameJson, manager])
+
+  // The better/weaker alternative line, when the move has one.
+  const altLine = useMemo<PlayerLine | null>(() => {
+    const a = facts?.better_alternative
+    if (!a?.display_line?.san?.length) return null
+    const prevMove = state.gameJson?.moves?.[currentMoveIndex - 1]
+    const title = altLineTitle(
+      a.san,
+      !!a.is_inferior,
+      a.eval_cp,
+      facts?.eval_cp ?? null,
+    )
+    return factsLineToPlayer(
+      a.display_line,
+      a.claims,
+      a.eval_cp,
+      null,
+      facts?.depth,
+      title,
+      'alt',
+      prevMove,
+    )
+  }, [facts, currentMoveIndex, state.gameJson])
+
+  const selectedLine = selectedPart === 'alt' && altLine ? altLine : mainLine
+  const pvLen = selectedLine?.steps.length ?? 1
+  const idx = Math.max(0, Math.min(pvIdx, pvLen - 1))
 
   const evalChip = evalChipLabel(
     facts?.eval_cp ?? currentMove?.score ?? null,
@@ -316,10 +355,9 @@ const Comments: React.FC = () => {
         </div>
       </div>
 
-      {/* Comment + part cards (flexible, scrolls) */}
       <div className="scroll-y min-h-0 flex-1">
-        {!activeComment && !facts ? (
-          <div className="flex h-full min-h-[60px] flex-col items-center justify-center p-4 text-center text-text-secondary">
+        {!activeComment && !facts && !mainLine ? (
+          <div className="flex min-h-[60px] flex-col items-center justify-center p-4 text-center text-text-secondary">
             <p className="mb-0.5 text-[12px] font-medium text-text-primary">
               {displayedComments.length === 0
                 ? 'No commentary available for this game.'
@@ -356,29 +394,42 @@ const Comments: React.FC = () => {
                 />
               </>
             ) : null}
-            {/* Structured facts (MAIN LINE / BETTER WAS / charts) — shown for any
-                analyzed move, even without an LLM prose comment. */}
-            {facts ? (
-              <StructuredComment
-                facts={facts}
-                debug={gm?.debug}
-                selectedPart={selectedPart}
-                onSelectPart={setSelectedPart}
+
+            {/* PV board (left) + the line cards (right). */}
+            <div className="mt-2 flex flex-wrap gap-3">
+              <PvBoard
+                line={selectedLine}
+                idx={idx}
+                onIdx={setPvIdx}
+                loadKey={`${currentMoveIndex}:${selectedPart}`}
               />
-            ) : null}
+              {facts ? (
+                <StructuredComment
+                  facts={facts}
+                  debug={gm?.debug}
+                  mainLine={mainLine}
+                  altLine={altLine}
+                  selectedPart={selectedPart}
+                  onSelectPart={setSelectedPart}
+                  pvIdx={idx}
+                  onSelectPly={onSelectPly}
+                />
+              ) : null}
+            </div>
+
+            {/* Feature charts below: main (green) + alternative (gray) + game
+                (orange dashed). */}
+            <div className="mt-2 border-t border-border-tertiary pt-3">
+              <FeatureCharts
+                mainLine={mainLine}
+                altLine={altLine}
+                gameSeries={state.gameJson?.feature_series?.features ?? {}}
+                mainlinePly={currentMoveIndex}
+                idx={idx}
+              />
+            </div>
           </div>
         )}
-      </div>
-
-      {/* PV player pinned directly under the comment it belongs to */}
-      <div className="shrink-0 border-t border-border-tertiary p-3">
-        <VariationPlayer
-          line={playerLine}
-          loadKey={`${currentMoveIndex}:${selectedPart}:${playerLine?.title ?? ''}`}
-          mainlineSeries={state.gameJson?.feature_series?.features ?? {}}
-          mainlinePlies={state.gameJson?.feature_series?.plies?.length ?? 0}
-          mainlinePly={currentMoveIndex}
-        />
       </div>
     </div>
   )

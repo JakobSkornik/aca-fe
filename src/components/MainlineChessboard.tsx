@@ -12,7 +12,7 @@ import Icon from '@/components/ui/Icon'
 
 const MIN_BOARD_SIZE = 160
 const BOARD_PADDING = 6
-const MAX_BOARD_SIZE = 520
+const MAX_BOARD_SIZE = 416  // 20% narrower than the former 520
 /** Rank gutter + eval bar reserve so the square board fits its column. */
 const SIDE_GUTTER_PX = 22 + 34
 
@@ -305,7 +305,7 @@ const MainlineChessboard = () => {
         padding: 10,
         // Focus cue: the board arrow keys don't drive is dimmed; a PV/line
         // hover also dims it to spotlight the variation viewer.
-        opacity: focusedBoard === 'game' && !pvHover ? 1 : 0.75,
+        opacity: focusedBoard === 'game' && !pvHover ? 1 : 0.6,
         transition: 'opacity 0.15s ease',
       }}
       onMouseDown={() => manager.setFocusedBoard('game')}
