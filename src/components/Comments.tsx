@@ -104,11 +104,13 @@ const Comments: React.FC = () => {
     selectedPart,
   } = state
   // The current ply along the shown line — shared by the board, the move cards
-  // and the charts so they stay in sync. Reset when the move changes.
+  // and the charts so they stay in sync. Rewind to the start whenever the move
+  // changes or the selected board switches (by click OR by arrow-cycling).
   const [pvIdx, setPvIdx] = useState(0)
-  useEffect(() => setPvIdx(0), [currentMoveIndex])
+  useEffect(() => setPvIdx(0), [currentMoveIndex, selectedPart])
 
-  // Selecting a line focuses the variation navigator so arrow keys drive it.
+  // Selecting a line focuses the variation navigator (the reset is handled by
+  // the effect above, which also covers arrow-driven board switches).
   const setSelectedPart = useCallback(
     (p: CommentPart) => {
       manager.setSelectedPart(p)

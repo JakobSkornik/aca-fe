@@ -42,6 +42,7 @@ export const FEATURE_META: Record<string, FeatureMetaEntry> = {
   "CASTLING_RIGHTS": {"label": "Castling Rights", "description": "Retained castling rights \u2014 the flexibility to still castle either side.", "unit": "cp", "group": "King", "source": "custom"},
   "WEAK_ENEMIES": {"label": "Weak Enemies", "description": "Enemy pieces under our attack and not defended by a pawn.", "unit": "count", "group": "Threats", "source": "stockfish"},
   "HANGING": {"label": "Hanging Enemies", "description": "Weak enemy pieces that are undefended, or non-pawns we attack more than once \u2014 pieces in real danger of being won.", "unit": "count", "group": "Threats", "source": "stockfish"},
+  "PINS": {"label": "Pins", "description": "Enemy minor/major pieces pinned to their king by our sliders.", "unit": "count", "group": "Threats", "source": "stockfish"},
   "KING_ACTIVITY": {"label": "King Activity", "description": "How actively the king takes part \u2014 mostly relevant in the endgame.", "unit": "cp", "group": "Endgame", "source": "custom"},
   "OUTSIDE_PASSER": {"label": "Outside Passer", "description": "A passed pawn far from the kings \u2014 often decisive in the endgame.", "unit": "cp", "group": "Endgame", "source": "custom"},
   "PASSER_KING_ESCORT": {"label": "Passer King Escort", "description": "Own king close to a friendly passed pawn, helping to escort it.", "unit": "cp", "group": "Endgame", "source": "stockfish"},
