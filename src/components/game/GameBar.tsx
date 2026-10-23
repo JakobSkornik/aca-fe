@@ -25,7 +25,7 @@ function clean(value?: string | null): string {
   return v && v !== '?' && v !== '-' ? v : ''
 }
 
-/** Game-info section under the board: full labelled metadata for the game. */
+/** Compact identity above the moves, with optional game details. */
 const GameBar: React.FC = () => {
   const { state } = useGameState()
   const meta = state.gameJson?.metadata
@@ -42,6 +42,8 @@ const GameBar: React.FC = () => {
       <InfoRow label="White" value={playerLabel(meta?.white, meta?.whiteElo)} />
       <InfoRow label="Black" value={playerLabel(meta?.black, meta?.blackElo)} />
       <InfoRow label="Result" value={clean(meta?.result)} />
+      <details className="mt-2 text-xs">
+        <summary className="cursor-pointer text-text-secondary">Game details</summary>
       <InfoRow label="Event" value={clean(meta?.eventId)} />
       <InfoRow label="Site" value={clean(meta?.site)} />
       <InfoRow label="Round" value={clean(meta?.round)} />
@@ -56,6 +58,7 @@ const GameBar: React.FC = () => {
         value={level ? `${level}${side ? ` · ${side} only` : ''}` : undefined}
       />
       <InfoRow label="Moves" value={moveCount ? Math.ceil(moveCount / 2) : undefined} />
+      </details>
     </div>
   )
 }

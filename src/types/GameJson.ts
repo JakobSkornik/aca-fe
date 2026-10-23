@@ -41,7 +41,11 @@ export interface GameMove {
   classification: string | null
   /** NAG-style symbol from the key-moment classification (!!, !, ?!, ?, ??). */
   annotation?: string | null
-  /** True only for real key-moment commentary (drives the move dot). */
+  has_comment?: boolean
+  comment_kind?: string | null
+  commentary_status?: string | null
+  commentary_reason?: string | null
+  /** True only for real key-moment commentary; independent of comment presence. */
   is_key_moment?: boolean
   /** True when this comment would actually be used in the final annotated game
    * (a substantive key-moment comment, not a back-to-back stub). */
@@ -90,6 +94,10 @@ export interface CommentFactsLine {
 }
 
 export interface CommentFactsClaim {
+  rule_id?: string
+  support_ply?: number | null
+  support_fen?: string | null
+  baseline_fen?: string | null
   text: string
   text_state: string | null
   features: string[]
@@ -105,6 +113,10 @@ export interface CommentFactsClaim {
 }
 
 export interface CommentFactsJson {
+  selection_metadata?: {
+    comment_selection?: { allowed: boolean; reason?: string }
+  }
+  terminal_result?: string | null
   verdict: string
   eval_cp: number | null
   eval_mate: number | null
@@ -117,15 +129,17 @@ export interface CommentFactsJson {
     uci: string
     verdict: string
     eval_cp: number | null
+    eval_mate?: number | null
     display_line: CommentFactsLine | null
     claims: CommentFactsClaim[]
     /** When true this is the clearly-worse runner-up shown to contrast a top
-     * move that was played — not a better move that was missed. */
+     * move that was played â€” not a better move that was missed. */
     is_inferior?: boolean
   }
 }
 
 export interface GameMetadata {
+  initial_fen?: string | null
   id: string
   white: string
   black: string

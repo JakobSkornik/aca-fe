@@ -12,9 +12,9 @@ import Icon from '@/components/ui/Icon'
 
 const MIN_BOARD_SIZE = 160
 const BOARD_PADDING = 6
-const MAX_BOARD_SIZE = 416  // 20% narrower than the former 520
+const MAX_BOARD_SIZE = 560
 /** Rank gutter + eval bar reserve so the square board fits its column. */
-const SIDE_GUTTER_PX = 22 + 34
+const SIDE_GUTTER_PX = 22 + 26 + 12
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'] as const
@@ -121,6 +121,7 @@ const MainlineChessboard = () => {
     padding: BOARD_PADDING,
     min: MIN_BOARD_SIZE,
     max: MAX_BOARD_SIZE,
+    mode: 'width',
   })
   const [renderSize, setRenderSize] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -160,16 +161,24 @@ const MainlineChessboard = () => {
     if (!el || sizeCap <= 0) return
     const update = () => {
       const w = el.getBoundingClientRect().width
+      // Keep the prose below the board visible on shorter desktop screens.
+      // Stacked layouts scroll naturally and can use the full column width.
+      const heightCap = window.innerWidth > 1150
+        ? Math.max(280, window.innerHeight - 430) : MAX_BOARD_SIZE
       const next = Math.max(
         MIN_BOARD_SIZE,
-        Math.min(MAX_BOARD_SIZE, sizeCap, Math.floor(w - SIDE_GUTTER_PX)),
+        Math.min(MAX_BOARD_SIZE, heightCap, sizeCap, Math.floor(w - SIDE_GUTTER_PX)),
       )
       setRenderSize(next)
     }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
-    return () => ro.disconnect()
+    window.addEventListener('resize', update)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', update)
+    }
   }, [sizeCap])
 
   const currentFen = manager.getCurrentPosition(currentMoveIndex)
@@ -241,7 +250,7 @@ const MainlineChessboard = () => {
     if (lastMove?.move) {
       const fenBefore =
         currentMoveIndex <= 0
-          ? new Chess().fen()
+          ? manager.getPositionForIndex(-1)
           : manager.getPositionForIndex(currentMoveIndex - 1)
       if (fenBefore) {
         const b = new Chess(fenBefore)
@@ -316,7 +325,6 @@ const MainlineChessboard = () => {
         <div
           ref={boardLayoutRef}
           className="board-stage"
-          style={{ justifyContent: 'center' }}
         >
           {renderSize > 0 ? (
             <>
@@ -326,7 +334,7 @@ const MainlineChessboard = () => {
                 mate={evalMate}
                 book={isBook}
               />
-              <div className="flex flex-col" style={{ width: renderSize + 22 }}>
+              <div className="mx-auto flex flex-col" style={{ width: renderSize + 22 }}>
                 <div className="flex">
                   <div
                     className="flex w-[22px] shrink-0 flex-col"

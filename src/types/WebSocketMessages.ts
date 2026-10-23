@@ -125,6 +125,10 @@ export interface AiCommentUpdateServerPayload {
   moveId: number
   context: 'mainline' | 'preview'
   data: Record<string, unknown> & {
+    has_comment?: boolean
+    comment_kind?: string
+    commentary_status?: string
+    commentary_reason?: string | null
     summary?: string
     commentary?: string
     bullets?: string[]

@@ -47,7 +47,7 @@ function MoveCell({
   if (!move?.move)
     return (
       <div className="move-cell ca-muted" style={{ cursor: 'default' }}>
-        —
+        â€”
       </div>
     )
   const annot = moveAnnotation(move)
@@ -72,6 +72,9 @@ function MoveCell({
       <span className="san">
         {move.move}
         {annot ? <span className={`q ${qClass(annot)}`}>{annot}</span> : null}
+        {hasComment ? (
+          <span className="absolute right-0.5 top-0.5 h-1 w-1 rounded-full bg-current" style={{ opacity: unread ? 1 : 0.55 }} aria-label={unread ? "New commentary" : "Commentary (read)"} />
+        ) : null}
         {generating ? (
           <span
             className="ml-1 inline-block h-2 w-2 animate-spin rounded-full border-2 border-text-warning border-t-transparent align-middle"
@@ -96,17 +99,14 @@ const MoveList = () => {
     aiGeneration,
   } = state
 
-  // Green tint only on moves with real key-moment/teaching commentary — not the
-  // template-floor facts that every analyzed move carries. Move id = index+1.
+  // Comment presence is independent of move quality and key-moment selection.
   const moveIdsWithComment = useMemo(() => {
     const s = new Set<number>()
-    const gmoves = state.gameJson?.moves
-    if (gmoves) {
-      gmoves.forEach((m, i) => {
-        if (m.is_key_moment) s.add(i + 1)
-      })
-    } else {
-      for (const c of commentsMainline) s.add(c.moveId)
+    state.gameJson?.moves.forEach((m, i) => {
+      if (m.comment?.trim()) s.add(i + 1)
+    })
+    for (const c of commentsMainline) {
+      if (c.text.trim()) s.add(c.moveId)
     }
     return s
   }, [state.gameJson, commentsMainline])
@@ -175,7 +175,7 @@ const MoveList = () => {
             />
           </div>
           <p className="mt-1 text-[10px] text-text-tertiary">
-            Analyzing… {analysisProgress.toFixed(0)}%
+            Analyzingâ€¦ {analysisProgress.toFixed(0)}%
           </p>
         </div>
       ) : null}

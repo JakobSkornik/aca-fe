@@ -4,7 +4,7 @@ import { useGameState } from '@/contexts/GameStateContext'
 import { jobService } from '@/services/JobService'
 import MainlineChessboard from '@/components/MainlineChessboard'
 import MoveList from '@/components/MoveList'
-import Comments from '@/components/Comments'
+import Comments, { CommentaryProvider, EvidencePanel } from '@/components/Comments'
 import GameTopBar from '@/components/game/GameTopBar'
 import GameBar from '@/components/game/GameBar'
 import type { GameJson } from '@/types/GameJson'
@@ -157,7 +157,7 @@ const GamePage = () => {
       : 'Job'
 
   return (
-    <div className="app flex h-screen min-h-0 min-w-[1024px] flex-col overflow-hidden">
+    <div className="app flex h-screen min-h-0 min-w-0 flex-col overflow-hidden">
       <GameTopBar
         jobLabel={jobLabel}
         onHome={() => router.push('/')}
@@ -165,25 +165,21 @@ const GamePage = () => {
         onExportPgn={() => void exportGamePgn()}
         onExportJson={() => void exportGameJson()}
       />
-      {/* Split layout: board (+ game info) · commentary · moves. Positional-
-          feature charts live in the variation navigator inside commentary. */}
-      <div className="min-h-0 flex-1 overflow-hidden p-4">
-        <div className="ca-split h-full">
-          <div
-            style={{ gridArea: 'board' }}
-            className="flex min-h-0 flex-col gap-3"
-          >
-            <MainlineChessboard />
-            <GameBar />
-          </div>
-          <div style={{ gridArea: 'comment', minWidth: 0 }}>
-            <Comments />
-          </div>
-          <div style={{ gridArea: 'moves', minWidth: 0 }}>
-            <MoveList />
+      <CommentaryProvider>
+        <div className="analysis-workspace min-h-0 flex-1 p-3">
+          <div className="ca-split">
+            <aside className="analysis-moves" aria-label="Game and moves">
+              <GameBar />
+              <div className="min-h-0 flex-1"><MoveList /></div>
+            </aside>
+            <main className="analysis-centre">
+              <MainlineChessboard />
+              <div className="analysis-commentary"><Comments /></div>
+            </main>
+            <EvidencePanel />
           </div>
         </div>
-      </div>
+      </CommentaryProvider>
     </div>
   )
 }

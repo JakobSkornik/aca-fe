@@ -6,7 +6,7 @@ import type { PlayerLine } from '@/types/Line'
 import Icon from '@/components/ui/Icon'
 import { evalDepthSuffix } from '@/helpers/chessNotation'
 
-const BOARD_W = 200
+const BOARD_W = 240
 const AUTOPLAY_MS = 900
 
 type Props = {
@@ -91,6 +91,7 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey }) => {
     <button
       type="button"
       className="btn icon-btn"
+      style={{ width: 24, height: 30, padding: 0 }}
       title={label}
       disabled={disabled}
       onClick={onClick}
@@ -146,7 +147,7 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey }) => {
           style={{ width: BOARD_W, accentColor: 'var(--accent)' }}
           aria-label="Variation position"
         />
-        <div className="navrow mt-1" style={{ width: BOARD_W }}>
+        <div className="navrow mt-1" style={{ width: BOARD_W, gap: 3 }}>
           {navBtn('first', 'First', safeIdx === 0, () => {
             stop()
             goto(0)
@@ -158,7 +159,7 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey }) => {
           <button
             type="button"
             className="btn"
-            style={{ minWidth: 72, justifyContent: 'center' }}
+            style={{ minWidth: 60, padding: '4px 6px', justifyContent: 'center' }}
             onClick={() => {
               if (!playing && safeIdx >= lastIdx) onIdx(0)
               setPlaying((p) => !p)

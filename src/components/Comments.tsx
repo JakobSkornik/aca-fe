@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useCallback, useState } from 'react'
+import { alternativeTitle } from '@/helpers/alternativeTitle'
+import React, { createContext, useContext, useEffect, useMemo, useCallback, useState, useRef } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
 import type { MainlineComment } from '@/contexts/GameStateManager'
 import type { PlayerLine, LineStep } from '@/types/Line'
@@ -8,6 +9,7 @@ import StructuredComment, { type CommentPart } from './StructuredComment'
 import PvBoard from './PvBoard'
 import FeatureCharts from './FeatureCharts'
 import Icon from '@/components/ui/Icon'
+import CommentStatusBadge from '@/components/CommentStatusBadge'
 
 /** Build a player line (steps + chart series) from a CommentFacts line, with a
  * gray lead-in step (the position before the move) prepended. */
@@ -37,20 +39,6 @@ function factsLineToPlayer(
     chartFeatures,
     tone,
   }
-}
-
-/** Title for the alternative card/line (better / engine's choice / weaker). */
-function altLineTitle(
-  san: string,
-  isInferior: boolean,
-  altCp: number | null,
-  playedCp: number | null,
-): string {
-  const gap = altCp != null && playedCp != null ? Math.abs(altCp - playedCp) : null
-  if (isInferior) {
-    return gap != null && gap >= 60 ? `Weaker was ${san}` : `Comparable: ${san}`
-  }
-  return gap != null && gap < 50 ? `Engine's choice: ${san}` : `Better was ${san}`
 }
 
 function evalChipLabel(
@@ -94,7 +82,7 @@ function leadInStep(
   }
 }
 
-const Comments: React.FC = () => {
+function useCommentaryView() {
   const { state, manager } = useGameState()
   const {
     commentsMainline,
@@ -107,7 +95,13 @@ const Comments: React.FC = () => {
   // and the charts so they stay in sync. Rewind to the start whenever the move
   // changes or the selected board switches (by click OR by arrow-cycling).
   const [pvIdx, setPvIdx] = useState(0)
-  useEffect(() => setPvIdx(0), [currentMoveIndex, selectedPart])
+  const requestedPly = useRef<{ part: CommentPart; moveIndex: number; ply: number } | null>(null)
+  useEffect(() => {
+    const requested = requestedPly.current
+    setPvIdx(requested?.part === selectedPart && requested.moveIndex === currentMoveIndex
+      ? requested.ply : 0)
+    requestedPly.current = null
+  }, [currentMoveIndex, selectedPart])
 
   // Selecting a line focuses the variation navigator (the reset is handled by
   // the effect above, which also covers arrow-driven board switches).
@@ -122,11 +116,12 @@ const Comments: React.FC = () => {
   // Clicking a ply token selects its line and jumps the board to that ply.
   const onSelectPly = useCallback(
     (part: CommentPart, ply: number) => {
+      if (part !== selectedPart) requestedPly.current = { part, moveIndex: currentMoveIndex, ply }
       manager.setSelectedPart(part)
       manager.setFocusedBoard('variation')
       setPvIdx(ply)
     },
-    [manager],
+    [manager, selectedPart, currentMoveIndex],
   )
 
   // Navigation resets the navigator to the move's main line (no focus change).
@@ -155,22 +150,10 @@ const Comments: React.FC = () => {
   const currentMoveId = currentMove?.id
 
   const displayedComments = commentsMainline
-  // Nav/count covers only real key-moment commentary, not the template floor
-  // every analyzed move carries. (The reading pane still shows facts for any
-  // selected move via comment_facts.)
-  const keyMomentIdx = useMemo(() => {
-    const s = new Set<number>()
-    state.gameJson?.moves?.forEach((m, i) => {
-      if (m.is_key_moment) s.add(i)
-    })
-    return s
-  }, [state.gameJson])
   const sortedForNav = useMemo(
-    () =>
-      [...displayedComments]
-        .filter((c) => keyMomentIdx.size === 0 || keyMomentIdx.has(c.moveIndex))
-        .sort((a, b) => a.moveIndex - b.moveIndex),
-    [displayedComments, keyMomentIdx],
+    () => [...displayedComments].filter((c) => c.text.trim())
+      .sort((a, b) => a.moveIndex - b.moveIndex),
+    [displayedComments],
   )
 
   const activeComment = useMemo(() => {
@@ -282,19 +265,14 @@ const Comments: React.FC = () => {
   // The better/weaker alternative line, when the move has one.
   const altLine = useMemo<PlayerLine | null>(() => {
     const a = facts?.better_alternative
-    if (!a?.display_line?.san?.length) return null
+    if (!facts || !a?.display_line?.san?.length) return null
     const prevMove = state.gameJson?.moves?.[currentMoveIndex - 1]
-    const title = altLineTitle(
-      a.san,
-      !!a.is_inferior,
-      a.eval_cp,
-      facts?.eval_cp ?? null,
-    )
+    const title = alternativeTitle(facts)
     return factsLineToPlayer(
       a.display_line,
       a.claims,
       a.eval_cp,
-      null,
+      a.eval_mate,
       facts?.depth,
       title,
       'alt',
@@ -306,28 +284,47 @@ const Comments: React.FC = () => {
   const pvLen = selectedLine?.steps.length ?? 1
   const idx = Math.max(0, Math.min(pvIdx, pvLen - 1))
 
-  const evalChip = evalChipLabel(
+  const evalChip = facts?.terminal_result ? `Result: ${facts.terminal_result}` : evalChipLabel(
     facts?.eval_cp ?? currentMove?.score ?? null,
     facts?.eval_mate ?? currentMove?.mateIn,
     facts?.depth ?? state.gameJson?.analysis_info?.depth ?? null,
   )
 
+  return { state, currentMoveId, activeComment, activeMainTitle, activeKeyMomentType, gm,
+    commentaryGenerating, evalChip, prevComment, nextComment, goToComment,
+    navPos, sortedForNav, displayedComments, facts, mainLine, altLine,
+    selectedLine, idx, setPvIdx, currentMoveIndex, selectedPart, setSelectedPart, onSelectPly }
+}
+
+const CommentaryContext = createContext<ReturnType<typeof useCommentaryView> | null>(null)
+
+export function CommentaryProvider({ children }: { children: React.ReactNode }) {
+  const view = useCommentaryView()
+  return <CommentaryContext.Provider value={view}>{children}</CommentaryContext.Provider>
+}
+
+function useCommentary() {
+  const view = useContext(CommentaryContext)
+  if (!view) throw new Error('Commentary panels require CommentaryProvider')
+  return view
+}
+
+const Comments: React.FC = () => {
+  const { state, currentMoveId, activeComment, activeMainTitle, activeKeyMomentType, gm, commentaryGenerating,
+    prevComment, nextComment, goToComment, navPos, sortedForNav,
+    displayedComments } = useCommentary()
   return (
     <div className="panel flex h-full min-h-0 flex-col">
-      <div className="panel-head">
+      <div className="panel-head flex-wrap">
         <Icon name="msg" size={15} />
         <h3>Commentary</h3>
+        <CommentStatusBadge move={gm} generating={currentMoveId != null && !!state.aiGeneration[currentMoveId]}
+          commentaryComplete={state.commentaryComplete} />
         <div className="grow" />
         {commentaryGenerating ? (
           <span className="flex items-center gap-1 text-[10px] font-medium text-text-warning">
             <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-text-warning border-t-transparent" />
             generating…
-          </span>
-        ) : null}
-        {evalChip ? (
-          <span className="chip adv">
-            <Icon name="cpu" size={12} />
-            {evalChip}
           </span>
         ) : null}
         <div className="ml-1 flex items-center gap-1 text-[10px] text-text-tertiary">
@@ -358,7 +355,7 @@ const Comments: React.FC = () => {
       </div>
 
       <div className="scroll-y min-h-0 flex-1">
-        {!activeComment && !facts && !mainLine ? (
+        {!activeComment ? (
           <div className="flex min-h-[60px] flex-col items-center justify-center p-4 text-center text-text-secondary">
             <p className="mb-0.5 text-[12px] font-medium text-text-primary">
               {displayedComments.length === 0
@@ -371,10 +368,10 @@ const Comments: React.FC = () => {
           </div>
         ) : (
           <div className="comment-body">
-            {/* LLM prose comment (key moments only) */}
+            {/* Prose is separate from the complete supporting fact catalogue. */}
             {activeComment ? (
               <>
-                <h2 className="comment-title flex items-center gap-2">
+                <h2 className="comment-title flex flex-wrap items-center gap-2">
                   {activeMainTitle}
                   {gm?.final_comment ? (
                     <span
@@ -397,43 +394,36 @@ const Comments: React.FC = () => {
               </>
             ) : null}
 
-            {/* PV board (left) + the line cards (right). */}
-            <div className="mt-2 flex flex-wrap gap-3">
-              <PvBoard
-                line={selectedLine}
-                idx={idx}
-                onIdx={setPvIdx}
-                loadKey={`${currentMoveIndex}:${selectedPart}`}
-              />
-              {facts ? (
-                <StructuredComment
-                  facts={facts}
-                  debug={gm?.debug}
-                  mainLine={mainLine}
-                  altLine={altLine}
-                  selectedPart={selectedPart}
-                  onSelectPart={setSelectedPart}
-                  pvIdx={idx}
-                  onSelectPly={onSelectPly}
-                />
-              ) : null}
-            </div>
 
-            {/* Feature charts below: main (green) + alternative (gray) + game
-                (orange dashed). */}
-            <div className="mt-2 border-t border-border-tertiary pt-3">
-              <FeatureCharts
-                mainLine={mainLine}
-                altLine={altLine}
-                gameSeries={state.gameJson?.feature_series?.features ?? {}}
-                mainlinePly={currentMoveIndex}
-                idx={idx}
-              />
-            </div>
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+export function EvidencePanel() {
+  const { state, facts, gm, mainLine, altLine, selectedLine, idx, setPvIdx,
+    currentMoveIndex, selectedPart, setSelectedPart, onSelectPly } = useCommentary()
+  return (
+    <aside className="analysis-evidence" aria-label="Variations and supporting facts">
+      <section className="panel">
+        <div className="panel-head"><Icon name="list" size={15} /><h3>Variations &amp; facts</h3></div>
+        <div className="analysis-facts-layout flex flex-wrap items-start gap-3 p-3">
+          <PvBoard line={selectedLine} idx={idx} onIdx={setPvIdx}
+            loadKey={`${currentMoveIndex}:${selectedPart}`} />
+          {facts ? <StructuredComment facts={facts} debug={gm?.debug}
+            mainLine={mainLine} altLine={altLine} selectedPart={selectedPart}
+            onSelectPart={setSelectedPart} pvIdx={idx} onSelectPly={onSelectPly} />
+            : <p className="text-xs text-text-secondary">No rule facts for this move.</p>}
+        </div>
+      </section>
+      <section className="analysis-charts panel p-3" aria-label="Position features" tabIndex={0}>
+        <FeatureCharts mainLine={mainLine} altLine={altLine}
+          gameSeries={state.gameJson?.feature_series?.features ?? {}}
+          mainlinePly={currentMoveIndex} idx={idx} />
+      </section>
+    </aside>
   )
 }
 

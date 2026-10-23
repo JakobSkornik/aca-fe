@@ -355,7 +355,7 @@ const FeatureCharts: React.FC<Props> = ({
         <div
           className="grid gap-2"
           style={{
-            gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
           }}
         >
           {features.map((f) => {

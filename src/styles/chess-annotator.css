@@ -73,7 +73,7 @@
   line-height: 1.5;
 }
 .gameinfo-label {
-  flex: 0 0 84px;
+  flex: 0 0 48px;
   color: var(--fg-3);
   font-size: 12px;
 }
@@ -220,42 +220,41 @@
 /* ---------- split layout ---------- */
 .ca-split {
   display: grid;
-  gap: 18px;
-  align-items: stretch;
-  /* Fill the available height with a single bounded row, so the three sections
-     run to the bottom and scroll internally instead of growing past the view. */
+  gap: 14px;
   height: 100%;
   min-height: 0;
+  grid-template-columns: minmax(230px, 260px) minmax(400px, 1fr) minmax(400px, 1.12fr);
   grid-template-rows: minmax(0, 1fr);
-  /* Board column tracks the board's max size (20% narrower) + eval bar +
-     labels; moves column is kept slim so commentary gets the width. */
-  grid-template-columns: minmax(300px, 470px) minmax(360px, 1fr) minmax(
-      230px,
-      280px
-    );
-  grid-template-areas: 'board comment moves';
+  grid-template-areas: 'moves centre evidence';
 }
-/* Grid items must be allowed to shrink below their content for the row bound
-   (and the panels' internal scrolling) to take effect. */
-.ca-split > * {
-  min-width: 0;
-  min-height: 0;
-}
-.ca-split > [style*='comment'] > .panel,
-.ca-split > [style*='moves'] > .panel {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-@media (max-width: 1200px) {
+.ca-split > * { min-width: 0; min-height: 0; }
+.analysis-moves { grid-area: moves; display: flex; flex-direction: column; gap: 12px; }
+.analysis-centre { grid-area: centre; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+.analysis-centre > .panel { flex-shrink: 0; }
+.analysis-commentary { min-height: 220px; flex: 1 0 auto; }
+.analysis-evidence { grid-area: evidence; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+.analysis-evidence > .panel { flex-shrink: 0; }
+.analysis-facts-layout > :last-child { flex: 1 1 210px; }
+.analysis-charts { max-height: min(34vh, 340px); overflow-y: auto; }
+.analysis-workspace { overflow: hidden; }
+@media (max-width: 1150px) {
+  .analysis-workspace { overflow: auto; }
   .ca-split {
-    grid-template-columns: minmax(280px, 420px) 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas:
-      'board comment'
-      'moves comment';
+    height: auto;
+    grid-template-columns: 230px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    grid-template-areas: 'moves centre' 'evidence evidence';
   }
+  .analysis-moves { max-height: 850px; }
+  .analysis-centre, .analysis-evidence { overflow: visible; }
+}
+@media (max-width: 700px) {
+  .ca-topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  .ca-topbar .brand { flex-basis: 100%; }
+  .ca-topbar > .brand + div { display: none; }
+  .ca-split { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'centre' 'moves' 'evidence'; }
+  .analysis-moves { height: 440px; }
+  .analysis-commentary { min-height: 160px; }
 }
 
 /* ---------- panels ---------- */
@@ -283,7 +282,8 @@
 
 /* ---------- board ---------- */
 .board-stage {
-  display: flex;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
 }
@@ -402,11 +402,12 @@
   justify-content: center;
 }
 .move-cell {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 9px;
+  gap: 4px;
+  padding: 6px 7px;
   border-radius: 7px;
   cursor: pointer;
   min-width: 0;
@@ -423,6 +424,7 @@
   color: var(--inacc);
 }
 .move-cell .san {
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-weight: 600;
   font-size: 13px;

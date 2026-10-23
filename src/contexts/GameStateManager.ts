@@ -32,7 +32,6 @@ import { jobService } from '../services/JobService'
 import { CaptureCount } from '../types/chess/CaptureCount'
 import { chessPositionManager } from '../helpers/ChessPositionManager'
 import { GameJson, GameMove } from '../types/GameJson'
-import { isEngineKeyMomentScoreComment } from '../helpers/commentaryText'
 import type {
   AiCommentLlmDebug,
   ResolvedAnnotationToken,
@@ -77,7 +76,7 @@ export type GameStateSnapshot = {
   moves: MoveList
   currentMoveIndex: number
   commentsMainline: MainlineComment[]
-  /** Move ids whose LLM comment has been viewed — drives the read/unread dot. */
+  /** Move ids whose LLM comment has been viewed â€” drives the read/unread dot. */
   readCommentMoveIds: Set<number>
   pendingComments: {
     moveId: number
@@ -143,6 +142,7 @@ const getPieceFromSan = (san: string, color: 'w' | 'b'): string => {
 export class GameStateManager {
   private state: GameStateSnapshot
   private listeners: (() => void)[] = []
+  private commentaryRefreshEpoch = 0
   private jobCommentaryWs: WebSocket | null = null
   /** Job id for the active `/jobs/{id}/ws` connection; cleared on disconnect. */
   private jobCommentaryActiveJobId: string | null = null
@@ -284,6 +284,8 @@ export class GameStateManager {
   // --- Load from JSON ---
   loadGameFromJson(data: GameJson) {
     this.disconnectJobCommentaryWs()
+    this.state.aiGeneration = {}
+    this.state.aiComments = []
     this.state.boardOrientation = 'white'
     this.state.isLoaded = false
     this.state.isAnalysisInProgress = false
@@ -309,7 +311,7 @@ export class GameStateManager {
 
     // Reconstruct Moves
     const moveList = new MoveList()
-    const chess = new Chess() // Replay mainline; PVs use position before each move
+    const chess = new Chess(data.metadata.initial_fen || undefined)
     let capW = emptyCaptureCount()
     let capB = emptyCaptureCount()
 
@@ -336,8 +338,7 @@ export class GameStateManager {
         hiddenFeatures: {},
       }
 
-      // AI commentary list only (exclude engine key-moment + score lines)
-      if (gm.comment && !isEngineKeyMomentScoreComment(gm.comment)) {
+      if (gm.comment?.trim()) {
         const item: MainlineComment = {
           moveId: move.id,
           moveIndex: index,
@@ -504,7 +505,7 @@ export class GameStateManager {
   }
 
   getCurrentPositionUnified(): string | null {
-    return this.state.moves.getCurrentPosition(this.state.currentMoveIndex)
+    return this.getPositionForIndex(this.state.currentMoveIndex)
   }
 
   getCurrentCaptures() {
@@ -513,6 +514,9 @@ export class GameStateManager {
 
   /** FEN after the move at `index` (start position when `index` is 0 or negative). */
   getPositionForIndex(index: number): string {
+    if (index < 0 && this.state.gameJson?.metadata.initial_fen) {
+      return this.state.gameJson.metadata.initial_fen
+    }
     return this.state.moves.getPositionForIndex(index)
   }
 
@@ -559,8 +563,9 @@ export class GameStateManager {
   private applyAiCommentUpdatePayload(aiPayload: AiCommentUpdateServerPayload) {
     const idx = this.state.moves.findMoveIndexById(aiPayload.moveId)
     if (idx === -1) return
+    if (aiPayload.context !== 'mainline') return
     this.state.aiComments = [
-      ...this.state.aiComments,
+      ...this.state.aiComments.filter((c) => c.moveId !== aiPayload.moveId || c.context !== aiPayload.context),
       {
         moveId: aiPayload.moveId,
         moveIndex: idx,
@@ -601,7 +606,16 @@ export class GameStateManager {
       if (ldRaw && typeof ldRaw === 'object' && ldRaw !== null) {
         commentItem.llmDebug = ldRaw as AiCommentLlmDebug
       }
-      this.upsertMainlineComment(commentItem)
+      this.patchGameMove(aiPayload.moveId, {
+        comment: text || null,
+        has_comment: !!text.trim(),
+        comment_kind: aiPayload.data.comment_kind,
+        commentary_status: aiPayload.data.commentary_status,
+        commentary_reason: aiPayload.data.commentary_reason,
+        resolved_tokens: commentItem.resolvedTokens,
+      })
+      if (text.trim()) this.upsertMainlineComment(commentItem)
+      else this.state.commentsMainline = this.state.commentsMainline.filter((c) => c.moveId !== aiPayload.moveId)
     } catch {
       /* ignore */
     }
@@ -611,6 +625,50 @@ export class GameStateManager {
       this.state.aiGeneration = nextGen
     }
     this.notify()
+  }
+
+  private patchGameMove(moveId: number, patch: Partial<GameMove>) {
+    if (!this.state.gameJson) return
+    const index = this.findMoveIndexById(moveId)
+    if (index < 0 || !this.state.gameJson.moves[index]) return
+    const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined))
+    this.state.gameJson = {
+      ...this.state.gameJson,
+      moves: this.state.gameJson.moves.map((move, i) => i === index ? { ...move, ...defined } : move),
+    }
+  }
+
+  private async refreshCompletedCommentary(jobId: string) {
+    const epoch = ++this.commentaryRefreshEpoch
+    const game = this.state.gameJson
+    // Completion is broadcast before the final JSON is written. Wait for its
+    // persisted completion flag; a newer game/connection cancels this refresh.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (epoch !== this.commentaryRefreshEpoch || this.state.gameJson?.metadata.id !== game?.metadata.id) return
+      try {
+        const data = await jobService.getGameJson(jobId)
+        if (epoch !== this.commentaryRefreshEpoch) return
+        if (data.commentary_complete) {
+          this.state.gameJson = data
+          this.state.commentaryComplete = true
+          this.state.aiGeneration = {}
+          this.state.commentsMainline = data.moves.flatMap((move, index) => {
+            if (!move.comment?.trim()) return []
+            const previous = this.state.commentsMainline.find((c) => c.moveIndex === index)
+            return [{ ...previous, moveId: this.state.moves.getMoveAtIndex(index)?.id ?? index + 1,
+              moveIndex: index, text: move.comment, resolvedTokens: move.resolved_tokens }]
+          })
+          this.disconnectJobCommentaryWs()
+          this.notify()
+          return
+        }
+      } catch { /* A short persistence or transport delay can recover. */ }
+      await new Promise((resolve) => setTimeout(resolve, Math.min(250 * (attempt + 1), 1500)))
+    }
+    if (epoch === this.commentaryRefreshEpoch) {
+      this.state.wsError = 'Commentary finished, but final results could not be refreshed. Reopen the game to retry.'
+      this.notify()
+    }
   }
 
   /** Streamed LLM commentary for job-based analysis (`/jobs/{id}/ws`). */
@@ -649,6 +707,7 @@ export class GameStateManager {
   }
 
   disconnectJobCommentaryWs() {
+    this.commentaryRefreshEpoch += 1
     this.jobCommentaryActiveJobId = null
     if (this.jobCommentaryWs) {
       this.jobCommentaryWs.close()
@@ -661,6 +720,7 @@ export class GameStateManager {
       case 'AI_GENERATION_STATUS': {
         const p = msg.payload as AiGenerationStatusServerPayload
         if (p.status === 'start') {
+          if (p.context === 'mainline') this.patchGameMove(p.moveId, { commentary_status: 'generating' })
           this.state.aiGeneration = {
             ...this.state.aiGeneration,
             [p.moveId]: {
@@ -685,8 +745,8 @@ export class GameStateManager {
         break
       }
       case 'COMMENTARY_COMPLETE': {
-        this.state.commentaryComplete = true
-        this.disconnectJobCommentaryWs()
+        const jobId = this.jobCommentaryActiveJobId
+        if (jobId) void this.refreshCompletedCommentary(jobId)
         this.notify()
         break
       }
@@ -782,6 +842,7 @@ export class GameStateManager {
       case ServerWsMessageType.AI_GENERATION_STATUS:
         const genPayload = srvMsg.payload as AiGenerationStatusServerPayload
         if (genPayload.status === 'start') {
+          if (genPayload.context === 'mainline') this.patchGameMove(genPayload.moveId, { commentary_status: 'generating' })
           this.state.aiGeneration = {
             ...this.state.aiGeneration,
             [genPayload.moveId]: {
@@ -893,7 +954,7 @@ export class GameStateManager {
   }
 
   getCurrentPosition(index: number) {
-    const position = this.state.moves.getCurrentPosition(index)
+    const position = this.getPositionForIndex(index)
 
     // Update chess position manager with the current position
     if (position) {

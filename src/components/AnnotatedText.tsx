@@ -119,7 +119,7 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
 
     const fenBefore =
       currentMoveIndex <= 0
-        ? new Chess().fen()
+        ? manager.getPositionForIndex(-1)
         : manager.getPositionForIndex(currentMoveIndex - 1)
 
     /** Opponent replies: position after the displayed move. Same-side alts: position before it. */
