@@ -48,7 +48,7 @@ export function formatNumberedSteps(steps: { san: string; fen: string }[]): Numb
     }
     if (turn === 'b') moveNo += 1
     turn = turn === 'w' ? 'b' : 'w'
-    return { label, san: s.san }
+    return { label: s.san ? label : 'Start', san: s.san }
   })
 }
 

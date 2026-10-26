@@ -200,7 +200,7 @@ const LandingNewAnalysis: React.FC = () => {
       {advancedOpen ? (
         <div className="mt-3.5 flex flex-col gap-3.5 rounded-md border border-border-tertiary bg-background-secondary p-4 sm:flex-row">
           <div className="min-w-0 flex-1">
-            <div className="mb-1 text-[11px] text-text-tertiary">LLM provider</div>
+            <div className="mb-1 text-[11px] text-text-tertiary">Commentary model</div>
             <Select
               value={provider}
               onChange={(v) => setProvider(v as LlmProvider)}
@@ -208,7 +208,7 @@ const LandingNewAnalysis: React.FC = () => {
             />
             {selectedProviderOption ? (
               <p className="mt-1 text-[10px] leading-snug text-text-tertiary">
-                Models: {selectedProviderOption.modelSummary}
+                Default model: {selectedProviderOption.modelSummary}
               </p>
             ) : null}
           </div>

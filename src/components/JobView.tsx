@@ -308,7 +308,7 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
                   <dd className="truncate text-right font-mono text-text-secondary">{job.llm_provider || '—'}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="shrink-0 text-text-tertiary">Model</dt>
+                  <dt className="shrink-0 text-text-tertiary">Provider default</dt>
                   <dd className="truncate text-right font-mono text-text-secondary">
                     {modelSummaryForProvider(job.llm_provider)}
                   </dd>

@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { useGameState } from '@/contexts/GameStateContext'
-import type { Arrow, Square } from 'react-chessboard/dist/chessboard/types'
 import type { PlayerLine } from '@/types/Line'
 import Icon from '@/components/ui/Icon'
 import { evalDepthSuffix } from '@/helpers/chessNotation'
 
 const BOARD_W = 240
 const AUTOPLAY_MS = 900
+const NO_ARROWS: [] = []
 
 type Props = {
   line: PlayerLine | null
@@ -74,10 +74,6 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey }) => {
 
   const safeIdx = Math.max(0, Math.min(idx, lastIdx))
   const step = steps[safeIdx]
-  const arrows: Arrow[] =
-    step?.from && step?.to
-      ? [[step.from as Square, step.to as Square, 'var(--arrow)']]
-      : []
   const suffix = evalDepthSuffix(line.evalCp, line.evalMate, line.depth)
   const toneColor = line.tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
   const focused = state.focusedBoard === 'variation'
@@ -126,9 +122,14 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey }) => {
           <Chessboard
             position={step.fen}
             boardWidth={BOARD_W}
+            customArrows={NO_ARROWS}
+            areArrowsAllowed={false}
             customDarkSquareStyle={{ backgroundColor: 'var(--board-dark)' }}
             customLightSquareStyle={{ backgroundColor: 'var(--board-light)' }}
-            customArrows={arrows}
+            customSquareStyles={step?.from && step?.to ? {
+              [step.from]: { backgroundColor: 'color-mix(in srgb, var(--accent) 45%, transparent)' },
+              [step.to]: { backgroundColor: 'color-mix(in srgb, var(--accent) 45%, transparent)' },
+            } : {}}
             arePiecesDraggable={false}
             boardOrientation={state.boardOrientation}
             showBoardNotation={false}

@@ -1,3 +1,5 @@
+import { Chess } from 'chess.js'
+import { moveAnnotationBadge } from '@/helpers/keyMoments'
 import { alternativeTitle } from '@/helpers/alternativeTitle'
 import React, { createContext, useContext, useEffect, useMemo, useCallback, useState, useRef } from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
@@ -5,9 +7,9 @@ import type { MainlineComment } from '@/contexts/GameStateManager'
 import type { PlayerLine, LineStep } from '@/types/Line'
 import type { GameMove, CommentFactsLine, CommentFactsClaim } from '@/types/GameJson'
 import CommentItem from './CommentItem'
-import StructuredComment, { type CommentPart } from './StructuredComment'
+import StructuredComment, { ReasoningDetails, type CommentPart } from './StructuredComment'
 import PvBoard from './PvBoard'
-import FeatureCharts from './FeatureCharts'
+import RuleEvidenceRows, { GameFeatureContext } from './RuleEvidenceRows'
 import Icon from '@/components/ui/Icon'
 import CommentStatusBadge from '@/components/CommentStatusBadge'
 
@@ -26,7 +28,7 @@ function factsLineToPlayer(
   const chartFeatures = Array.from(
     new Set((claims ?? []).flatMap((c) => c.features ?? [])),
   ).slice(0, 4)
-  const baseSteps = line.san.map((san, i) => ({ san, fen: line.fens[i] ?? '' }))
+  const baseSteps = replaySteps(line.start_fen, line.san, line.fens)
   const lead = leadInStep(line.start_fen, prevMove)
   return {
     steps: lead ? [lead, ...baseSteps] : baseSteps,
@@ -61,21 +63,29 @@ function formatCommentTitle(
   return `Move ${Math.floor(item.moveIndex / 2) + 1}${item.moveIndex % 2 === 0 ? '.' : '...'} ${moveNotation}`
 }
 
-/**
- * A lead-in step so the PV viewer opens one ply earlier — on the position the
- * commented move was played from, carrying the previous move's arrow. This way
- * the reader sees the move that led in and what the feature changes are measured
- * against (point 0 of the chart series), instead of jumping straight to the
- * position after the move (Guid).
- */
+/** Resolve move squares from this branch, including castling and promotions. */
+function replaySteps(startFen: string | null | undefined, sans: string[], fens?: string[]): LineStep[] {
+  let board: Chess | null = null
+  try { if (startFen) board = new Chess(startFen) } catch { /* Invalid legacy line. */ }
+  return sans.map((san, i) => {
+    try {
+      const move = board?.move(san)
+      if (move) return { san, fen: fens?.[i] || board!.fen(), from: move.from, to: move.to }
+    } catch { /* Keep the saved position, but never guess another branch's move. */ }
+    try { board = fens?.[i] ? new Chess(fens[i]) : null } catch { board = null }
+    return { san, fen: fens?.[i] ?? '' }
+  })
+}
+
+/** Keep the position before the line available for rewinding and chart point 0. */
 function leadInStep(
   startFen: string | null | undefined,
   prevMove?: GameMove | null,
 ): LineStep | null {
-  if (!startFen || !prevMove) return null
-  const uci = prevMove.uci ?? ''
+  if (!startFen) return null
+  const uci = prevMove?.uci ?? ''
   return {
-    san: prevMove.san ?? '',
+    san: prevMove?.san ?? '',
     fen: startFen,
     from: uci.slice(0, 2) || undefined,
     to: uci.slice(2, 4) || undefined,
@@ -92,19 +102,13 @@ function useCommentaryView() {
     selectedPart,
   } = state
   // The current ply along the shown line — shared by the board, the move cards
-  // and the charts so they stay in sync. Rewind to the start whenever the move
-  // changes or the selected board switches (by click OR by arrow-cycling).
-  const [pvIdx, setPvIdx] = useState(0)
+  // and the charts so they stay in sync. Open after the first move in the line.
+  const [pvIdx, setPvIdx] = useState(1)
   const requestedPly = useRef<{ part: CommentPart; moveIndex: number; ply: number } | null>(null)
-  useEffect(() => {
-    const requested = requestedPly.current
-    setPvIdx(requested?.part === selectedPart && requested.moveIndex === currentMoveIndex
-      ? requested.ply : 0)
-    requestedPly.current = null
-  }, [currentMoveIndex, selectedPart])
+
 
   // Selecting a line focuses the variation navigator (the reset is handled by
-  // the effect above, which also covers arrow-driven board switches).
+  // the line reset effect, which also covers arrow-driven board switches).
   const setSelectedPart = useCallback(
     (p: CommentPart) => {
       manager.setSelectedPart(p)
@@ -236,7 +240,7 @@ function useCommentaryView() {
     if (gm?.variations?.[0]?.line?.length) {
       const v = gm.variations[0]
       const startFen = manager.getPositionForIndex(currentMoveIndex - 1)
-      const baseSteps = v.line.map((san, i) => ({ san, fen: v.fens?.[i] ?? '' }))
+      const baseSteps = replaySteps(startFen, v.line, v.fens)
       const lead = leadInStep(startFen, prevMove)
       return {
         steps: lead ? [lead, ...baseSteps] : baseSteps,
@@ -251,7 +255,7 @@ function useCommentaryView() {
     const cont = moves.slice(currentMoveIndex, currentMoveIndex + 8)
     if (cont.length) {
       const startFen = manager.getPositionForIndex(currentMoveIndex - 1)
-      const baseSteps = cont.map((m) => ({ san: m.san, fen: m.fen }))
+      const baseSteps = replaySteps(startFen, cont.map((m) => m.san), cont.map((m) => m.fen))
       const lead = leadInStep(startFen, prevMove)
       return {
         steps: lead ? [lead, ...baseSteps] : baseSteps,
@@ -281,7 +285,19 @@ function useCommentaryView() {
   }, [facts, currentMoveIndex, state.gameJson])
 
   const selectedLine = selectedPart === 'alt' && altLine ? altLine : mainLine
-  const pvLen = selectedLine?.steps.length ?? 1
+  const lineKey = JSON.stringify(selectedLine?.steps.map((step) => [step.san, step.fen]) ?? [])
+  useEffect(() => {
+    const requested = requestedPly.current
+    const last = Math.max(0, (selectedLine?.steps.length ?? 0) - 1)
+    setPvIdx(Math.max(0, Math.min(
+      requested?.part === selectedPart && requested.moveIndex === currentMoveIndex ? requested.ply : 1,
+      last,
+    )))
+    requestedPly.current = null
+    // The signature tracks actual replay changes, not unrelated metadata updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMoveIndex, selectedPart, lineKey])
+  const pvLen = Math.max(1, selectedLine?.steps.length ?? 0)
   const idx = Math.max(0, Math.min(pvIdx, pvLen - 1))
 
   const evalChip = facts?.terminal_result ? `Result: ${facts.terminal_result}` : evalChipLabel(
@@ -293,7 +309,7 @@ function useCommentaryView() {
   return { state, currentMoveId, activeComment, activeMainTitle, activeKeyMomentType, gm,
     commentaryGenerating, evalChip, prevComment, nextComment, goToComment,
     navPos, sortedForNav, displayedComments, facts, mainLine, altLine,
-    selectedLine, idx, setPvIdx, currentMoveIndex, selectedPart, setSelectedPart, onSelectPly }
+    selectedLine, lineKey, idx, setPvIdx, currentMoveIndex, selectedPart, setSelectedPart, onSelectPly }
 }
 
 const CommentaryContext = createContext<ReturnType<typeof useCommentaryView> | null>(null)
@@ -313,6 +329,10 @@ const Comments: React.FC = () => {
   const { state, currentMoveId, activeComment, activeMainTitle, activeKeyMomentType, gm, commentaryGenerating,
     prevComment, nextComment, goToComment, navPos, sortedForNav,
     displayedComments } = useCommentary()
+  const annotation = state.moves.getMoveAtIndex(state.currentMoveIndex)?.annotation ?? gm?.annotation
+  const event = [gm?.classification, gm?.debug?.key_moment_type, activeKeyMomentType]
+    .find((kind) => kind === 'best_move' || kind === 'great_move' || kind === 'good_defense')
+  const qualityBadge = moveAnnotationBadge(annotation, event)
   return (
     <div className="panel flex h-full min-h-0 flex-col">
       <div className="panel-head flex-wrap">
@@ -373,6 +393,15 @@ const Comments: React.FC = () => {
               <>
                 <h2 className="comment-title flex flex-wrap items-center gap-2">
                   {activeMainTitle}
+                  {qualityBadge ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.85em] font-semibold leading-none"
+                      style={{ color: qualityBadge.color, borderColor: `color-mix(in srgb, ${qualityBadge.color} 40%, transparent)`,
+                        backgroundColor: `color-mix(in srgb, ${qualityBadge.color} 12%, transparent)` }}
+                      aria-label={`${qualityBadge.annotation} ${qualityBadge.label}`}>
+                      <span aria-hidden="true">{qualityBadge.annotation}</span>
+                      <span aria-hidden="true">{qualityBadge.label}</span>
+                    </span>
+                  ) : null}
                   {gm?.final_comment ? (
                     <span
                       className="rounded-full bg-emerald-500/15 px-1.5 py-px text-[10px] font-semibold text-emerald-600"
@@ -403,25 +432,24 @@ const Comments: React.FC = () => {
 }
 
 export function EvidencePanel() {
-  const { state, facts, gm, mainLine, altLine, selectedLine, idx, setPvIdx,
+  const { state, facts, gm, mainLine, altLine, selectedLine, lineKey, idx, setPvIdx,
     currentMoveIndex, selectedPart, setSelectedPart, onSelectPly } = useCommentary()
   return (
-    <aside className="analysis-evidence" aria-label="Variations and supporting facts">
-      <section className="panel">
-        <div className="panel-head"><Icon name="list" size={15} /><h3>Variations &amp; facts</h3></div>
+    <aside className="analysis-evidence" aria-label="Variations and supporting evidence">
+      <section className="panel analysis-evidence-panel">
+        <div className="panel-head"><Icon name="list" size={15} /><h3>Variations &amp; evidence</h3></div>
         <div className="analysis-facts-layout flex flex-wrap items-start gap-3 p-3">
           <PvBoard line={selectedLine} idx={idx} onIdx={setPvIdx}
-            loadKey={`${currentMoveIndex}:${selectedPart}`} />
-          {facts ? <StructuredComment facts={facts} debug={gm?.debug}
+            loadKey={`${currentMoveIndex}:${selectedPart}:${lineKey}`} />
+          {facts ? <StructuredComment facts={facts}
             mainLine={mainLine} altLine={altLine} selectedPart={selectedPart}
             onSelectPart={setSelectedPart} pvIdx={idx} onSelectPly={onSelectPly} />
             : <p className="text-xs text-text-secondary">No rule facts for this move.</p>}
         </div>
-      </section>
-      <section className="analysis-charts panel p-3" aria-label="Position features" tabIndex={0}>
-        <FeatureCharts mainLine={mainLine} altLine={altLine}
-          gameSeries={state.gameJson?.feature_series?.features ?? {}}
-          mainlinePly={currentMoveIndex} idx={idx} />
+        {facts ? <RuleEvidenceRows key={currentMoveIndex} facts={facts} mainLine={mainLine} altLine={altLine}
+          selectedPart={selectedPart} idx={idx} onSelectPly={onSelectPly} />
+          : <GameFeatureContext key={currentMoveIndex} series={state.gameJson?.feature_series} ply={currentMoveIndex + 1} />}
+        {gm?.debug ? <div className="evidence-diagnostics"><ReasoningDetails debug={gm.debug} /></div> : null}
       </section>
     </aside>
   )

@@ -74,3 +74,19 @@ export function severityBadgeClass(sev: KeyMomentSeverity): string {
       return 'bg-background-secondary text-text-secondary border border-border-tertiary'
   }
 }
+
+/** Describe the existing NAG; never reclassify a move from its score. */
+export function moveAnnotationBadge(annotation: string | null | undefined, keyMomentType?: string | null) {
+  const labels: Record<string, string> = {
+    '!!': keyMomentLabel('brilliant'), '!': 'Good move', '!?': 'Interesting move',
+    '?!': keyMomentLabel('inaccuracy'), '?': keyMomentLabel('mistake'), '??': keyMomentLabel('blunder'),
+  }
+  if (!annotation || !labels[annotation]) return null
+  let label = labels[annotation]
+  if (annotation === '!') {
+    if (keyMomentType === 'best_move' || keyMomentType === 'great_move') label = `${keyMomentLabel(keyMomentType)} move`
+    else if (keyMomentType === 'good_defense') label = `Good ${keyMomentLabel(keyMomentType).toLowerCase()}`
+  }
+  const color = annotation === '??' ? 'var(--blunder)' : ['?', '?!'].includes(annotation) ? 'var(--inacc)' : 'var(--accent)'
+  return { annotation, label, color }
+}

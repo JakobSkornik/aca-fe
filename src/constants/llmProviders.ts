@@ -1,7 +1,7 @@
 export type LlmProvider = 'openai' | 'anthropic' | 'cursor'
 export type LlmEffort = 'low' | 'medium' | 'high'
 
-export const DEFAULT_LLM_PROVIDER: LlmProvider = 'cursor'
+export const DEFAULT_LLM_PROVIDER: LlmProvider = 'openai'
 export const DEFAULT_LLM_EFFORT: LlmEffort = 'medium'
 
 export const LLM_PROVIDER_OPTIONS: {
@@ -18,14 +18,14 @@ export const LLM_PROVIDER_OPTIONS: {
   },
   {
     value: 'openai',
-    label: 'OpenAI',
-    modelSummary: 'gpt-4.1 / gpt-4.1-mini',
+    label: 'GPT-6 Luna (OpenAI)',
+    modelSummary: 'GPT-6 Luna',
     supportsEffort: true,
   },
   {
     value: 'anthropic',
-    label: 'Anthropic',
-    modelSummary: 'Sonnet 4.5 / Haiku 4.5',
+    label: 'Claude Haiku 5.5 (Anthropic)',
+    modelSummary: 'Claude Haiku 5.5',
     supportsEffort: true,
   },
 ]

@@ -2,7 +2,6 @@ import { alternativeTitle } from '@/helpers/alternativeTitle'
 import React from 'react'
 import { useGameState } from '@/contexts/GameStateContext'
 import { evalDepthSuffix, formatNumberedSteps } from '@/helpers/chessNotation'
-import { featureLabel, featureDescription } from '@/helpers/featureMeta'
 import type { PlayerLine, LineStep } from '@/types/Line'
 import type {
   CommentFactsClaim,
@@ -14,7 +13,6 @@ export type CommentPart = 'main' | 'alt'
 
 type Props = {
   facts: CommentFactsJson
-  debug?: MoveDebugJson | null
   mainLine: PlayerLine | null
   altLine: PlayerLine | null
   selectedPart: CommentPart
@@ -22,74 +20,6 @@ type Props = {
   /** Current ply in the selected line (highlighted in the selected card). */
   pvIdx: number
   onSelectPly: (part: CommentPart, ply: number) => void
-}
-
-function flashFeature(name: string) {
-  try {
-    window.dispatchEvent(new CustomEvent('aca:flash-feature', { detail: name }))
-  } catch {
-    /* ignore */
-  }
-}
-
-const FeatureChip: React.FC<{ name: string }> = ({ name }) => {
-  const desc = featureDescription(name)
-  return (
-    <span
-      className="cursor-help rounded bg-accent-progress/15 px-1 py-0.5 font-mono text-[9px] text-text-tertiary hover:bg-accent-progress/30"
-      title={`${name}${desc ? ` — ${desc}` : ''}\n(hover highlights its chart)`}
-      onMouseEnter={() => flashFeature(name)}
-    >
-      {featureLabel(name)}
-    </span>
-  )
-}
-
-const ClaimRow: React.FC<{
-  claim: CommentFactsClaim
-  steps: LineStep[]
-  onSelectPly: (ply: number) => void
-}> = ({ claim, steps, onSelectPly }) => {
-  const supportIdx = claim.support_fen ? steps.findIndex((step) => step.fen === claim.support_fen) : -1
-  const support = supportIdx >= 0 ? steps[supportIdx] : null
-  const after = support?.fen.split(' ')
-  const moveNo = after ? Number(after[5]) - (after[1] === 'w' ? 1 : 0) : null
-  const anchor = support && after ? `${moveNo}${after[1] === 'w' ? '...' : '.'}${support.san}` : null
-  return (
-    <li className="flex flex-wrap items-center gap-1.5 text-[11px] text-text-secondary">
-      <span>
-        {claim.is_concession ? (
-          <span
-            className="mr-1 rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600"
-            title="Favors the opponent — a trade-off of the move"
-          >
-            concedes
-          </span>
-        ) : (
-          '• '
-        )}
-        {claim.text}
-      </span>
-      {(claim.features ?? []).map((f) => (
-        <FeatureChip key={f} name={f} />
-      ))}
-      {anchor ? (
-        <button
-          type="button"
-          className="rounded bg-accent-progress/15 px-1 py-0.5 font-mono text-[10px] hover:underline"
-          title="Show the position supporting this fact"
-          onClick={(event) => { event.stopPropagation(); onSelectPly(supportIdx) }}
-        >
-          after {anchor}
-        </button>
-      ) : claim.support_ply != null ? (
-        <span className="text-[10px] text-text-tertiary">after line ply {claim.support_ply}</span>
-      ) : null}
-      {claim.flag_note ? (
-        <span className="font-mono text-[9px] text-text-tertiary">[{claim.flag_note}]</span>
-      ) : null}
-    </li>
-  )
 }
 
 /** The line as clickable numbered tokens: the lead-in ply (the position before
@@ -159,6 +89,7 @@ const PartCard: React.FC<{
       role="button"
       tabIndex={0}
       onClick={onSelect}
+      onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelect() } }}
       aria-pressed={selected}
       className={`part-card${highlight ? ' sel' : ''}`}
     >
@@ -176,23 +107,7 @@ const PartCard: React.FC<{
         toneColor={toneColor}
         onPly={onSelectPly}
       />
-      <div className="mt-2 border-t border-border-tertiary pt-2">
-        <div className="text-[10px] font-semibold text-text-secondary">Supported facts ({claims.length})</div>
-        {claims.length ? [
-          { label: 'On this move', items: claims.filter((c) => c.realization === 'immediate') },
-          { label: 'Forecast in this line', items: claims.filter((c) => c.realization === 'envisioned') },
-          { label: 'Position evidence', items: claims.filter((c) => c.realization !== 'immediate' && c.realization !== 'envisioned') },
-        ].filter((group) => group.items.length).map((group) => (
-          <div key={group.label} className="mt-1.5">
-            <div className="mb-1 text-[10px] text-text-tertiary">{group.label} ({group.items.length})</div>
-            <ul className="space-y-1.5">
-              {group.items.map((claim, i) => (
-                <ClaimRow key={`${claim.rule_id ?? 'claim'}-${i}`} claim={claim} steps={steps} onSelectPly={onSelectPly} />
-              ))}
-            </ul>
-          </div>
-        )) : <p className="mt-1 text-[11px] text-text-tertiary">No approved positional facts for this line.</p>}
-      </div>
+      <div className="mt-2 text-[11px] text-text-secondary">{claims.length} retained {claims.length === 1 ? 'fact' : 'facts'} · evidence below</div>
     </div>
   )
 }
@@ -200,12 +115,11 @@ const PartCard: React.FC<{
 /**
  * The line cards (main line / better alternative) to the right of the PV board.
  * Each shows its line as clickable numbered tokens (with the current ply
- * highlighted), its (eval, depth) and the rule-based reasons. Selecting a card
+ * highlighted) and its evaluation/depth. Facts and charts share the evidence panel below. Selecting a card
  * loads it into the board on the left.
  */
 const StructuredComment: React.FC<Props> = ({
   facts,
-  debug,
   mainLine,
   altLine,
   selectedPart,
@@ -260,12 +174,12 @@ const StructuredComment: React.FC<Props> = ({
         />
       ) : null}
 
-      {debug ? <ReasoningDetails debug={debug} /> : null}
+
     </div>
   )
 }
 
-const ReasoningDetails: React.FC<{ debug: MoveDebugJson }> = ({ debug }) => (
+export const ReasoningDetails: React.FC<{ debug: MoveDebugJson }> = ({ debug }) => (
   <details className="disclosure">
     <summary>Diagnostics (includes excluded rules)</summary>
     <ol className="reason list-decimal pl-4">
