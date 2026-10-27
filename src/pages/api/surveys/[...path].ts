@@ -11,7 +11,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ detail: 'Method not allowed.' })
   }
   const segments = req.query.path
-  if (!Array.isArray(segments) || segments.length > 4 || segments.some(s => !/^[A-Za-z0-9_.-]+$/.test(s) || s === '.' || s === '..')) {
+  // Longest route: grid/<token>/round/<game>/board.
+  if (!Array.isArray(segments) || segments.length > 5 || segments.some(s => !/^[A-Za-z0-9_.-]+$/.test(s) || s === '.' || s === '..')) {
     return res.status(404).json({ detail: 'Not found.' })
   }
   const base = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')

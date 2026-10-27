@@ -1,4 +1,5 @@
-export type LlmProvider = 'openai' | 'anthropic' | 'cursor'
+/** Provider keys sent as `llm_provider`; the backend resolves each to one model. */
+export type LlmProvider = 'openai' | 'grok' | 'cursor'
 export type LlmEffort = 'low' | 'medium' | 'high'
 
 export const DEFAULT_LLM_PROVIDER: LlmProvider = 'openai'
@@ -11,22 +12,22 @@ export const LLM_PROVIDER_OPTIONS: {
   supportsEffort: boolean
 }[] = [
   {
-    value: 'cursor',
-    label: 'Cursor',
-    modelSummary: 'composer-2.5 (all stages)',
-    supportsEffort: false,
-  },
-  {
     value: 'openai',
     label: 'GPT-6 Luna (OpenAI)',
     modelSummary: 'GPT-6 Luna',
     supportsEffort: true,
   },
   {
-    value: 'anthropic',
-    label: 'Claude Haiku 5.5 (Anthropic)',
-    modelSummary: 'Claude Haiku 5.5',
+    value: 'grok',
+    label: 'Grok 4.6 (Cursor)',
+    modelSummary: 'Grok 4.6',
     supportsEffort: true,
+  },
+  {
+    value: 'cursor',
+    label: 'Composer 2.5 (Cursor)',
+    modelSummary: 'Composer 2.5',
+    supportsEffort: false,
   },
 ]
 

@@ -77,3 +77,51 @@
 @media(max-width:700px) { .candidateGrid,.choiceColumns { grid-template-columns:1fr; } .chartRow { grid-template-columns:1fr; gap:8px; } }
 @media(max-width:900px) { .page { padding:0 14px 40px; } .intro,.card,.progressCard { padding:22px; } .ratings { grid-template-columns:repeat(3,minmax(0,1fr)); } .resultsGrid { grid-template-columns:1fr; } .workspace { height:1000px; } }
 @media(max-width:500px) { .stats { gap:8px; } .stats .card { padding:14px; } .stats strong { font-size:32px; } .ratings { grid-template-columns:repeat(2,minmax(0,1fr)); } .viewerTools { flex-direction:column; align-items:flex-start; } }
+
+/* ---------- comparison round: one screen ---------- */
+.compactPage { padding:0 12px 12px; }
+.roundBar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; min-height:48px; padding:6px 4px; border-bottom:1px solid var(--line); margin-bottom:10px; }
+.roundBar .mark { font-size:22px; }
+.roundBar .muted { font-size:13px; }
+.level { text-transform:capitalize; }
+.roundNav { display:flex; gap:4px; margin-left:auto; }
+.roundNav button { min-width:32px; height:30px; padding:0 8px; border-radius:7px; border:1px solid var(--line-2); background:var(--bg-inset); color:var(--fg); font-size:13px; font-weight:600; cursor:pointer; }
+.roundNav .done { border-color:var(--accent); color:var(--accent); }
+.roundNav .current { background:var(--accent); border-color:var(--accent); color:#102419; }
+.savedNote { font-size:12px; color:var(--accent); }
+.roundGrid { display:grid; gap:12px; height:calc(100vh - 72px); min-height:560px;
+  grid-template-columns:minmax(360px,1.1fr) minmax(320px,1fr) minmax(360px,440px);
+  grid-template-rows:minmax(0,1fr); grid-template-areas:'centre evidence comments'; }
+.roundGrid > * { min-width:0; min-height:0; }
+.roundAside { grid-area:comments; overflow-y:auto; padding:2px 4px 12px 2px; }
+.flip { align-self:center; padding:6px 14px; font-size:13px; }
+.scaleLegend { display:flex; justify-content:space-between; font-size:12px; color:var(--fg-2); margin:0 2px 8px; }
+.roundAside .candidate { padding:14px 16px; margin-bottom:12px; }
+.roundAside .candidate h3 { font-size:16px; margin-bottom:6px; }
+.commentText { font-size:14px; line-height:1.55 !important; margin-bottom:10px !important; }
+.rating { border:1px solid transparent; border-radius:9px; padding:6px 8px; margin:4px 0; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.rating legend { float:left; font-size:13px; font-weight:600; padding:0; }
+.statement { display:block; font-weight:400; font-size:11.5px; color:var(--fg-2); }
+.scoreButtons { display:flex; gap:4px; flex-shrink:0; }
+.scoreButtons button { width:34px; height:32px; border-radius:7px; border:1px solid var(--line-2); background:var(--bg-2); color:var(--fg); font-weight:700; cursor:pointer; }
+.scoreButtons button:hover:not(:disabled) { border-color:var(--accent); }
+.scoreButtons .chosen { background:var(--accent); border-color:var(--accent); color:#102419; }
+.roundAside .field { margin:10px 0; font-size:13px; }
+.roundAside .actions { margin-top:10px; position:sticky; bottom:0; background:var(--bg); padding:8px 0; }
+.roundAside .actions .missingNote { flex-basis:100%; margin:0 !important; }
+/* Required input that is still empty or invalid. */
+.missing { outline:2px solid var(--blunder) !important; outline-offset:2px; border-color:var(--blunder) !important; }
+.rating.missing { outline-offset:0; background:color-mix(in srgb, var(--blunder) 6%, transparent); }
+.consent.missing { border-radius:8px; padding:6px 8px; }
+.missingNote { color:var(--blunder); font-size:13px; font-weight:600; margin:8px 0 0 !important; }
+.requiredMark { font-size:11px; font-weight:600; color:var(--blunder); text-transform:uppercase; letter-spacing:.06em; }
+.field input { border:1px solid var(--line-2); border-radius:9px; background:var(--bg-inset); color:var(--fg); padding:12px; font:inherit; width:100%; }
+@media(max-width:1300px) {
+  .roundGrid { grid-template-columns:minmax(300px,1fr) minmax(270px,.85fr) minmax(330px,390px); }
+}
+@media(max-width:950px) {
+  .roundGrid { height:auto; grid-template-columns:minmax(0,1fr); grid-template-rows:auto;
+    grid-template-areas:'centre' 'comments' 'evidence'; }
+  .roundAside { overflow:visible; }
+  .roundNav { margin-left:0; flex-wrap:wrap; }
+}

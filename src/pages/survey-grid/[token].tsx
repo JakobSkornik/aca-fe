@@ -5,16 +5,21 @@ import dynamic from 'next/dynamic'
 import SurveyLayout from '@/components/survey/SurveyLayout'
 import styles from '@/components/survey/survey.module.css'
 import { surveyRequest } from '@/services/SurveyService'
-import type { ComparisonDecision, ComparisonManifest, ComparisonReview, ComparisonRound, ComparisonSession } from '@/types/ComparisonSurvey'
+import type { ComparisonCriterion, ComparisonManifest, ComparisonReview, ComparisonRound, ComparisonSession } from '@/types/ComparisonSurvey'
 
 const SurveyGame = dynamic(() => import('@/components/survey/SurveyGame'), { ssr: false })
-const blank = (game_id: string): ComparisonReview => ({ game_id, decision: 'ranked', best: null, worst: null, best_reason: '', worst_reason: '', feedback: '' })
+const blank = (game_id: string): ComparisonReview => ({ game_id, decision: 'rated', scores: {}, feedback: '' })
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive')
   res.setHeader('Cache-Control', 'no-store')
   res.setHeader('Referrer-Policy', 'no-referrer')
   return { props: {} }
+}
+
+/** Ratings still missing in a round: one entry per candidate × criterion. */
+function missingRatings(review: ComparisonReview, round: ComparisonRound, criteria: ComparisonCriterion[]) {
+  return round.candidates.flatMap(c => criteria.filter(q => !review.scores[c.id]?.[q.id]).map(q => `${c.id}:${q.id}`))
 }
 
 export default function ComparisonSurvey() {
@@ -25,20 +30,24 @@ export default function ComparisonSurvey() {
   const [sessionToken, setSessionToken] = useState('')
   const [round, setRound] = useState<ComparisonRound | null>(null)
   const [index, setIndex] = useState(0)
-  const [review, setReview] = useState<ComparisonReview>(blank(''))
-  const [selected, setSelected] = useState('')
+  // Unsaved ratings per round survive switching between rounds on this page.
+  const [drafts, setDrafts] = useState<Record<string, ComparisonReview>>({})
   const [consent, setConsent] = useState(false)
-  const [rating, setRating] = useState('Unrated / prefer not to say')
+  const [elo, setElo] = useState('')
+  const [ratingSystem, setRatingSystem] = useState('')
   const [overall, setOverall] = useState('')
   const [finishing, setFinishing] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [ready, setReady] = useState(false)
-  const [dirty, setDirty] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [reload, setReload] = useState(0)
   const gameId = session?.rounds[index]?.game_id
-  const onReady = useCallback(() => setReady(true), [])
+  const onReady = useCallback(() => undefined, [])
+  const eloValue = Number(elo)
+  const eloValid = /^\d{3,4}$/.test(elo) && eloValue >= 100 && eloValue <= 3500
+  const saved = (id: string) => session?.reviews.find(r => r.game_id === id)
+  const review = gameId ? drafts[gameId] ?? saved(gameId) ?? blank(gameId) : null
+  const dirty = Object.keys(drafts).length > 0
 
   useEffect(() => {
     if (!token) return
@@ -47,12 +56,12 @@ export default function ComparisonSurvey() {
       const definition = await surveyRequest<ComparisonManifest>(`grid/${token}`)
       if (!active) return
       setManifest(definition)
-      let saved = ''
-      try { saved = localStorage.getItem(`comparison-session:${token}`) || '' } catch { /* Storage can be disabled. */ }
-      if (saved) {
-        const previous = await surveyRequest<ComparisonSession>(`grid/${token}/session`, {}, saved)
+      let stored = ''
+      try { stored = localStorage.getItem(`comparison-session:${token}`) || '' } catch { /* Storage can be disabled. */ }
+      if (stored) {
+        const previous = await surveyRequest<ComparisonSession>(`grid/${token}/session`, {}, stored)
         if (!active) return
-        setSessionToken(saved); setSession(previous); setOverall(previous.feedback)
+        setSessionToken(stored); setSession(previous); setOverall(previous.feedback)
         const next = previous.rounds.findIndex(r => !previous.reviews.some(v => v.game_id === r.game_id))
         setIndex(next < 0 ? 0 : next); setFinishing(next < 0)
       }
@@ -63,15 +72,11 @@ export default function ComparisonSurvey() {
   useEffect(() => {
     if (!gameId || !sessionToken) return
     let active = true
-    setRound(null); setReady(false); setError('')
-    surveyRequest<ComparisonRound>(`grid/${token}/round/${gameId}`, {}, sessionToken).then(data => {
-      if (!active) return
-      setRound(data); setSelected(data.candidates[0].id)
-      setReview(session?.reviews.find(r => r.game_id === gameId) || blank(gameId)); setDirty(false)
-    }).catch(e => { if (active) setError(e.message) })
+    setRound(null); setError('')
+    surveyRequest<ComparisonRound>(`grid/${token}/round/${gameId}`, {}, sessionToken)
+      .then(data => { if (active) setRound(data) })
+      .catch(e => { if (active) setError(e.message) })
     return () => { active = false }
-    // Reset only when navigating, not after saving this round.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId, token, sessionToken, reload])
 
   useEffect(() => {
@@ -83,39 +88,37 @@ export default function ComparisonSurvey() {
   async function start() {
     setBusy(true); setError('')
     try {
-      const created = await surveyRequest<ComparisonSession>(`grid/${token}/session`, { method: 'POST', body: JSON.stringify({ consent, rating }) })
+      const created = await surveyRequest<ComparisonSession>(`grid/${token}/session`, { method: 'POST', body: JSON.stringify({ consent, elo: eloValue, rating_system: ratingSystem }) })
       setSession(created); setSessionToken(created.token!)
       try { localStorage.setItem(`comparison-session:${token}`, created.token!) }
       catch { setNotice('Keep this tab open: browser storage is unavailable for resuming.') }
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
 
-  function edit(patch: Partial<ComparisonReview>) { setReview(r => ({ ...r, ...patch })); setDirty(true) }
-  function decision(value: ComparisonDecision) {
-    edit({ decision: value, ...(value !== 'ranked' ? { best: null, worst: null } : {}) })
+  function edit(patch: Partial<ComparisonReview>) {
+    if (!gameId || !review) return
+    setDrafts(d => ({ ...d, [gameId]: { ...review, ...patch } }))
+  }
+  function rate(candidate: string, criterion: string, score: number) {
+    if (!review) return
+    edit({ decision: 'rated', scores: { ...review.scores, [candidate]: { ...review.scores[candidate], [criterion]: score } } })
   }
   async function persist(reviews: ComparisonReview[], completed = false) {
     const updated = await surveyRequest<ComparisonSession>(`grid/${token}/session`, { method: 'PUT', body: JSON.stringify({ version: session!.version, reviews, feedback: overall, completed }) }, sessionToken)
-    setSession(updated); setDirty(false); setNotice(completed ? '' : 'Saved. You can resume with this link in the same browser.')
+    setSession(updated); setNotice(completed ? '' : 'Saved. You can resume with this link in the same browser.')
     return updated
   }
-  async function save(skip = false, destination?: number) {
-    if (!session || !gameId) return
-    const answer = skip ? { ...blank(gameId), decision: 'skipped' as const } : review
-    if (answer.decision === 'ranked' && (!answer.best || !answer.worst || answer.best === answer.worst || !answer.best_reason.trim() || !answer.worst_reason.trim())) {
-      setError('Choose different best and worst comments and explain both choices, or select another assessment.'); return
-    }
+  async function save(skip = false) {
+    if (!session || !gameId || !review) return
+    const answer: ComparisonReview = skip ? { ...blank(gameId), decision: 'skipped', feedback: review.feedback } : review
     setBusy(true); setError('')
     try {
       const updated = await persist([...session.reviews.filter(r => r.game_id !== gameId), answer])
-      setReview(answer)
-      if (destination !== undefined) setIndex(destination)
-      else {
-        const next = updated.rounds.findIndex((r, i) => i > index && !updated.reviews.some(v => v.game_id === r.game_id))
-        const remaining = updated.rounds.findIndex(r => !updated.reviews.some(v => v.game_id === r.game_id))
-        if (next >= 0 || remaining >= 0) setIndex(next >= 0 ? next : remaining)
-        else setFinishing(true)
-      }
+      setDrafts(({ [gameId]: _done, ...rest }) => rest)
+      const next = updated.rounds.findIndex((r, i) => i > index && !updated.reviews.some(v => v.game_id === r.game_id))
+      const remaining = updated.rounds.findIndex(r => !updated.reviews.some(v => v.game_id === r.game_id))
+      if (next >= 0 || remaining >= 0) setIndex(next >= 0 ? next : remaining)
+      else setFinishing(true)
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   async function submit() {
@@ -123,39 +126,53 @@ export default function ComparisonSurvey() {
     try { await persist(session!.reviews, true) } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
 
-  return <SurveyLayout title="Compare comments">
+  const missing = review && round && manifest ? missingRatings(review, round, manifest.criteria) : []
+  const inRound = !!session && !session.completed && !finishing
+
+  return <SurveyLayout title="Compare comments" compact={inRound}>
     {error && <div role="alert" className={styles.error}>{error} <button className={styles.secondary} onClick={() => window.location.reload()}>Reload saved progress</button></div>}
-    {notice && <p role="status" className={styles.notice}>{notice}</p>}
-    {!manifest ? <div className={styles.card}>Loading comparison study…</div> : session?.completed ? <section className={`${styles.card} ${styles.intro}`}><h1>Thank you for your comparisons.</h1><p>Your choices and explanations are saved. You can close this page.</p></section> : !session ?
-      <section className={`${styles.card} ${styles.intro}`}><span className={styles.eyebrow}>Ten rounds · Your perspective</span><h1>Which explanation helps you most?</h1>
-        <p>Compare {manifest.candidate_count} anonymous comment versions in each round. All versions describe the same game and target position, at the same intended explanation level.</p>
-        <ol className={styles.comparisonInstructions}><li>Explore the position and read each version.</li><li>Choose the best and worst explanation for you, and explain why.</li><li>If the comments feel similar or you cannot assess them, say so. You may also skip a round.</li></ol>
+    {notice && !inRound && <p role="status" className={styles.notice}>{notice}</p>}
+    {!manifest ? <div className={styles.card}>Loading comparison study…</div> : session?.completed ? <section className={`${styles.card} ${styles.intro}`}><h1>Thank you for your ratings.</h1><p>Your answers are saved. You can close this page.</p></section> : !session ?
+      <section className={`${styles.card} ${styles.intro}`}><span className={styles.eyebrow}>Ten rounds · Your perspective</span><h1>How good are these explanations?</h1>
+        <p>Each round shows {manifest.candidate_count} anonymous comments on the same move of the same game, written for the same audience. Rate every comment from 1 to 5 on each question.</p>
+        <ol className={styles.comparisonInstructions}><li>Explore the position: the board, the engine lines and the supporting evidence.</li><li>Read each comment and rate it: {manifest.criteria.map(c => c.label.toLowerCase()).join(', ')}.</li><li>You may skip a round you cannot judge.</li></ol>
         <p>The intended levels are beginner, intermediate, and expert. They describe the writing’s intended audience, not the difficulty of the chess position. Game bands use average Lichess ratings.</p>
-        <p>Comments are pre-generated by a prototype and may contain errors. Participation is voluntary. We store your choices, explanations, and optional rating band for the thesis study. No name or email is requested; please omit personal information from free text.</p>
-        <label className={styles.field}>Your approximate chess rating (optional)<select value={rating} onChange={e => setRating(e.target.value)}><option>Unrated / prefer not to say</option>{manifest.rating_brackets.map(b => <option key={b}>{b}</option>)}</select></label>
-        <label className={styles.consent}><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />I agree to participate and have my responses used for this thesis study.</label>
-        <button className={styles.button} disabled={!consent || busy} onClick={() => void start()}>Start comparing →</button>
-      </section> : finishing ? <section className={`${styles.card} ${styles.intro}`}><h1>Ready to submit?</h1><p>You saved all ten rounds. Your model choices remain anonymous until the researcher analyses the results.</p>
-        <label className={styles.field}>Any overall feedback? (optional)<textarea rows={5} maxLength={4000} value={overall} onChange={e => { setOverall(e.target.value); setDirty(true) }} /></label>
-        <div className={styles.actions}><button disabled={busy} className={styles.secondary} onClick={() => { setFinishing(false); setReady(false) }}>Review answers</button><button disabled={busy} className={styles.button} onClick={() => void submit()}>{busy ? 'Submitting…' : 'Submit comparisons'}</button></div>
+        <p>Comments are pre-generated by a prototype and may contain errors. Participation is voluntary. We store your ratings, optional notes, and chess rating for the thesis study. No name or email is requested; please omit personal information from free text.</p>
+        <label className={styles.field}>Your chess rating (Elo) <span className={styles.requiredMark}>required</span><input className={eloValid ? '' : styles.missing} type="number" inputMode="numeric" min={100} max={3500} step={1} required value={elo} onChange={e => setElo(e.target.value)} placeholder="e.g. 1450" /></label>
+        <label className={styles.field}>Rating type <span className={styles.requiredMark}>required</span><select className={ratingSystem ? '' : styles.missing} required value={ratingSystem} onChange={e => setRatingSystem(e.target.value)}><option value="" disabled>Choose…</option>{manifest.rating_systems.map(s => <option key={s}>{s}</option>)}</select></label>
+        <p className={styles.small}>If you have no rating, enter your best estimate and choose “Estimate (unrated)”.</p>
+        <label className={`${styles.consent} ${consent ? '' : styles.missing}`}><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />I agree to participate and have my responses used for this thesis study.</label>
+        <button className={styles.button} disabled={!consent || !eloValid || !ratingSystem || busy} onClick={() => void start()}>Start →</button>
+        {(!consent || !eloValid || !ratingSystem) && <p className={styles.missingNote}>Fields outlined in red are required.</p>}
+      </section> : finishing ? <section className={`${styles.card} ${styles.intro}`}><h1>Ready to submit?</h1><p>You saved all ten rounds. The comments stay anonymous until the researcher analyses the results.</p>
+        <label className={styles.field}>Any overall feedback? (optional)<textarea rows={5} maxLength={4000} value={overall} onChange={e => setOverall(e.target.value)} /></label>
+        <div className={styles.actions}><button disabled={busy} className={styles.secondary} onClick={() => setFinishing(false)}>Review answers</button><button disabled={busy} className={styles.button} onClick={() => void submit()}>{busy ? 'Submitting…' : 'Submit ratings'}</button></div>
       </section> : <>
-        <section className={styles.progressCard}><span className={styles.eyebrow}>Round {index+1} of 10</span><h1>Compare the explanations</h1><progress value={session.reviews.length} max={10} aria-label="Rounds saved" />
-          <nav className={styles.gameNav} aria-label="Comparison rounds">{session.rounds.map((r, i) => <button key={r.game_id} className={i === index ? styles.current : ''} disabled={busy} aria-current={i === index ? 'step' : undefined} onClick={() => { if (i === index) return; if (dirty) void save(false, i); else setIndex(i) }}>{i+1}{session.reviews.some(v => v.game_id === r.game_id) ? ' ✓' : ''}</button>)}</nav>
-        </section>
-        {!round ? <div className={styles.card}>Loading the comparison… {error && <button className={styles.secondary} onClick={() => setReload(r => r+1)}>Retry</button>}</div> : <>
-          <section className={styles.card}><span className={styles.eyebrow}>{round.level} explanations · Game rating {round.bracket}</span><h2>Comments on {Math.ceil(round.position.ply / 2)}{round.position.ply % 2 ? '.' : '…'} {round.position.san}</h2>
-            <p>Labels are randomized for each round. Read every version before choosing. “Explore” loads that version’s saved analysis at this position.</p>
-            <div className={styles.candidateGrid}>{round.candidates.map(c => <article className={`${styles.candidate} ${selected === c.id ? styles.candidateActive : ''}`} key={c.id}><h3>Comment {c.label}</h3><p>{c.comment}</p><button className={styles.secondary} aria-pressed={selected === c.id} onClick={() => { if (selected !== c.id) { setReady(false); setSelected(c.id) } }}>Explore comment {c.label}</button></article>)}</div>
-          </section>
-          {selected && <SurveyGame key={`${gameId}:${selected}`} token={token} gameId={gameId!} sessionToken={sessionToken} apiPath={`grid/${token}/game/${selected}`} initialMoveIndex={round.position.move_index} onReady={onReady} />}
-          <section className={styles.card}><h2>Your comparison</h2><p>Judge how helpful the explanations feel to you. Consider clarity, useful detail, concision, and suitability for the stated audience.</p>
-            <label className={styles.field}>Can you choose a best and worst version?<select value={review.decision} disabled={busy || !ready} onChange={e => decision(e.target.value as ComparisonDecision)}><option value="ranked">Yes — I can distinguish them</option><option value="similar">They feel too similar to rank</option><option value="cannot_judge">I cannot judge this comparison</option><option value="skipped">Skip this round</option></select></label>
-            {review.decision === 'ranked' && <div className={styles.choiceColumns}>{(['best', 'worst'] as const).map(choice => <div key={choice}><label className={styles.field}>Which comment was {choice} for you?<select value={review[choice] || ''} disabled={busy || !ready} onChange={e => edit({ [choice]: e.target.value || null })}><option value="">Choose a comment</option>{round.candidates.map(c => <option key={c.id} value={c.id}>Comment {c.label}</option>)}</select></label>
-              <label className={styles.field}>Why was this the {choice}?<textarea required rows={4} maxLength={1500} value={review[`${choice}_reason`]} disabled={busy || !ready} onChange={e => edit({ [`${choice}_reason`]: e.target.value })} /></label></div>)}</div>}
-            <label className={styles.field}>Anything else about this comparison? (optional)<textarea rows={3} maxLength={1500} value={review.feedback} disabled={busy || !ready} onChange={e => edit({ feedback: e.target.value })} /></label>
-            <div className={styles.actions}><button className={styles.secondary} disabled={busy} onClick={() => void save(true)}>Skip round</button><button className={styles.button} disabled={busy || !ready} onClick={() => void save()}>{busy ? 'Saving…' : 'Save & continue →'}</button></div>
-          </section>
-        </>}
+        <header className={styles.roundBar}>
+          <span className={styles.mark} aria-hidden="true">♞</span>
+          <strong>Round {index+1}/10</strong>
+          {round && <span className={styles.muted}><span className={styles.level}>{round.level}</span> explanations · game rating {round.bracket} · move {Math.ceil(round.position.ply / 2)}{round.position.ply % 2 ? '.' : '…'} {round.position.san}</span>}
+          <nav className={styles.roundNav} aria-label="Rounds">{session.rounds.map((r, i) => <button key={r.game_id} className={`${i === index ? styles.current : ''} ${saved(r.game_id) ? styles.done : ''}`} disabled={busy} aria-current={i === index ? 'step' : undefined} title={saved(r.game_id) ? 'Saved' : drafts[r.game_id] ? 'Unsaved ratings' : 'Not started'} onClick={() => setIndex(i)}>{i+1}{drafts[r.game_id] ? '*' : ''}</button>)}</nav>
+          {notice && <span role="status" className={styles.savedNote}>{notice}</span>}
+        </header>
+        {!round || !review ? <div className={styles.card}>Loading the round… {error && <button className={styles.secondary} onClick={() => setReload(r => r+1)}>Retry</button>}</div> :
+          <SurveyGame key={gameId} token={token} gameId={gameId!} sessionToken={sessionToken} apiPath={`grid/${token}/round/${gameId}/board`}
+            initialMoveIndex={round.position.move_index} onReady={onReady} aside={<>
+              <div className={styles.scaleLegend}><span>1 = {manifest.scale.low}</span><span>5 = {manifest.scale.high}</span></div>
+              {round.candidates.map(c => <article className={styles.candidate} key={c.id}>
+                <h3>Comment {c.label}</h3>
+                <p className={styles.commentText}>{c.comment}</p>
+                {manifest.criteria.map(q => { const value = review.scores[c.id]?.[q.id]; return <fieldset key={q.id} className={`${styles.rating} ${value || review.decision === 'skipped' ? '' : styles.missing}`}>
+                  <legend title={q.statement}>{q.label}<span className={styles.statement}>{q.statement}</span></legend>
+                  <div className={styles.scoreButtons}>{[1, 2, 3, 4, 5].map(n => <button key={n} type="button" aria-pressed={value === n} className={value === n ? styles.chosen : ''} disabled={busy} onClick={() => rate(c.id, q.id, n)}>{n}</button>)}</div>
+                </fieldset> })}
+              </article>)}
+              <label className={styles.field}>Anything about this round? (optional)<textarea rows={2} maxLength={1500} value={review.feedback} disabled={busy} onChange={e => edit({ feedback: e.target.value })} /></label>
+              <div className={styles.actions}>
+                {missing.length > 0 && <p className={styles.missingNote}>{missing.length} rating{missing.length === 1 ? '' : 's'} left: answer the questions outlined in red to save.</p>}
+                <button className={styles.secondary} disabled={busy} onClick={() => void save(true)}>Skip round</button>
+                <button className={styles.button} disabled={busy || missing.length > 0} onClick={() => void save()}>{busy ? 'Saving…' : 'Save & continue →'}</button></div>
+            </>} />}
       </>}
   </SurveyLayout>
 }
