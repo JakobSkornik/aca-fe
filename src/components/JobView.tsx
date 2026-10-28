@@ -5,6 +5,7 @@ import type { JobResponse } from '@/types/Job'
 import TopBar from '@/components/ui/TopBar'
 import { Card } from '@/components/ui/Card'
 import BackendHealthIndicator from '@/components/BackendHealthIndicator'
+import ProviderAlertBanner from '@/components/ProviderAlertBanner'
 import { useBackendHealth } from '@/hooks/useBackendHealth'
 import { JobPipeline } from '@/components/job/JobPipeline'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -146,6 +147,8 @@ const JobView: React.FC<JobViewProps> = ({ jobId }) => {
           onLogoClick={() => router.push('/')}
           right={<BackendHealthIndicator backendOk={backendOk} />}
         />
+
+        <ProviderAlertBanner className="mt-6" />
 
         <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_280px] lg:items-stretch">
           <div className="flex h-full min-h-0 flex-col gap-5">

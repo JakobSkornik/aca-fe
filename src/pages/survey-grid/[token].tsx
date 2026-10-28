@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { GetServerSideProps } from 'next'
 import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import SurveyLayout from '@/components/survey/SurveyLayout'
 import styles from '@/components/survey/survey.module.css'
 import { surveyRequest } from '@/services/SurveyService'
@@ -20,6 +21,10 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
 /** Ratings still missing in a round: one entry per candidate × criterion. */
 function missingRatings(review: ComparisonReview, round: ComparisonRound, criteria: ComparisonCriterion[]) {
   return round.candidates.flatMap(c => criteria.filter(q => !review.scores[c.id]?.[q.id]).map(q => `${c.id}:${q.id}`))
+}
+
+function storedSession(token: string) {
+  try { return localStorage.getItem(`comparison-session:${token}`) || '' } catch { return '' /* Storage can be disabled. */ }
 }
 
 export default function ComparisonSurvey() {
@@ -56,18 +61,20 @@ export default function ComparisonSurvey() {
       const definition = await surveyRequest<ComparisonManifest>(`grid/${token}`)
       if (!active) return
       setManifest(definition)
-      let stored = ''
-      try { stored = localStorage.getItem(`comparison-session:${token}`) || '' } catch { /* Storage can be disabled. */ }
+      const stored = storedSession(token)
       if (stored) {
         const previous = await surveyRequest<ComparisonSession>(`grid/${token}/session`, {}, stored)
-        if (!active) return
-        setSessionToken(stored); setSession(previous); setOverall(previous.feedback)
-        const next = previous.rounds.findIndex(r => !previous.reviews.some(v => v.game_id === r.game_id))
-        setIndex(next < 0 ? 0 : next); setFinishing(next < 0)
+        if (active) resume(stored, previous)
       }
     })().catch(e => { if (active) setError(e.message) })
     return () => { active = false }
   }, [token])
+
+  function resume(stored: string, previous: ComparisonSession) {
+    setSessionToken(stored); setSession(previous); setOverall(previous.feedback)
+    const next = previous.rounds.findIndex(r => !previous.reviews.some(v => v.game_id === r.game_id))
+    setIndex(next < 0 ? 0 : next); setFinishing(next < 0)
+  }
 
   useEffect(() => {
     if (!gameId || !sessionToken) return
@@ -88,6 +95,9 @@ export default function ComparisonSurvey() {
   async function start() {
     setBusy(true); setError('')
     try {
+      // Another tab of this browser may have started (or finished) the survey since this page loaded.
+      const stored = storedSession(token)
+      if (stored) { resume(stored, await surveyRequest<ComparisonSession>(`grid/${token}/session`, {}, stored)); return }
       const created = await surveyRequest<ComparisonSession>(`grid/${token}/session`, { method: 'POST', body: JSON.stringify({ consent, elo: eloValue, rating_system: ratingSystem }) })
       setSession(created); setSessionToken(created.token!)
       try { localStorage.setItem(`comparison-session:${token}`, created.token!) }
@@ -132,8 +142,11 @@ export default function ComparisonSurvey() {
   return <SurveyLayout title="Compare comments" compact={inRound}>
     {error && <div role="alert" className={styles.error}>{error} <button className={styles.secondary} onClick={() => window.location.reload()}>Reload saved progress</button></div>}
     {notice && !inRound && <p role="status" className={styles.notice}>{notice}</p>}
-    {!manifest ? <div className={styles.card}>Loading comparison study…</div> : session?.completed ? <section className={`${styles.card} ${styles.intro}`}><h1>Thank you for your ratings.</h1><p>Your answers are saved. You can close this page.</p></section> : !session ?
-      <section className={`${styles.card} ${styles.intro}`}><span className={styles.eyebrow}>Ten rounds · Your perspective</span><h1>How good are these explanations?</h1>
+    {!manifest ? <div className={styles.card}>Loading comparison study…</div> : session?.completed ? <section className={`${styles.card} ${styles.intro}`}><h1>Thank you for your ratings.</h1><p>Your answers are saved. You can close this page.</p>
+        <p>Curious how the comments are made? Try the annotator on a game of your own.</p>
+        <Link className={styles.button} href="/">Try the annotator →</Link></section> : !session ?
+      <section className={`${styles.card} ${styles.intro}`}><span className={styles.eyebrow}>Ten rounds · About 15–30 minutes</span><h1>How good are these explanations?</h1>
+        <p>The survey takes about 15 to 30 minutes. Saved rounds are kept, so you can take a break and return to this page in the same browser. Please take the survey only once.</p>
         <p>Each round shows {manifest.candidate_count} anonymous comments on the same move of the same game, written for the same audience. Rate every comment from 1 to 5 on each question.</p>
         <ol className={styles.comparisonInstructions}><li>Explore the position: the board, the engine lines and the supporting evidence.</li><li>Read each comment and rate it: {manifest.criteria.map(c => c.label.toLowerCase()).join(', ')}.</li><li>You may skip a round you cannot judge.</li></ol>
         <p>The intended levels are beginner, intermediate, and expert. They describe the writing’s intended audience, not the difficulty of the chess position. Game bands use average Lichess ratings.</p>

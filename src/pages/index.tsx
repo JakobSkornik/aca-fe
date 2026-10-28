@@ -1,6 +1,7 @@
 import React from 'react'
 import TopBar from '@/components/ui/TopBar'
 import BackendHealthIndicator from '@/components/BackendHealthIndicator'
+import ProviderAlertBanner from '@/components/ProviderAlertBanner'
 import LandingNewAnalysis from '@/components/LandingNewAnalysis'
 import RecentJobsSidebar from '@/components/RecentJobsSidebar'
 import { useBackendHealth } from '@/hooks/useBackendHealth'
@@ -18,6 +19,8 @@ const Home = () => {
           onLogoClick={() => router.push('/')}
           right={<BackendHealthIndicator backendOk={backendOk} />}
         />
+
+        <ProviderAlertBanner className="mt-6" />
 
         <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-[minmax(320px,400px)_minmax(0,1fr)] md:items-start">
           <div>

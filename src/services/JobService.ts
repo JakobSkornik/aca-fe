@@ -1,6 +1,8 @@
 import { JobResponse } from '@/types/Job'
 import { GameJson } from '@/types/GameJson'
 
+export type ProviderAlert = { provider: string; kind: 'credits'; since: number; last_seen: number; message: string }
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 function apiUrlToWsBase(apiUrl: string): string {
@@ -55,6 +57,15 @@ class JobService {
     if (!res.ok) {
       const t = await res.text()
       throw new Error(t || `Retry failed: ${res.statusText}`)
+    }
+    return res.json()
+  }
+
+  /** Providers whose last call failed for lack of credits; cleared by the next successful call. */
+  async getProviderAlerts(): Promise<ProviderAlert[]> {
+    const res = await fetch(`${API_URL}/jobs/provider-alerts`)
+    if (!res.ok) {
+      throw new Error(`Failed to get provider alerts: ${res.statusText}`)
     }
     return res.json()
   }
