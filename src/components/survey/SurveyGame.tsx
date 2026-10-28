@@ -8,6 +8,18 @@ import { surveyRequest } from '@/services/SurveyService'
 import type { GameJson } from '@/types/GameJson'
 import styles from './survey.module.css'
 
+/** Leave room for the variation board below the game board: 250 px on laptops, up to 440 px. */
+function useSurveyBoardSize() {
+  const fit = () => (typeof window === 'undefined' ? 250 : Math.max(250, Math.min(440, window.innerHeight - 640)))
+  const [size, setSize] = useState(fit)
+  useEffect(() => {
+    const update = () => setSize(fit())
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  return size
+}
+
 /**
  * Saved game with board, moves, variations and evidence.
  *
@@ -21,6 +33,7 @@ export default function SurveyGame({ token, gameId, onReady, apiPath, sessionTok
   tourStep?: number | null
 }) {
   const { manager, state } = useGameState()
+  const boardSize = useSurveyBoardSize()
   const [status, setStatus] = useState('Loading the saved game…')
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
@@ -46,7 +59,7 @@ export default function SurveyGame({ token, gameId, onReady, apiPath, sessionTok
       {/* No move list or game info here: the board's own controls step through the game. */}
       {/* One column: the game board, then the variation board below it (no rule evidence). */}
       <div className="analysis-centre">
-        <div className={styles.boardRegion} data-tour-region="1"><MainlineChessboard maxSize={250} compact /></div>
+        <div className={styles.boardRegion} data-tour-region="1"><MainlineChessboard maxSize={boardSize} compact /></div>
         <div className={styles.variations} data-tour-region="2"><EvidencePanel variationsOnly /></div>
       </div>
       <div className={styles.roundAside} data-tour-region="3">{aside}</div>

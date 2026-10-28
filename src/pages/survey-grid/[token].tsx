@@ -209,7 +209,7 @@ export default function ComparisonSurvey() {
               </article>)}
               <label className={styles.field}>Anything about this round? (optional)<textarea rows={2} maxLength={1500} value={review.feedback} disabled={busy} onChange={e => edit({ feedback: e.target.value })} /></label>
               <div className={styles.actions}>
-                {missing.length > 0 && <p className={styles.missingNote}>{missing.length} rating{missing.length === 1 ? '' : 's'} left: answer the questions outlined in red to save.</p>}
+                {missing.length > 0 && <p className={styles.missingNote}>{missing.length} rating{missing.length === 1 ? '' : 's'} left: answer the questions highlighted in red to save.</p>}
                 <button className={styles.secondary} disabled={busy} onClick={() => void save(true)}>Skip round</button>
                 <button className={styles.button} disabled={busy || missing.length > 0} onClick={() => void save()}>{busy ? 'Saving…' : 'Save & continue →'}</button></div>
             </>} />}
