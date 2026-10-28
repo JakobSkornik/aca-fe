@@ -90,11 +90,17 @@
 .roundNav .current { background:var(--accent); border-color:var(--accent); color:#102419; }
 .savedNote { font-size:12px; color:var(--accent); }
 .roundGrid { display:grid; gap:12px; height:calc(100vh - 72px); min-height:560px;
-  grid-template-columns:minmax(360px,1.1fr) minmax(320px,1fr) minmax(360px,440px);
-  grid-template-rows:minmax(0,1fr); grid-template-areas:'centre evidence comments'; }
+  grid-template-columns:minmax(440px,1.5fr) minmax(360px,1fr);
+  grid-template-rows:minmax(0,1fr); grid-template-areas:'comments centre'; }
+.roundGrid :global(.analysis-centre) { gap:10px; }
+.boardRegion { display:flex; flex-direction:column; gap:6px; border-radius:14px; }
+.variations { border-radius:14px; }
+.variations :global(.analysis-evidence) { overflow:visible; }
+.variations :global(.analysis-evidence-panel) { min-height:0 !important; }
+/* The rule evidence is hidden in the survey, so drop the "evidence below" pointer. */
+.variations :global(.line-evidence-note) { display:none; }
 .roundGrid > * { min-width:0; min-height:0; }
 .roundAside { grid-area:comments; overflow-y:auto; padding:2px 4px 12px 2px; }
-.flip { align-self:center; padding:6px 14px; font-size:13px; }
 .scaleLegend { display:flex; justify-content:space-between; font-size:12px; color:var(--fg-2); margin:0 2px 8px; }
 .roundAside .candidate { padding:14px 16px; margin-bottom:12px; }
 .roundAside .candidate h3 { font-size:16px; margin-bottom:6px; }
@@ -117,11 +123,39 @@
 .requiredMark { font-size:11px; font-weight:600; color:var(--blunder); text-transform:uppercase; letter-spacing:.06em; }
 .field input { border:1px solid var(--line-2); border-radius:9px; background:var(--bg-inset); color:var(--fg); padding:12px; font:inherit; width:100%; }
 @media(max-width:1300px) {
-  .roundGrid { grid-template-columns:minmax(300px,1fr) minmax(270px,.85fr) minmax(330px,390px); }
+  .roundGrid { grid-template-columns:minmax(380px,1.3fr) minmax(320px,1fr); }
 }
 @media(max-width:950px) {
   .roundGrid { height:auto; grid-template-columns:minmax(0,1fr); grid-template-rows:auto;
-    grid-template-areas:'centre' 'comments' 'evidence'; }
+    grid-template-areas:'centre' 'comments'; }
   .roundAside { overflow:visible; }
   .roundNav { margin-left:0; flex-wrap:wrap; }
 }
+
+/* ---------- first-round guide (plays once per browser) ---------- */
+@keyframes tourReveal { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+@keyframes tourPop { from { opacity:0; transform:translateY(6px) scale(.97); } to { opacity:1; transform:none; } }
+.roundGrid[data-tour] { pointer-events:none; }
+.roundGrid[data-tour] [data-tour-region] { transition:opacity .35s ease; }
+/* Introduced regions are dimmed; regions not introduced yet stay hidden (rule below). */
+.roundGrid[data-tour] [data-tour-region] { opacity:.28; }
+.roundGrid[data-tour="1"] [data-tour-region="1"], .roundGrid[data-tour="2"] [data-tour-region="2"],
+.roundGrid[data-tour="3"] [data-tour-region="3"], .roundGrid[data-tour="4"] [data-tour-region="3"] {
+  opacity:1; animation:tourReveal .6s ease-out both; border-radius:14px; outline:2px solid var(--accent); outline-offset:3px; }
+.roundGrid[data-tour="1"] [data-tour-region="2"], .roundGrid[data-tour="1"] [data-tour-region="3"],
+.roundGrid[data-tour="2"] [data-tour-region="3"] { opacity:0; }
+/* Step 3 shows the comments only; step 4 brings in the questions. */
+.roundGrid[data-tour="3"] .rating, .roundGrid[data-tour="3"] .scaleLegend,
+.roundGrid[data-tour="3"] .roundAside .field, .roundGrid[data-tour="3"] .roundAside .actions { display:none; }
+.roundGrid[data-tour="4"] .rating { animation:tourReveal .6s ease-out both; outline:2px solid var(--accent) !important; outline-offset:0; }
+.roundGrid[data-tour="4"] .rating:nth-of-type(2) { animation-delay:.12s; }
+.roundGrid[data-tour="4"] .rating:nth-of-type(3) { animation-delay:.24s; }
+.tourCard { position:fixed; z-index:60; width:340px; max-width:calc(100vw - 32px); padding:18px 20px; border-radius:14px;
+  background:var(--bg-2); border:1px solid var(--accent); box-shadow:0 18px 50px rgba(0,0,0,.35); animation:tourPop .35s ease-out both; }
+.tourCard p { font-size:14.5px; line-height:1.55; margin:6px 0 14px !important; }
+.tourStep { font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
+.tourActions { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.tourActions .button { padding:8px 16px; }
+.tourSkip { background:none; border:0; color:var(--fg-2); font-size:13px; cursor:pointer; text-decoration:underline; }
+.guideButton { padding:4px 10px; font-size:12px; border-radius:7px; }
+@media (prefers-reduced-motion: reduce) { .roundGrid[data-tour] *, .tourCard { animation:none !important; } }

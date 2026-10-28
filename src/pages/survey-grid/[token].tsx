@@ -4,6 +4,7 @@ import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import SurveyLayout from '@/components/survey/SurveyLayout'
+import SurveyTour, { TOUR_STEPS } from '@/components/survey/SurveyTour'
 import styles from '@/components/survey/survey.module.css'
 import { surveyRequest } from '@/services/SurveyService'
 import type { ComparisonCriterion, ComparisonManifest, ComparisonReview, ComparisonRound, ComparisonSession } from '@/types/ComparisonSurvey'
@@ -26,6 +27,10 @@ function missingRatings(review: ComparisonReview, round: ComparisonRound, criter
 function storedSession(token: string) {
   try { return localStorage.getItem(`comparison-session:${token}`) || '' } catch { return '' /* Storage can be disabled. */ }
 }
+const tourKey = (token: string) => `comparison-tour:${token}`
+function tourSeen(token: string) {
+  try { return localStorage.getItem(tourKey(token)) === 'done' } catch { return false }
+}
 
 export default function ComparisonSurvey() {
   const router = useRouter()
@@ -46,8 +51,11 @@ export default function ComparisonSurvey() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [reload, setReload] = useState(0)
+  const [boardReady, setBoardReady] = useState(false)
+  // First-round guide: plays once per browser, from step 1 (board) to 4 (ratings).
+  const [tourStep, setTourStep] = useState<number | null>(null)
   const gameId = session?.rounds[index]?.game_id
-  const onReady = useCallback(() => undefined, [])
+  const onReady = useCallback(() => setBoardReady(true), [])
   const eloValue = Number(elo)
   const eloValid = /^\d{3,4}$/.test(elo) && eloValue >= 100 && eloValue <= 3500
   const saved = (id: string) => session?.reviews.find(r => r.game_id === id)
@@ -91,6 +99,22 @@ export default function ComparisonSurvey() {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
+
+  useEffect(() => { setBoardReady(false) }, [gameId])
+  useEffect(() => {
+    if (boardReady && index === 0 && session && !session.completed && !session.reviews.length && tourStep === null && !tourSeen(token))
+      setTourStep(1)
+  }, [boardReady, index, session, tourStep, token])
+  useEffect(() => {
+    if (tourStep === null) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeTour() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+  function closeTour() {
+    setTourStep(null)
+    try { localStorage.setItem(tourKey(token), 'done') } catch { /* The guide may then show again. */ }
+  }
 
   async function start() {
     setBusy(true); setError('')
@@ -167,10 +191,13 @@ export default function ComparisonSurvey() {
           {round && <span className={styles.muted}><span className={styles.level}>{round.level}</span> explanations · game rating {round.bracket} · move {Math.ceil(round.position.ply / 2)}{round.position.ply % 2 ? '.' : '…'} {round.position.san}</span>}
           <nav className={styles.roundNav} aria-label="Rounds">{session.rounds.map((r, i) => <button key={r.game_id} className={`${i === index ? styles.current : ''} ${saved(r.game_id) ? styles.done : ''}`} disabled={busy} aria-current={i === index ? 'step' : undefined} title={saved(r.game_id) ? 'Saved' : drafts[r.game_id] ? 'Unsaved ratings' : 'Not started'} onClick={() => setIndex(i)}>{i+1}{drafts[r.game_id] ? '*' : ''}</button>)}</nav>
           {notice && <span role="status" className={styles.savedNote}>{notice}</span>}
+          <button type="button" className={`${styles.secondary} ${styles.guideButton}`} disabled={!boardReady || tourStep !== null} onClick={() => setTourStep(1)}>Guide</button>
         </header>
+        {tourStep !== null && boardReady && <SurveyTour step={tourStep} onClose={closeTour}
+          onNext={() => setTourStep(s => Math.min((s ?? 1) + 1, TOUR_STEPS.length))} />}
         {!round || !review ? <div className={styles.card}>Loading the round… {error && <button className={styles.secondary} onClick={() => setReload(r => r+1)}>Retry</button>}</div> :
           <SurveyGame key={gameId} token={token} gameId={gameId!} sessionToken={sessionToken} apiPath={`grid/${token}/round/${gameId}/board`}
-            initialMoveIndex={round.position.move_index} onReady={onReady} aside={<>
+            initialMoveIndex={round.position.move_index} onReady={onReady} tourStep={boardReady ? tourStep : null} aside={<>
               <div className={styles.scaleLegend}><span>1 = {manifest.scale.low}</span><span>5 = {manifest.scale.high}</span></div>
               {round.candidates.map(c => <article className={styles.candidate} key={c.id}>
                 <h3>Comment {c.label}</h3>

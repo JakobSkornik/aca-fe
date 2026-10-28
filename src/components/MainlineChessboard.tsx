@@ -16,6 +16,29 @@ const MAX_BOARD_SIZE = 560
 /** Rank gutter + eval bar reserve so the square board fits its column. */
 const SIDE_GUTTER_PX = 22 + 26 + 12
 
+const PLAYED_ARROW = 'var(--accent)'
+const ALTERNATIVE_ARROW = 'var(--fg-3)'
+
+/** Key for the board arrows: green = played move, gray = engine alternative. */
+function ArrowLegend({ played, alternative }: { played: boolean; alternative: 'better' | 'runner_up' | null }) {
+  if (!played && !alternative) return null
+  const item = (color: string, label: string) => (
+    <span className="arrow-legend-item">
+      <svg width="22" height="10" viewBox="0 0 22 10" aria-hidden>
+        <path d="M1 5h14" style={{ stroke: color }} strokeWidth="3" strokeLinecap="round" />
+        <path d="M14 1l7 4-7 4z" style={{ fill: color }} />
+      </svg>
+      {label}
+    </span>
+  )
+  return (
+    <div className="arrow-legend" aria-label="Board arrows">
+      {played ? item(PLAYED_ARROW, 'played move') : null}
+      {alternative ? item(ALTERNATIVE_ARROW, alternative === 'better' ? "engine's better move" : "engine's runner-up") : null}
+    </div>
+  )
+}
+
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'] as const
 
@@ -105,7 +128,9 @@ function VerticalEvalBar({
   )
 }
 
-const MainlineChessboard = () => {
+/** `maxSize` caps the board (the survey keeps it small); `compact` trims padding, hides the
+ * player plates and puts the flip button in the move controls. */
+const MainlineChessboard = ({ maxSize = MAX_BOARD_SIZE, compact = false }: { maxSize?: number; compact?: boolean } = {}) => {
   const { state, manager } = useGameState()
   const {
     currentMoveIndex,
@@ -167,7 +192,7 @@ const MainlineChessboard = () => {
         ? Math.max(280, window.innerHeight - 430) : MAX_BOARD_SIZE
       const next = Math.max(
         MIN_BOARD_SIZE,
-        Math.min(MAX_BOARD_SIZE, heightCap, sizeCap, Math.floor(w - SIDE_GUTTER_PX)),
+        Math.min(maxSize, heightCap, sizeCap, Math.floor(w - SIDE_GUTTER_PX)),
       )
       setRenderSize(next)
     }
@@ -179,7 +204,7 @@ const MainlineChessboard = () => {
       ro.disconnect()
       window.removeEventListener('resize', update)
     }
-  }, [sizeCap])
+  }, [sizeCap, maxSize])
 
   const currentFen = manager.getCurrentPosition(currentMoveIndex)
 
@@ -229,12 +254,13 @@ const MainlineChessboard = () => {
         toMove: sideToMove === 'black',
       }
 
-  const { turnLine, arrows, squareStyles } = useMemo(() => {
+  const { turnLine, arrows, squareStyles, legend } = useMemo(() => {
     if (!currentFen || !isLoaded) {
       return {
         turnLine: '',
         arrows: [] as Arrow[],
         squareStyles: {} as CustomSquareStyles,
+        legend: { played: false, alternative: null as 'better' | 'runner_up' | null },
       }
     }
     const pos = new Chess(currentFen)
@@ -243,49 +269,43 @@ const MainlineChessboard = () => {
 
     const lastMove = manager.getMainlineMove(currentMoveIndex)
 
-    // Shade the last played move's from/to squares green — the standard "this
-    // move was just played" indication, clearer than an arrow about which move
-    // it marks (var(--accent) is the green used across the app).
-    const lastMoveSquares: CustomSquareStyles = {}
+    // The played move is a green arrow (no square tint), so it reads the same way
+    // as the alternative's arrow; the legend below the board names both.
+    let played: Arrow | null = null
     if (lastMove?.move) {
       const fenBefore =
         currentMoveIndex <= 0
           ? manager.getPositionForIndex(-1)
           : manager.getPositionForIndex(currentMoveIndex - 1)
       if (fenBefore) {
-        const b = new Chess(fenBefore)
-        const r = b.move(lastMove.move)
-        if (r) {
-          const tint = 'color-mix(in srgb, var(--accent) 45%, transparent)'
-          lastMoveSquares[r.from as Square] = { backgroundColor: tint }
-          lastMoveSquares[r.to as Square] = { backgroundColor: tint }
-        }
+        const r = new Chess(fenBefore).move(lastMove.move)
+        if (r) played = [r.from as Square, r.to as Square, PLAYED_ARROW]
       }
     }
     const overlay = commentaryBoardOverlay
     const arr: Arrow[] = dedupeArrowsByEndpoints(
       overlay?.arrows?.length ? [...overlay.arrows] : [],
     )
-    // Gray arrow for the engine's better move at this point (played move is the
-    // green-tinted squares above). Only when no hover overlay is active.
+    // Engine alternative (gray) and played move (green). Only when no
+    // commentary hover overlay is active; the played arrow is drawn last (on top).
+    let alternative: 'better' | 'runner_up' | null = null
     if (!overlay?.arrows?.length) {
-      const altUci =
+      const alt =
         state.gameJson?.moves?.[currentMoveIndex]?.comment_facts
-          ?.better_alternative?.uci
-      if (altUci && altUci.length >= 4) {
+          ?.better_alternative
+      if (alt?.uci && alt.uci.length >= 4) {
         arr.push([
-          altUci.slice(0, 2) as Square,
-          altUci.slice(2, 4) as Square,
-          'var(--fg-3)',
+          alt.uci.slice(0, 2) as Square,
+          alt.uci.slice(2, 4) as Square,
+          ALTERNATIVE_ARROW,
         ])
+        alternative = alt.is_inferior ? 'runner_up' : 'better'
       }
+      if (played) arr.push(played)
     }
-    // Commentary hover highlights take precedence over the last-move wash.
-    const sq: CustomSquareStyles = {
-      ...lastMoveSquares,
-      ...(overlay?.squareStyles ?? {}),
-    }
-    return { turnLine, arrows: arr, squareStyles: sq }
+    const sq: CustomSquareStyles = { ...(overlay?.squareStyles ?? {}) }
+    const legend = { played: !!played && !overlay?.arrows?.length, alternative }
+    return { turnLine, arrows: dedupeArrowsByEndpoints(arr), squareStyles: sq, legend }
   }, [
     currentFen,
     currentMoveIndex,
@@ -311,7 +331,7 @@ const MainlineChessboard = () => {
     <div
       className="panel"
       style={{
-        padding: 10,
+        padding: compact ? 6 : 10,
         // Focus cue: the board arrow keys don't drive is dimmed; a PV/line
         // hover also dims it to spotlight the variation viewer.
         opacity: focusedBoard === 'game' && !pvHover ? 1 : 0.6,
@@ -321,7 +341,7 @@ const MainlineChessboard = () => {
       title="Arrow keys move this board (click to focus)"
     >
       <div ref={parentRef} className="flex w-full flex-col">
-        {isLoaded ? <PlayerPlate {...topPlate} /> : null}
+        {isLoaded && !compact ? <PlayerPlate {...topPlate} /> : null}
         <div
           ref={boardLayoutRef}
           className="board-stage"
@@ -394,7 +414,7 @@ const MainlineChessboard = () => {
             </>
           ) : null}
         </div>
-        {isLoaded ? <PlayerPlate {...bottomPlate} /> : null}
+        {isLoaded && !compact ? <PlayerPlate {...bottomPlate} /> : null}
         {isLoaded ? (
           <div className="board-status">
             {curMove?.move ? (
@@ -406,6 +426,7 @@ const MainlineChessboard = () => {
             )}
           </div>
         ) : null}
+        {isLoaded ? <ArrowLegend {...legend} /> : null}
         {isLoaded ? (
           <div className="navrow">
             {navBtn('First', 'first', () => {
@@ -433,6 +454,7 @@ const MainlineChessboard = () => {
               setPlaying(false)
               manager.goToLast()
             })}
+            {compact ? navBtn('Flip board', 'flip', () => manager.flipBoard()) : null}
           </div>
         ) : null}
       </div>

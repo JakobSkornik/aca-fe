@@ -11,12 +11,14 @@ import styles from './survey.module.css'
 /**
  * Saved game with board, moves, variations and evidence.
  *
- * With `aside` (the comparison survey), the viewer shows only the board and the
- * evidence, with `aside` as a third column, so everything fits one screen.
+ * With `aside` (the comparison survey), the viewer shows the game board with the
+ * variation board below it, and `aside` (comments and ratings) in a wider column.
  */
-export default function SurveyGame({ token, gameId, onReady, apiPath, sessionToken, initialMoveIndex, aside }: {
+export default function SurveyGame({ token, gameId, onReady, apiPath, sessionToken, initialMoveIndex, aside, tourStep }: {
   token: string; gameId: string; onReady: () => void; apiPath?: string; sessionToken?: string; initialMoveIndex?: number
   aside?: ReactNode
+  /** Step of the first-round guide (1 board, 2 evidence, 3 comments, 4 ratings); null when off. */
+  tourStep?: number | null
 }) {
   const { manager, state } = useGameState()
   const [status, setStatus] = useState('Loading the saved game…')
@@ -40,12 +42,14 @@ export default function SurveyGame({ token, gameId, onReady, apiPath, sessionTok
     {!status.startsWith('Loading') && <button className={styles.button} onClick={() => setAttempt(a => a + 1)}>Retry loading</button>}</div>
   if (!state.isLoaded) return null
   if (aside) return <CommentaryProvider>
-    <div className={`analysis-workspace ${styles.roundGrid}`}>
+    <div className={`analysis-workspace ${styles.roundGrid}`} data-tour={tourStep ?? undefined}>
       {/* No move list or game info here: the board's own controls step through the game. */}
-      <div className="analysis-centre"><MainlineChessboard />
-        <button className={`${styles.secondary} ${styles.flip}`} onClick={() => manager.flipBoard()}>Flip board</button></div>
-      <EvidencePanel />
-      <div className={styles.roundAside}>{aside}</div>
+      {/* One column: the game board, then the variation board below it (no rule evidence). */}
+      <div className="analysis-centre">
+        <div className={styles.boardRegion} data-tour-region="1"><MainlineChessboard maxSize={250} compact /></div>
+        <div className={styles.variations} data-tour-region="2"><EvidencePanel variationsOnly /></div>
+      </div>
+      <div className={styles.roundAside} data-tour-region="3">{aside}</div>
     </div>
   </CommentaryProvider>
   return <div className={styles.viewer}>

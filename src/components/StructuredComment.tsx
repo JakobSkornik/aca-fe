@@ -107,7 +107,7 @@ const PartCard: React.FC<{
         toneColor={toneColor}
         onPly={onSelectPly}
       />
-      <div className="mt-2 text-[11px] text-text-secondary">{claims.length} retained {claims.length === 1 ? 'fact' : 'facts'} · evidence below</div>
+      <div className="line-evidence-note mt-2 text-[11px] text-text-secondary">{claims.length} retained {claims.length === 1 ? 'fact' : 'facts'} · evidence below</div>
     </div>
   )
 }

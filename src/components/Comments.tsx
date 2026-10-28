@@ -431,13 +431,14 @@ const Comments: React.FC = () => {
   )
 }
 
-export function EvidencePanel() {
+/** `variationsOnly` (the survey) shows the variation board and line selector, without the rule evidence. */
+export function EvidencePanel({ variationsOnly = false }: { variationsOnly?: boolean } = {}) {
   const { state, facts, gm, mainLine, altLine, selectedLine, lineKey, idx, setPvIdx,
     currentMoveIndex, selectedPart, setSelectedPart, onSelectPly } = useCommentary()
   return (
-    <aside className="analysis-evidence" aria-label="Variations and supporting evidence">
+    <aside className="analysis-evidence" aria-label={variationsOnly ? 'Variations' : 'Variations and supporting evidence'}>
       <section className="panel analysis-evidence-panel">
-        <div className="panel-head"><Icon name="list" size={15} /><h3>Variations &amp; evidence</h3></div>
+        <div className="panel-head"><Icon name="list" size={15} /><h3>{variationsOnly ? 'Variations' : <>Variations &amp; evidence</>}</h3></div>
         <div className="analysis-facts-layout flex flex-wrap items-start gap-3 p-3">
           <PvBoard line={selectedLine} idx={idx} onIdx={setPvIdx}
             loadKey={`${currentMoveIndex}:${selectedPart}:${lineKey}`} />
@@ -446,10 +447,10 @@ export function EvidencePanel() {
             onSelectPart={setSelectedPart} pvIdx={idx} onSelectPly={onSelectPly} />
             : <p className="text-xs text-text-secondary">No rule facts for this move.</p>}
         </div>
-        {facts ? <RuleEvidenceRows key={currentMoveIndex} facts={facts} mainLine={mainLine} altLine={altLine}
+        {variationsOnly ? null : facts ? <RuleEvidenceRows key={currentMoveIndex} facts={facts} mainLine={mainLine} altLine={altLine}
           selectedPart={selectedPart} idx={idx} onSelectPly={onSelectPly} />
           : <GameFeatureContext key={currentMoveIndex} series={state.gameJson?.feature_series} ply={currentMoveIndex + 1} />}
-        {gm?.debug ? <div className="evidence-diagnostics"><ReasoningDetails debug={gm.debug} /></div> : null}
+        {!variationsOnly && gm?.debug ? <div className="evidence-diagnostics"><ReasoningDetails debug={gm.debug} /></div> : null}
       </section>
     </aside>
   )
