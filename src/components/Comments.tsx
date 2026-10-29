@@ -12,6 +12,7 @@ import PvBoard from './PvBoard'
 import RuleEvidenceRows, { GameFeatureContext } from './RuleEvidenceRows'
 import Icon from '@/components/ui/Icon'
 import CommentStatusBadge from '@/components/CommentStatusBadge'
+import { useHideTemplateComments, isShownComment } from '@/hooks/useHideTemplateComments'
 
 /** Build a player line (steps + chart series) from a CommentFacts line, with a
  * gray lead-in step (the position before the move) prepended. */
@@ -153,7 +154,12 @@ function useCommentaryView() {
   const currentMove = manager.getMainlineMove(currentMoveIndex)
   const currentMoveId = currentMove?.id
 
-  const displayedComments = commentsMainline
+  // With the switch on (default), only model-written comments are listed and navigable.
+  const [hideTemplates, setHideTemplates] = useHideTemplateComments()
+  const displayedComments = useMemo(
+    () => commentsMainline.filter((c) => isShownComment(state.gameJson?.moves?.[c.moveIndex], hideTemplates)),
+    [commentsMainline, hideTemplates, state.gameJson],
+  )
   const sortedForNav = useMemo(
     () => [...displayedComments].filter((c) => c.text.trim())
       .sort((a, b) => a.moveIndex - b.moveIndex),
@@ -309,7 +315,8 @@ function useCommentaryView() {
   return { state, currentMoveId, activeComment, activeMainTitle, activeKeyMomentType, gm,
     commentaryGenerating, evalChip, prevComment, nextComment, goToComment,
     navPos, sortedForNav, displayedComments, facts, mainLine, altLine,
-    selectedLine, lineKey, idx, setPvIdx, currentMoveIndex, selectedPart, setSelectedPart, onSelectPly }
+    selectedLine, lineKey, idx, setPvIdx, currentMoveIndex, selectedPart, setSelectedPart, onSelectPly,
+    hideTemplates, setHideTemplates }
 }
 
 const CommentaryContext = createContext<ReturnType<typeof useCommentaryView> | null>(null)
@@ -328,7 +335,7 @@ function useCommentary() {
 const Comments: React.FC = () => {
   const { state, currentMoveId, activeComment, activeMainTitle, activeKeyMomentType, gm, commentaryGenerating,
     prevComment, nextComment, goToComment, navPos, sortedForNav,
-    displayedComments } = useCommentary()
+    displayedComments, hideTemplates, setHideTemplates } = useCommentary()
   const annotation = state.moves.getMoveAtIndex(state.currentMoveIndex)?.annotation ?? gm?.annotation
   const event = [gm?.classification, gm?.debug?.key_moment_type, activeKeyMomentType]
     .find((kind) => kind === 'best_move' || kind === 'great_move' || kind === 'good_defense')
@@ -347,6 +354,12 @@ const Comments: React.FC = () => {
             generating…
           </span>
         ) : null}
+        <label className="ml-1 flex cursor-pointer items-center gap-1.5 text-[10px] text-text-secondary"
+          title="Show only comments written by the model; hide template, opening and reference notes">
+          <input type="checkbox" role="switch" checked={hideTemplates}
+            onChange={(e) => setHideTemplates(e.target.checked)} style={{ accentColor: 'var(--accent)' }} />
+          AI comments only
+        </label>
         <div className="ml-1 flex items-center gap-1 text-[10px] text-text-tertiary">
           <button
             type="button"

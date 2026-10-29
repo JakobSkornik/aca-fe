@@ -3,6 +3,7 @@ import { useGameState } from '@/contexts/GameStateContext'
 import { UIHelpers } from '@/helpers/uiHelpers'
 import { Move } from '@/types/chess/Move'
 import Icon from '@/components/ui/Icon'
+import { useHideTemplateComments, isShownComment } from '@/hooks/useHideTemplateComments'
 
 const VALID_ANNOTATIONS = new Set(['??', '?', '?!', '!?', '!', '!!'])
 const BAD_ANNOTATIONS = new Set(['??', '?', '?!'])
@@ -100,16 +101,18 @@ const MoveList = () => {
   } = state
 
   // Comment presence is independent of move quality and key-moment selection.
+  // With "AI comments only" (default), template, book and reference notes get no marker.
+  const [hideTemplates] = useHideTemplateComments()
   const moveIdsWithComment = useMemo(() => {
     const s = new Set<number>()
     state.gameJson?.moves.forEach((m, i) => {
-      if (m.comment?.trim()) s.add(i + 1)
+      if (m.comment?.trim() && isShownComment(m, hideTemplates)) s.add(i + 1)
     })
     for (const c of commentsMainline) {
-      if (c.text.trim()) s.add(c.moveId)
+      if (c.text.trim() && isShownComment(state.gameJson?.moves?.[c.moveIndex], hideTemplates)) s.add(c.moveId)
     }
     return s
-  }, [state.gameJson, commentsMainline])
+  }, [state.gameJson, commentsMainline, hideTemplates])
 
   const displayedMoves = manager.getDisplayedMovesList()
   const pairCount = Math.ceil(displayedMoves.length / 2)
