@@ -31,5 +31,9 @@ export type ComparisonResults = {
   criteria: ComparisonCriterion[]; scale: ComparisonScale
   games: { id: string; bracket: string }[]; cells: ComparisonCell[]
   notes: { game_id: string; level: string; text: string }[]
+  /** Ratings split by the participant's reported rating group, per model and per comment level. */
+  by_group?: { axis: 'model' | 'level'; value: string; group: string; criteria: Record<string, CriterionSummary> }[]
+  participant_groups?: { id: string; min_elo: number; max_elo_exclusive: number }[]
+  participants_by_group?: Record<string, number>
   legacy_reviews: number; feedback: string[]; provenance: Record<string, unknown>
 }

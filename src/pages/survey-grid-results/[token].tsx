@@ -59,7 +59,7 @@ export default function ComparisonResultsPage() {
   }
   return <SurveyLayout title="Comparison results">
     <section className={styles.progressCard}><span className={styles.eyebrow}>Researcher view · Keep this link private</span><h1>How do readers rate the comments?</h1>
-      <p>Mean 1–5 ratings per model, game-rating band and intended explanation level. These are readers’ judgements, not verified chess correctness or learning gains.</p>
+      <p>Mean 1–5 ratings per model, and by the participant’s reported rating. Every participant rates all ten games, whatever their level. These are readers’ judgements, not verified chess correctness or learning gains.</p>
       <div className={styles.actions}><button className={styles.secondary} disabled={busy} onClick={() => setRevision(v => v+1)}>{busy ? 'Refreshing…' : 'Refresh'}</button><button className={styles.button} disabled={!data} onClick={() => void download('csv')}>Download comparison CSV</button><button className={styles.secondary} disabled={!data} onClick={() => void download('json')}>Download full JSON</button></div>
     </section>
     {error && <p className={styles.error} role="alert">{error}</p>}
@@ -75,10 +75,23 @@ export default function ComparisonResultsPage() {
             <span>{q.label}: <strong>{fmt(v.mean)}</strong> <small className={styles.muted}>n = {v.n} · distribution 1–5: {v.distribution.join(' / ')}</small></span>
             <div className={styles.voteTrack}><span className={styles.voteFill} style={{ width: `${v.mean == null ? 0 : 100 * (v.mean - 1) / 4}%` }} /></div></div> })}</div></div>)}
       </section>
-      <section className={styles.card}><h2>Model × explanation level</h2>
+      <section className={styles.card}><h2>Ratings by participant level</h2>
         <label className={styles.field}>Question<select value={criterion} onChange={e => setCriterion(e.target.value)}>{data.criteria.map(q => <option key={q.id} value={q.id}>{q.label}</option>)}</select></label>
-        <div className={styles.matrixScroll}><table className={styles.matrix}><thead><tr><th scope="col">Model</th>{data.levels.map(l => <th scope="col" key={l}>{l}</th>)}</tr></thead><tbody>{data.models.map(m => <tr key={m.id}><th scope="row">{m.label}</th>{data.levels.map(l => { const v = aggregate(data.cells.filter(c => c.model === m.id && c.level === l && (game === 'all' || c.game_id === game)), criterion); return <td key={l} style={v.mean != null ? { backgroundColor: `rgba(122,193,148,${0.06 + 0.3 * (v.mean - 1) / 4})` } : undefined}>{fmt(v.mean)}<small>n = {v.n}</small></td> })}</tr>)}</tbody></table></div>
-        <p className={styles.small}>There is one source game per rating band and one selected comparison position per game. Differences between bands are descriptive and cannot establish a general rating effect.</p></section>
+        {(() => {
+          const groups = data.participant_groups ?? []
+          const cell = (axis: string, value: string, group: string) => {
+            const v = data.by_group?.find(r => r.axis === axis && r.value === value && r.group === group)?.criteria[criterion]
+            return <td key={group} style={v?.mean != null ? { backgroundColor: `rgba(122,193,148,${0.06 + 0.3 * (v.mean - 1) / 4})` } : undefined}>{fmt(v?.mean ?? null)}<small>n = {v?.n ?? 0}</small></td>
+          }
+          const head = <thead><tr><th scope="col" />{groups.map(g => <th scope="col" key={g.id}>{g.id} participants<small>Elo {g.min_elo}{g.max_elo_exclusive < 10000 ? `–${g.max_elo_exclusive - 1}` : '+'} · {data.participants_by_group?.[g.id] ?? 0} submitted</small></th>)}</tr></thead>
+          return <>
+            <h3>Model × participant level</h3>
+            <div className={styles.matrixScroll}><table className={styles.matrix}>{head}<tbody>{data.models.map(m => <tr key={m.id}><th scope="row">{m.label}</th>{groups.map(g => cell('model', m.id, g.id))}</tr>)}</tbody></table></div>
+            <h3>Comment level × participant level</h3>
+            <div className={styles.matrixScroll}><table className={styles.matrix}>{head}<tbody>{data.levels.map(l => <tr key={l}><th scope="row">{l} comments</th>{groups.map(g => cell('level', l, g.id))}</tr>)}</tbody></table></div>
+          </>
+        })()}
+        <p className={styles.small}>Participants are grouped by their reported rating (estimates included). Each game is written at one level, so a comment level row combines different games; read it as how each group rates comments aimed at that audience, not as a comparison of levels on the same move.</p></section>
       <section className={styles.card}><h2>Round notes</h2>
         {notes.length ? notes.map((r, i) => <blockquote className={styles.quote} key={i}><strong>{r.level} · {data.games.find(g => g.id === r.game_id)?.bracket}</strong><p>{r.text}</p></blockquote>) : <p>No round notes in this selection yet.</p>}
       </section>
