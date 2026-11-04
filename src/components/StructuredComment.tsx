@@ -8,6 +8,7 @@ import type {
   CommentFactsJson,
   MoveDebugJson,
 } from '@/types/GameJson'
+import { claimHighlight, evidenceSummary, type ClaimHighlight } from '@/helpers/claimHighlight'
 
 export type CommentPart = 'main' | 'alt'
 
@@ -20,6 +21,38 @@ type Props = {
   /** Current ply in the selected line (highlighted in the selected card). */
   pvIdx: number
   onSelectPly: (part: CommentPart, ply: number) => void
+  /** Hovering (or focusing) a statement highlights what it is about on the boards. */
+  onHoverClaim?: (next: ClaimHighlight | null) => void
+  hoverClaim?: ClaimHighlight | null
+}
+
+/** One statement of a line, hoverable: the pieces and squares it is about light up. */
+export const ClaimChip: React.FC<{
+  claim: CommentFactsClaim
+  part: CommentPart
+  active: boolean
+  onHover?: (next: ClaimHighlight | null) => void
+}> = ({ claim, part, active, onHover }) => {
+  const highlight = claimHighlight(claim, part)
+  const timing = claim.realization === 'envisioned'
+    ? (claim.caused_by_san ? `after ${claim.caused_by_san}` : 'in the line')
+    : 'on this move'
+  const summary = claim.evidence ? evidenceSummary(claim.evidence) : ''
+  return (
+    <li
+      className={`claim-chip${active ? ' on' : ''}${highlight ? ' has-evidence' : ''}${claim.is_concession ? ' concession' : ''}`}
+      tabIndex={highlight ? 0 : -1}
+      title={summary ? `${timing} · highlights: ${summary}` : timing}
+      onMouseEnter={() => onHover?.(highlight)}
+      onMouseLeave={() => onHover?.(null)}
+      onFocus={() => onHover?.(highlight)}
+      onBlur={() => onHover?.(null)}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span className="claim-chip-text">{claim.text}</span>
+      <span className="claim-chip-meta">{timing}</span>
+    </li>
+  )
 }
 
 /** The line as clickable numbered tokens: the lead-in ply (the position before
@@ -71,6 +104,8 @@ const PartCard: React.FC<{
   tone: 'main' | 'alt'
   onSelect: () => void
   onSelectPly: (ply: number) => void
+  onHoverClaim?: (next: ClaimHighlight | null) => void
+  hoverClaim?: ClaimHighlight | null
 }> = ({
   title,
   steps,
@@ -82,6 +117,8 @@ const PartCard: React.FC<{
   tone,
   onSelect,
   onSelectPly,
+  onHoverClaim,
+  hoverClaim,
 }) => {
   const toneColor = tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
   return (
@@ -107,7 +144,15 @@ const PartCard: React.FC<{
         toneColor={toneColor}
         onPly={onSelectPly}
       />
-      <div className="line-evidence-note mt-2 text-[11px] text-text-secondary">{claims.length} retained {claims.length === 1 ? 'fact' : 'facts'} · evidence below</div>
+      {claims.length ? (
+        <ul className="claim-list mt-2" aria-label={`${title}: statements`}>
+          {claims.map((claim, i) => (
+            <ClaimChip key={`${claim.rule_id}-${i}`} claim={claim} part={tone}
+              active={!!hoverClaim && hoverClaim.part === tone && hoverClaim.text === claim.text}
+              onHover={onHoverClaim} />
+          ))}
+        </ul>
+      ) : <div className="line-evidence-note mt-2 text-[11px] text-text-secondary">No retained statements for this line.</div>}
     </div>
   )
 }
@@ -126,6 +171,8 @@ const StructuredComment: React.FC<Props> = ({
   onSelectPart,
   pvIdx,
   onSelectPly,
+  onHoverClaim,
+  hoverClaim,
 }) => {
   const { state } = useGameState()
   const alt = facts.better_alternative
@@ -157,6 +204,8 @@ const StructuredComment: React.FC<Props> = ({
           tone="main"
           onSelect={() => onSelectPart('main')}
           onSelectPly={(ply) => onSelectPly('main', ply)}
+          onHoverClaim={onHoverClaim}
+          hoverClaim={hoverClaim}
       />
 
       {alt ? (
@@ -171,7 +220,12 @@ const StructuredComment: React.FC<Props> = ({
           tone="alt"
           onSelect={() => onSelectPart('alt')}
           onSelectPly={(ply) => onSelectPly('alt', ply)}
+          onHoverClaim={onHoverClaim}
+          hoverClaim={hoverClaim}
         />
+      ) : null}
+      {alt?.horizon_note ? (
+        <p className="text-[11px] text-text-tertiary">{alt.horizon_note}</p>
       ) : null}
 
 

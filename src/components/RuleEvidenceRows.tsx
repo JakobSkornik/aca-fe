@@ -5,6 +5,7 @@ import { featureDescription, featureLabel, featureSource } from '@/helpers/featu
 import { contextSeries, evidenceUnit, featureSummary, ruleEvidence, type EvidenceCheck } from '@/helpers/ruleEvidence'
 import { RULE_REFERENCE_REVISION } from '@/helpers/ruleReference.generated'
 import type { CommentPart } from './StructuredComment'
+import { claimHighlight, evidenceSummary, type ClaimHighlight } from '@/helpers/claimHighlight'
 
 const number = (n: number) => Number.isInteger(n) ? String(n) : n.toFixed(2)
 
@@ -82,12 +83,15 @@ function Check({ check }: { check: EvidenceCheck }) {
   </div>
 }
 
-function EvidenceRow({ claim, line, player, part, selectedPart, cursor, onSelectPly }: {
+function EvidenceRow({ claim, line, player, part, selectedPart, cursor, onSelectPly, onHoverClaim }: {
   claim: CommentFactsClaim; line: CommentFactsLine | null; player: PlayerLine | null
   part: CommentPart; selectedPart: CommentPart; cursor: number
   onSelectPly: (part: CommentPart, ply: number) => void
+  onHoverClaim?: (next: ClaimHighlight | null) => void
 }) {
   const evidence = ruleEvidence(claim, line)
+  const highlight = claimHighlight(claim, part)
+  const boardSummary = claim.evidence ? evidenceSummary(claim.evidence) : ''
   const anchor = evidence.anchor
   // Use the recorded ply, not findIndex(FEN): repetitions may have identical positions.
   const playerIndex = anchor == null ? -1 : anchor - (player?.steps[0]?.fen === line?.start_fen ? 0 : 1)
@@ -98,7 +102,8 @@ function EvidenceRow({ claim, line, player, part, selectedPart, cursor, onSelect
   const after = claim.support_fen?.split(' ')
   const moveNo = after ? Number(after[5]) - (after[1] === 'w' ? 1 : 0) : null
   const san = anchor != null ? line?.san[anchor - 1] : null
-  const time = anchor === 1 ? 'On this move' : anchor != null ? `Forecast · ply ${anchor}` : 'Position not verified'
+  const time = claim.realization === 'immediate' && anchor != null ? (anchor === 1 ? 'On this move' : `Settles at ply ${anchor}`)
+    : anchor != null ? `In the line · after ${claim.caused_by_san ?? san ?? `ply ${anchor}`}` : 'Position not verified'
   const checksMet = evidence.checks.filter(c => c.passed === true).length
   return <article className={`evidence-row evidence-row-${part}`}>
     <div className="evidence-row-meta"><span className="evidence-badge">{part === 'main' ? 'Main line' : 'Alternative'}</span><span>{time}</span>
@@ -109,7 +114,12 @@ function EvidenceRow({ claim, line, player, part, selectedPart, cursor, onSelect
     </div>
     <div className="evidence-row-body">
       <div className="evidence-statement-block">
-        <p className="evidence-statement">{claim.text}</p>
+        <p className={`evidence-statement${highlight ? ' hoverable' : ''}`} tabIndex={highlight ? 0 : -1}
+          title={highlight ? 'Hover to highlight the pieces and squares this statement is about' : undefined}
+          onMouseEnter={() => onHoverClaim?.(highlight)} onMouseLeave={() => onHoverClaim?.(null)}
+          onFocus={() => onHoverClaim?.(highlight)} onBlur={() => onHoverClaim?.(null)}>{claim.text}</p>
+        {boardSummary ? <p className="evidence-squares">On the board: {boardSummary}
+          {claim.evidence?.source === 'feature' ? ' (from the feature definition)' : ''}</p> : null}
         {evidence.checks.length ? <div className="evidence-checks">
           {evidence.checks.map((check, i) => <Check key={`${check.label}-${i}`} check={check} />)}
           <div className="evidence-muted">{checksMet}/{evidence.checks.length} listed reference checks met{evidence.notes.length ? ' · additional conditions below' : ''}</div>
@@ -130,9 +140,10 @@ function EvidenceRow({ claim, line, player, part, selectedPart, cursor, onSelect
   </article>
 }
 
-export default function RuleEvidenceRows({ facts, mainLine, altLine, selectedPart, idx, onSelectPly }: {
+export default function RuleEvidenceRows({ facts, mainLine, altLine, selectedPart, idx, onSelectPly, onHoverClaim }: {
   facts: CommentFactsJson; mainLine: PlayerLine | null; altLine: PlayerLine | null
   selectedPart: CommentPart; idx: number; onSelectPly: (part: CommentPart, ply: number) => void
+  onHoverClaim?: (next: ClaimHighlight | null) => void
 }) {
   const branches = [{ part: 'main' as const, claims: facts.claims ?? [], line: facts.display_line, player: mainLine },
     { part: 'alt' as const, claims: facts.better_alternative?.claims ?? [], line: facts.better_alternative?.display_line ?? null, player: altLine }]
@@ -145,7 +156,7 @@ export default function RuleEvidenceRows({ facts, mainLine, altLine, selectedPar
     </div>
     {!count ? <p className="evidence-empty">No retained rule statements for this move. Available feature values remain below.</p> : null}
     {branches.flatMap(branch => branch.claims.map((claim, i) => <EvidenceRow key={`${branch.part}-${claim.rule_id}-${i}`} claim={claim} line={branch.line}
-      player={branch.player} part={branch.part} selectedPart={selectedPart} cursor={idx} onSelectPly={onSelectPly} />))}
+      player={branch.player} part={branch.part} selectedPart={selectedPart} cursor={idx} onSelectPly={onSelectPly} onHoverClaim={onHoverClaim} />))}
     <details className="evidence-detail evidence-explorer">
       <summary>Explore all features · {selectedPart === 'main' ? 'main line' : 'alternative'} ({names.length})</summary>
       <p className="evidence-muted">Context values, not additional triggered rules. Changes use White-signed storage; no threshold is inferred.</p>

@@ -4,6 +4,7 @@ import { useGameState } from '@/contexts/GameStateContext'
 import type { PlayerLine } from '@/types/Line'
 import Icon from '@/components/ui/Icon'
 import { evalDepthSuffix } from '@/helpers/chessNotation'
+import { evidenceSquareStyles, type ClaimHighlight } from '@/helpers/claimHighlight'
 
 const BOARD_W = 240
 const AUTOPLAY_MS = 900
@@ -16,6 +17,8 @@ type Props = {
   onIdx: (next: number) => void
   /** Changes whenever the move or selected part changes (resets autoplay). */
   loadKey: string
+  /** A hovered statement: show its support position and tint its pieces and squares. */
+  highlight?: ClaimHighlight | null
 }
 
 /**
@@ -23,7 +26,7 @@ type Props = {
  * controlled by the parent so the move cards and the charts stay in sync; the
  * numbered move tokens live in the cards to the right, not here.
  */
-const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey }) => {
+const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey, highlight = null }) => {
   const { manager, state } = useGameState()
   const steps = useMemo(() => line?.steps ?? [], [line])
   const lastIdx = steps.length - 1
@@ -72,8 +75,15 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey }) => {
     )
   }
 
-  const safeIdx = Math.max(0, Math.min(idx, lastIdx))
+  // While a statement is hovered, show the ply that supports it (the lead-in
+  // step, when present, sits at index 0 so support ply k is index k).
+  const hasLead = !!line.startFen && steps[0]?.fen === line.startFen
+  const previewIdx = highlight && highlight.supportPly > 0
+    ? Math.max(0, Math.min(highlight.supportPly - (hasLead ? 0 : 1), lastIdx))
+    : null
+  const safeIdx = previewIdx ?? Math.max(0, Math.min(idx, lastIdx))
   const step = steps[safeIdx]
+  const highlightStyles = highlight ? evidenceSquareStyles(highlight.evidence) : null
   const suffix = evalDepthSuffix(line.evalCp, line.evalMate, line.depth)
   const toneColor = line.tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
   const focused = state.focusedBoard === 'variation'
@@ -126,15 +136,20 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey }) => {
             areArrowsAllowed={false}
             customDarkSquareStyle={{ backgroundColor: 'var(--board-dark)' }}
             customLightSquareStyle={{ backgroundColor: 'var(--board-light)' }}
-            customSquareStyles={step?.from && step?.to ? {
+            customSquareStyles={highlightStyles ?? (step?.from && step?.to ? {
               [step.from]: { backgroundColor: 'color-mix(in srgb, var(--accent) 45%, transparent)' },
               [step.to]: { backgroundColor: 'color-mix(in srgb, var(--accent) 45%, transparent)' },
-            } : {}}
+            } : {})}
             arePiecesDraggable={false}
             boardOrientation={state.boardOrientation}
             showBoardNotation={false}
           />
         </div>
+        {highlight ? (
+          <div className="claim-preview-note" style={{ width: BOARD_W }}>
+            Showing the position {previewIdx != null && previewIdx > 0 ? `after ${steps[previewIdx]?.san}` : 'before the move'} for the hovered statement
+          </div>
+        ) : null}
         <input
           type="range"
           min={0}

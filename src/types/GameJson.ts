@@ -91,6 +91,33 @@ export interface CommentFactsLine {
   fens: string[]
   /** Per-point feature progression along the line (cp); keyed by feature name. */
   feature_series?: Record<string, number[]>
+  /** First settled ply after the move (1-3); claims at or before it are immediate. */
+  immediate_horizon_ply?: number | null
+  /** Ply chosen as the endpoint by the settlement test (null: fallback window). */
+  settled_ply?: number | null
+  horizon_reason?: string | null
+  trimmed_plies?: number | null
+}
+
+/** A piece the statement is about, at the claim's support position. */
+export interface ClaimEvidencePiece {
+  square: string
+  piece: string
+  color: 'white' | 'black'
+  /** subject (the piece the claim is about), target, attacker, king. */
+  role: string
+}
+
+/** Board entities a claim is about, for hover highlighting. */
+export interface ClaimEvidence {
+  /** Squares at the support position. */
+  squares: string[]
+  pieces: ClaimEvidencePiece[]
+  /** The same entities in the starting position (for "lost"/"before" states). */
+  baseline_squares: string[]
+  /** Whole files the claim is about ("e"). */
+  files: string[]
+  source?: 'rule' | 'feature' | string
 }
 
 export interface CommentFactsClaim {
@@ -110,6 +137,15 @@ export interface CommentFactsClaim {
   /** "immediate" if realized on the move, "envisioned" if it only develops
    * deeper in the line. */
   realization?: string
+  /** For envisioned claims: the line move (ply, SAN) that brings the claim about. */
+  caused_by_ply?: number | null
+  caused_by_san?: string | null
+  /** Where along the displayed line the claim held (first and last firing ply). */
+  first_ply?: number | null
+  last_ply?: number | null
+  persistence?: 'held' | 'transient' | string
+  entity?: string | null
+  evidence?: ClaimEvidence | null
 }
 
 export interface CommentFactsJson {
@@ -135,6 +171,9 @@ export interface CommentFactsJson {
     /** When true this is the clearly-worse runner-up shown to contrast a top
      * move that was played â€” not a better move that was missed. */
     is_inferior?: boolean
+    /** Depth at which both lines were also compared, and a note when they settle differently. */
+    matched_ply?: number | null
+    horizon_note?: string | null
   }
 }
 

@@ -10,6 +10,7 @@ import CommentItem from './CommentItem'
 import StructuredComment, { ReasoningDetails, type CommentPart } from './StructuredComment'
 import PvBoard from './PvBoard'
 import RuleEvidenceRows, { GameFeatureContext } from './RuleEvidenceRows'
+import { baselineSquareStyles, type ClaimHighlight } from '@/helpers/claimHighlight'
 import Icon from '@/components/ui/Icon'
 import CommentStatusBadge from '@/components/CommentStatusBadge'
 import { useHideTemplateComments, isShownComment } from '@/hooks/useHideTemplateComments'
@@ -106,6 +107,20 @@ function useCommentaryView() {
   // and the charts so they stay in sync. Open after the first move in the line.
   const [pvIdx, setPvIdx] = useState(1)
   const requestedPly = useRef<{ part: CommentPart; moveIndex: number; ply: number } | null>(null)
+  // Hovering a statement highlights the pieces and squares it is about: on the
+  // variation board at the statement's support position, and (the same entities
+  // before the move) on the game board through the commentary overlay.
+  const [hoverClaim, setHoverClaimState] = useState<ClaimHighlight | null>(null)
+  const setHoverClaim = useCallback(
+    (next: ClaimHighlight | null) => {
+      setHoverClaimState(next)
+      if (next) manager.setCommentaryBoardOverlay({ arrows: [], squareStyles: baselineSquareStyles(next.evidence) })
+      else manager.clearCommentaryBoardOverlay()
+    },
+    [manager],
+  )
+  useEffect(() => () => manager.clearCommentaryBoardOverlay(), [manager])
+  useEffect(() => { setHoverClaimState(null) }, [currentMoveIndex])
 
 
   // Selecting a line focuses the variation navigator (the reset is handled by
@@ -316,7 +331,7 @@ function useCommentaryView() {
     commentaryGenerating, evalChip, prevComment, nextComment, goToComment,
     navPos, sortedForNav, displayedComments, facts, mainLine, altLine,
     selectedLine, lineKey, idx, setPvIdx, currentMoveIndex, selectedPart, setSelectedPart, onSelectPly,
-    hideTemplates, setHideTemplates }
+    hideTemplates, setHideTemplates, hoverClaim, setHoverClaim }
 }
 
 const CommentaryContext = createContext<ReturnType<typeof useCommentaryView> | null>(null)
@@ -447,21 +462,26 @@ const Comments: React.FC = () => {
 /** `variationsOnly` (the survey) shows the variation board and line selector, without the rule evidence. */
 export function EvidencePanel({ variationsOnly = false }: { variationsOnly?: boolean } = {}) {
   const { state, facts, gm, mainLine, altLine, selectedLine, lineKey, idx, setPvIdx,
-    currentMoveIndex, selectedPart, setSelectedPart, onSelectPly } = useCommentary()
+    currentMoveIndex, selectedPart, setSelectedPart, onSelectPly, hoverClaim, setHoverClaim } = useCommentary()
+  // A hovered statement of the other line previews that line on the variation board.
+  const previewLine = hoverClaim && hoverClaim.part !== selectedPart
+    ? (hoverClaim.part === 'alt' ? altLine : mainLine) ?? selectedLine
+    : selectedLine
   return (
     <aside className="analysis-evidence" aria-label={variationsOnly ? 'Variations' : 'Variations and supporting evidence'}>
       <section className="panel analysis-evidence-panel">
         <div className="panel-head"><Icon name="list" size={15} /><h3>{variationsOnly ? 'Variations' : <>Variations &amp; evidence</>}</h3></div>
         <div className="analysis-facts-layout flex flex-wrap items-start gap-3 p-3">
-          <PvBoard line={selectedLine} idx={idx} onIdx={setPvIdx}
-            loadKey={`${currentMoveIndex}:${selectedPart}:${lineKey}`} />
+          <PvBoard line={previewLine} idx={idx} onIdx={setPvIdx}
+            loadKey={`${currentMoveIndex}:${selectedPart}:${lineKey}`} highlight={hoverClaim} />
           {facts ? <StructuredComment facts={facts}
             mainLine={mainLine} altLine={altLine} selectedPart={selectedPart}
-            onSelectPart={setSelectedPart} pvIdx={idx} onSelectPly={onSelectPly} />
+            onSelectPart={setSelectedPart} pvIdx={idx} onSelectPly={onSelectPly}
+            onHoverClaim={setHoverClaim} hoverClaim={hoverClaim} />
             : <p className="text-xs text-text-secondary">No rule facts for this move.</p>}
         </div>
         {variationsOnly ? null : facts ? <RuleEvidenceRows key={currentMoveIndex} facts={facts} mainLine={mainLine} altLine={altLine}
-          selectedPart={selectedPart} idx={idx} onSelectPly={onSelectPly} />
+          selectedPart={selectedPart} idx={idx} onSelectPly={onSelectPly} onHoverClaim={setHoverClaim} />
           : <GameFeatureContext key={currentMoveIndex} series={state.gameJson?.feature_series} ply={currentMoveIndex + 1} />}
         {!variationsOnly && gm?.debug ? <div className="evidence-diagnostics"><ReasoningDetails debug={gm.debug} /></div> : null}
       </section>

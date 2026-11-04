@@ -765,3 +765,23 @@
   background: var(--fg-3);
   background-clip: padding-box;
 }
+
+/* ---------- statements (claims) with board highlighting on hover ---------- */
+.claim-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.claim-chip {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding: 4px 8px; border-radius: 7px; border: 1px solid transparent;
+  font-size: 11.5px; line-height: 1.45; color: var(--fg-2); background: var(--bg-2);
+  cursor: default; transition: border-color 0.12s ease, background 0.12s ease;
+}
+.claim-chip.has-evidence { cursor: crosshair; }
+.claim-chip.has-evidence:hover, .claim-chip.has-evidence:focus-visible, .claim-chip.on {
+  border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--fg); outline: none;
+}
+.claim-chip.concession { border-left: 3px solid var(--inacc); }
+.claim-chip-text { flex: 1 1 auto; min-width: 0; }
+.claim-chip-meta { flex: 0 0 auto; font-size: 10px; color: var(--fg-3); white-space: nowrap; }
+.claim-preview-note { margin-top: 6px; font-size: 10.5px; line-height: 1.4; color: var(--accent); }
+.evidence-statement.hoverable { cursor: crosshair; border-radius: 6px; padding: 2px 4px; margin-left: -4px; transition: background 0.12s ease; }
+.evidence-statement.hoverable:hover, .evidence-statement.hoverable:focus-visible { background: color-mix(in srgb, var(--accent) 12%, transparent); outline: none; }
+.evidence-squares { font-size: 11px; color: var(--fg-3); margin: -6px 0 10px; line-height: 1.5; }
