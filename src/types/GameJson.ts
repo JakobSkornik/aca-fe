@@ -95,6 +95,7 @@ export interface CommentFactsLine {
   immediate_horizon_ply?: number | null
   /** Ply chosen as the endpoint by the settlement test (null: fallback window). */
   settled_ply?: number | null
+  stable_ply?: number | null
   horizon_reason?: string | null
   trimmed_plies?: number | null
 }
