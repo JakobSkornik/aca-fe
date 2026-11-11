@@ -160,3 +160,41 @@
 .tourSkip { background:none; border:0; color:var(--fg-2); font-size:13px; cursor:pointer; text-decoration:underline; }
 .guideButton { padding:4px 10px; font-size:12px; border-radius:7px; }
 @media (prefers-reduced-motion: reduce) { .roundGrid[data-tour] *, .tourCard { animation:none !important; } }
+
+/* ---------- statement-checking task (version study, after the rating rounds) ---------- */
+.taskGrid { display:grid; gap:18px; max-width:1240px; margin:0 auto; grid-template-columns:minmax(0,1.25fr) auto; grid-template-areas:'aside board'; align-items:start; }
+.taskAside { grid-area:aside; min-width:0; }
+.taskBoard { grid-area:board; display:flex; flex-direction:column; gap:10px; }
+.taskAside .candidate { padding:14px 16px; margin-bottom:12px; }
+.taskAside .candidate h3 { font-size:18px; margin-bottom:8px; }
+.taskMark { background:color-mix(in srgb, var(--info) 26%, transparent); color:inherit; border-radius:3px; padding:0 2px; }
+.taskStatement { border:1px solid var(--info); border-radius:12px; padding:12px 16px; background:var(--bg-2); margin-bottom:14px; }
+.taskStatement .eyebrow { color:var(--info); }
+.taskStatement p { font-size:15.5px; margin:4px 0 4px !important; line-height:1.5 !important; }
+.taskStatement small { color:var(--fg-2); font-size:12.5px; }
+.taskQuestion { border:1px solid transparent; border-radius:9px; padding:8px; margin:0 0 6px; }
+.taskQuestion legend { float:left; width:100%; font-weight:600; font-size:14.5px; padding:0; margin-bottom:8px; }
+.taskQuestion.missing { outline:none !important; border-color:transparent !important; background:color-mix(in srgb, var(--blunder) 10%, transparent); }
+.taskOptions, .taskLine { display:flex; flex-wrap:wrap; gap:5px; clear:both; }
+.taskOptions button, .taskLine button { border:1px solid var(--line-2); background:var(--bg-2); color:var(--fg); border-radius:8px; padding:6px 10px; font-family:var(--font-mono); font-size:13px; cursor:pointer; }
+.taskLine button { border-color:transparent; background:transparent; padding:3px 6px; }
+.taskOptions button:hover:not(:disabled), .taskLine button:hover { border-color:var(--accent); }
+.taskOptions .chosen { background:var(--accent); border-color:var(--accent); color:#102419; font-weight:600; }
+.taskLine .chosen { background:var(--accent-bg); border-color:var(--accent); color:var(--accent); font-weight:600; }
+.taskTools { display:flex; gap:6px; flex-wrap:wrap; }
+.taskTools button { padding:6px 12px; font-size:13px; border-radius:7px; }
+.wordButtons button { width:auto !important; padding:0 9px; font-weight:600 !important; font-size:12.5px; }
+.taskAside .actions { margin-top:12px; }
+.taskAside .actions .missingNote { flex-basis:100%; margin:0 !important; }
+.taskChart { margin:0; border:1px solid var(--line); border-radius:10px; padding:8px 10px 4px; background:var(--bg-inset); max-width:400px; }
+.taskChart figcaption { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; font-weight:600; }
+.taskChart figcaption span { font-weight:400; color:var(--fg-2); }
+.taskChart svg { display:block; width:100%; height:auto; }
+.taskChartGrid { stroke:var(--line-2); stroke-width:1; stroke-dasharray:2 3; }
+.taskChartTick { fill:var(--fg-2); font-size:9.5px; font-family:var(--font-mono); }
+.taskChartLine { fill:none; stroke:var(--accent); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+.taskChartDot { fill:var(--accent); stroke:var(--bg-inset); stroke-width:2; }
+@media(max-width:950px) {
+  .taskGrid { grid-template-columns:minmax(0,1fr); grid-template-areas:'board' 'aside'; }
+  .rating { flex-wrap:wrap; }
+}

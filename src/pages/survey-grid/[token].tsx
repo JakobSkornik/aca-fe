@@ -1,16 +1,33 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GetServerSideProps } from 'next'
 import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import SurveyLayout from '@/components/survey/SurveyLayout'
 import SurveyTour, { TOUR_STEPS } from '@/components/survey/SurveyTour'
+import { taskDraftComplete, type TaskDraft } from '@/components/survey/SurveyTask'
 import styles from '@/components/survey/survey.module.css'
 import { surveyRequest } from '@/services/SurveyService'
-import type { ComparisonCriterion, ComparisonManifest, ComparisonReview, ComparisonRound, ComparisonSession } from '@/types/ComparisonSurvey'
+import type { ComparisonCriterion, ComparisonManifest, ComparisonReview, ComparisonRound, ComparisonSession, ComparisonTask, ComparisonTaskAnswer } from '@/types/ComparisonSurvey'
 
 const SurveyGame = dynamic(() => import('@/components/survey/SurveyGame'), { ssr: false })
+const SurveyTask = dynamic(() => import('@/components/survey/SurveyTask'), { ssr: false })
 const blank = (game_id: string): ComparisonReview => ({ game_id, decision: 'rated', scores: {}, feedback: '' })
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+const word = (n: number) => WORDS[n] ?? String(n)
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
+/**
+ * Where a session stands: rating rounds, then (version studies) the statement-checking
+ * tasks behind a short notice, then the final screen.
+ */
+type Stage = 'rounds' | 'bridge' | 'tasks' | 'finish'
+function stageOf(session: ComparisonSession): Stage {
+  if (session.rounds.some(r => !session.reviews.some(v => v.game_id === r.game_id))) return 'rounds'
+  const answers = session.task_answers ?? []
+  if ((session.tasks ?? []).some(t => !answers.some(a => a.task_id === t.id))) return answers.length ? 'tasks' : 'bridge'
+  return 'finish'
+}
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive')
@@ -46,7 +63,11 @@ export default function ComparisonSurvey() {
   const [elo, setElo] = useState('')
   const [ratingSystem, setRatingSystem] = useState('')
   const [overall, setOverall] = useState('')
-  const [finishing, setFinishing] = useState(false)
+  const [stage, setStage] = useState<Stage>('rounds')
+  const [task, setTask] = useState<ComparisonTask | null>(null)
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>({})
+  // When the current task appeared: the time to an answer is part of what the task measures.
+  const taskShown = useRef(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -60,7 +81,11 @@ export default function ComparisonSurvey() {
   const eloValid = /^\d{3,4}$/.test(elo) && eloValue >= 100 && eloValue <= 3500
   const saved = (id: string) => session?.reviews.find(r => r.game_id === id)
   const review = gameId ? drafts[gameId] ?? saved(gameId) ?? blank(gameId) : null
-  const dirty = Object.keys(drafts).length > 0
+  const tasks = session?.tasks ?? []
+  const answers = session?.task_answers ?? []
+  const taskId = tasks.find(t => !answers.some(a => a.task_id === t.id))?.id
+  const taskItems = manifest?.task_items ?? []
+  const dirty = Object.keys(drafts).length > 0 || Object.keys(taskDraft).length > 0
 
   useEffect(() => {
     if (!token) return
@@ -81,8 +106,18 @@ export default function ComparisonSurvey() {
   function resume(stored: string, previous: ComparisonSession) {
     setSessionToken(stored); setSession(previous); setOverall(previous.feedback)
     const next = previous.rounds.findIndex(r => !previous.reviews.some(v => v.game_id === r.game_id))
-    setIndex(next < 0 ? 0 : next); setFinishing(next < 0)
+    setIndex(next < 0 ? 0 : next); setStage(stageOf(previous))
   }
+
+  useEffect(() => {
+    if (stage !== 'tasks' || !taskId || !sessionToken) return
+    let active = true
+    setTask(null); setTaskDraft({}); setError('')
+    surveyRequest<ComparisonTask>(`grid/${token}/task/${taskId}`, {}, sessionToken)
+      .then(data => { if (active) { setTask(data); taskShown.current = Date.now() } })
+      .catch(e => { if (active) setError(e.message) })
+    return () => { active = false }
+  }, [stage, taskId, token, sessionToken, reload])
 
   useEffect(() => {
     if (!gameId || !sessionToken) return
@@ -137,8 +172,10 @@ export default function ComparisonSurvey() {
     if (!review) return
     edit({ decision: 'rated', scores: { ...review.scores, [candidate]: { ...review.scores[candidate], [criterion]: score } } })
   }
-  async function persist(reviews: ComparisonReview[], completed = false) {
-    const updated = await surveyRequest<ComparisonSession>(`grid/${token}/session`, { method: 'PUT', body: JSON.stringify({ version: session!.version, reviews, feedback: overall, completed }) }, sessionToken)
+  async function persist(reviews: ComparisonReview[], completed = false, taskAnswers: ComparisonTaskAnswer[] = answers) {
+    // Studies without tasks keep the request body they always had.
+    const body = { version: session!.version, reviews, feedback: overall, completed, ...(tasks.length ? { tasks: taskAnswers } : {}) }
+    const updated = await surveyRequest<ComparisonSession>(`grid/${token}/session`, { method: 'PUT', body: JSON.stringify(body) }, sessionToken)
     setSession(updated); setNotice(completed ? '' : 'Saved. You can resume with this link in the same browser.')
     return updated
   }
@@ -152,7 +189,17 @@ export default function ComparisonSurvey() {
       const next = updated.rounds.findIndex((r, i) => i > index && !updated.reviews.some(v => v.game_id === r.game_id))
       const remaining = updated.rounds.findIndex(r => !updated.reviews.some(v => v.game_id === r.game_id))
       if (next >= 0 || remaining >= 0) setIndex(next >= 0 ? next : remaining)
-      else setFinishing(true)
+      else setStage(stageOf(updated))
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
+  async function saveTask() {
+    if (!session || !task || !taskDraftComplete(taskDraft, taskItems)) return
+    setBusy(true); setError('')
+    try {
+      const answer: ComparisonTaskAnswer = { task_id: task.id, answer_ply: taskDraft.answer_ply as number | null,
+        could_check: taskDraft.could_check!, trust: taskDraft.trust!, elapsed_ms: Math.min(Date.now() - taskShown.current, 6 * 3600 * 1000) }
+      const updated = await persist(session.reviews, false, [...answers.filter(a => a.task_id !== task.id), answer])
+      setTaskDraft({}); setStage(stageOf(updated))
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   async function submit() {
@@ -161,18 +208,23 @@ export default function ComparisonSurvey() {
   }
 
   const missing = review && round && manifest ? missingRatings(review, round, manifest.criteria) : []
-  const inRound = !!session && !session.completed && !finishing
+  const inRound = !!session && !session.completed && stage === 'rounds'
+  const inTask = !!session && !session.completed && stage === 'tasks'
+  const rounds = session?.rounds.length ?? manifest?.round_count ?? 10
+  const taskCount = manifest?.task_count ?? 0
+  const duration = manifest?.duration ?? '15 to 30 minutes'
+  const taskNumber = tasks.findIndex(t => t.id === taskId) + 1
 
-  return <SurveyLayout title="Compare comments" compact={inRound}>
+  return <SurveyLayout title="Compare comments" compact={inRound || inTask}>
     {error && <div role="alert" className={styles.error}>{error} <button className={styles.secondary} onClick={() => window.location.reload()}>Reload saved progress</button></div>}
-    {notice && !inRound && <p role="status" className={styles.notice}>{notice}</p>}
+    {notice && !inRound && !inTask && <p role="status" className={styles.notice}>{notice}</p>}
     {!manifest ? <div className={styles.card}>Loading comparison study…</div> : session?.completed ? <section className={`${styles.card} ${styles.intro}`}><h1>Thank you for your ratings.</h1><p>Your answers are saved. You can close this page.</p>
         <p>Curious how the comments are made? Try the annotator on a game of your own.</p>
         <Link className={styles.button} href="/">Try the annotator →</Link></section> : !session ?
-      <section className={`${styles.card} ${styles.intro}`}><span className={styles.eyebrow}>Ten rounds · About 15–30 minutes</span><h1>How good are these explanations?</h1>
-        <p>The survey takes about 15 to 30 minutes. Saved rounds are kept, so you can take a break and return to this page in the same browser. Please take the survey only once.</p>
-        <p>Each round shows {manifest.candidate_count} anonymous comments on the same move of the same game, written for the same audience. Rate every comment from 1 to 5 on each question.</p>
-        <ol className={styles.comparisonInstructions}><li>Explore the position: the board, the engine lines and the supporting evidence.</li><li>Read each comment and rate it: {manifest.criteria.map(c => c.label.toLowerCase()).join(', ')}.</li><li>You may skip a round you cannot judge.</li></ol>
+      <section className={`${styles.card} ${styles.intro}`}><span className={styles.eyebrow}>{capital(word(rounds))} rounds{taskCount ? ` and ${word(taskCount)} short task${taskCount === 1 ? '' : 's'}` : ''} · About {duration.replace('about ', '').replace(' to ', '–')}</span><h1>How good are these explanations?</h1>
+        <p>The survey takes {duration.startsWith('about') ? duration : `about ${duration}`}. Saved rounds are kept, so you can take a break and return to this page in the same browser. Please take the survey only once.</p>
+        <p>Each round shows {manifest.candidate_count} anonymous comments on the same move of the same game, written for the same audience. Rate every comment from 1 to 5 on each question.{taskCount ? ` ${capital(word(taskCount))} short task${taskCount === 1 ? '' : 's'} at the end ask${taskCount === 1 ? 's' : ''} you to check one statement from a comment on the board.` : ''}</p>
+        <ol className={styles.comparisonInstructions}><li>{manifest.lines_only ? 'Look at the position: the board, the move played and the engine’s alternative with their lines.' : 'Explore the position: the board, the engine lines and the supporting evidence.'}</li><li>Read each comment and rate it: {manifest.criteria.map(c => c.label.toLowerCase()).join(', ')}.</li><li>You may skip a round you cannot judge.</li></ol>
         <p>The intended levels are beginner, intermediate, and expert. They describe the writing’s intended audience, not the difficulty of the chess position. Game bands use average Lichess ratings.</p>
         <p>Comments are pre-generated by a prototype and may contain errors. Participation is voluntary. We store your ratings, optional notes, and chess rating for the thesis study. No name or email is requested; please omit personal information from free text.</p>
         <label className={styles.field}>Your chess rating (Elo) <span className={styles.requiredMark}>required</span><input className={eloValid ? '' : styles.missing} type="number" inputMode="numeric" min={100} max={3500} step={1} required value={elo} onChange={e => setElo(e.target.value)} placeholder="e.g. 1450" /></label>
@@ -181,13 +233,30 @@ export default function ComparisonSurvey() {
         <label className={`${styles.consent} ${consent ? '' : styles.missing}`}><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />I agree to participate and have my responses used for this thesis study.</label>
         <button className={styles.button} disabled={!consent || !eloValid || !ratingSystem || busy} onClick={() => void start()}>Start →</button>
         {(!consent || !eloValid || !ratingSystem) && <p className={styles.missingNote}>Fields outlined in red are required.</p>}
-      </section> : finishing ? <section className={`${styles.card} ${styles.intro}`}><h1>Ready to submit?</h1><p>You saved all ten rounds. The comments stay anonymous until the researcher analyses the results.</p>
+      </section> : stage === 'finish' ? <section className={`${styles.card} ${styles.intro}`}><h1>Ready to submit?</h1><p>You saved all {word(rounds)} rounds{tasks.length ? (tasks.length === 2 ? ' and both tasks' : ` and all ${word(tasks.length)} tasks`) : ''}. The comments stay anonymous until the researcher analyses the results.</p>
         <label className={styles.field}>Any overall feedback? (optional)<textarea rows={5} maxLength={4000} value={overall} onChange={e => setOverall(e.target.value)} /></label>
-        <div className={styles.actions}><button disabled={busy} className={styles.secondary} onClick={() => setFinishing(false)}>Review answers</button><button disabled={busy} className={styles.button} onClick={() => void submit()}>{busy ? 'Submitting…' : 'Submit ratings'}</button></div>
-      </section> : <>
+        <div className={styles.actions}>{answers.length ? <span /> : <button disabled={busy} className={styles.secondary} onClick={() => setStage('rounds')}>Review answers</button>}<button disabled={busy} className={styles.button} onClick={() => void submit()}>{busy ? 'Submitting…' : 'Submit ratings'}</button></div>
+      </section> : stage === 'bridge' ? <section className={`${styles.card} ${styles.intro}`}><span className={styles.eyebrow}>Part 2 · {capital(word(tasks.length))} short task{tasks.length === 1 ? '' : 's'}</span><h1>Check a statement on the board</h1>
+        <p>You have rated all {word(rounds)} rounds. Each task now shows one comment and one statement taken from it. Step through the line on the board and choose the move after which the statement first becomes true.</p>
+        <p>Your ratings can no longer be changed once you save the first task.</p>
+        <div className={styles.actions}><button disabled={busy} className={styles.secondary} onClick={() => { setIndex(0); setStage('rounds') }}>Review ratings</button><button disabled={busy} className={styles.button} onClick={() => setStage('tasks')}>Start part 2 →</button></div>
+      </section> : stage === 'tasks' ? <>
         <header className={styles.roundBar}>
           <span className={styles.mark} aria-hidden="true">♞</span>
-          <strong>Round {index+1}/10</strong>
+          <strong>Check a statement {taskNumber}/{tasks.length}</strong>
+          {task && <span className={styles.muted}><span className={styles.level}>{task.level}</span> explanation · move {Math.ceil(task.position.ply / 2)}{task.position.ply % 2 ? '.' : '…'} {task.position.san}</span>}
+          {notice && <span role="status" className={styles.savedNote}>{notice}</span>}
+        </header>
+        {!task ? <div className={styles.card}>Loading the task… {error && <button className={styles.secondary} onClick={() => setReload(r => r+1)}>Retry</button>}</div> :
+          <SurveyTask task={task} draft={taskDraft} onDraft={patch => setTaskDraft(d => ({ ...d, ...patch }))} items={taskItems} scale={manifest.scale} disabled={busy}
+            footer={<div className={styles.actions}>
+              {!taskDraftComplete(taskDraft, taskItems) && <p className={styles.missingNote}>Answer the questions highlighted in red to save.</p>}
+              <span />
+              <button className={styles.button} disabled={busy || !taskDraftComplete(taskDraft, taskItems)} onClick={() => void saveTask()}>{busy ? 'Saving…' : 'Save & continue →'}</button></div>} />}
+      </> : <>
+        <header className={styles.roundBar}>
+          <span className={styles.mark} aria-hidden="true">♞</span>
+          <strong>Round {index+1}/{rounds}</strong>
           {round && <span className={styles.muted}><span className={styles.level}>{round.level}</span> explanations · game rating {round.bracket} · move {Math.ceil(round.position.ply / 2)}{round.position.ply % 2 ? '.' : '…'} {round.position.san}</span>}
           <nav className={styles.roundNav} aria-label="Rounds">{session.rounds.map((r, i) => <button key={r.game_id} className={`${i === index ? styles.current : ''} ${saved(r.game_id) ? styles.done : ''}`} disabled={busy} aria-current={i === index ? 'step' : undefined} title={saved(r.game_id) ? 'Saved' : drafts[r.game_id] ? 'Unsaved ratings' : 'Not started'} onClick={() => setIndex(i)}>{i+1}{drafts[r.game_id] ? '*' : ''}</button>)}</nav>
           {notice && <span role="status" className={styles.savedNote}>{notice}</span>}
