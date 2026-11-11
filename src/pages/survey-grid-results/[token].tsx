@@ -48,19 +48,19 @@ export default function ComparisonResultsPage() {
   const cells = useMemo(() => (data?.cells || []).filter(c => (game === 'all' || c.game_id === game) && (level === 'all' || c.level === level)), [data, game, level])
   const notes = (data?.notes || []).filter(r => (game === 'all' || r.game_id === game) && (level === 'all' || r.level === level))
   const [criterion, setCriterion] = useState('useful')
-  async function download(kind: 'csv' | 'json') {
+  async function download(kind: 'csv' | 'json' | 'tasks') {
     try {
-      const response = await fetch(`/api/surveys/grid/results/${token}/${kind === 'csv' ? 'export.csv' : 'summary'}`, { cache: 'no-store' })
+      const response = await fetch(`/api/surveys/grid/results/${token}/${kind === 'csv' ? 'export.csv' : kind === 'tasks' ? 'tasks.csv' : 'summary'}`, { cache: 'no-store' })
       if (!response.ok) throw new Error('Export failed. Please try again.')
       const url = URL.createObjectURL(await response.blob())
-      const link = document.createElement('a'); link.href = url; link.download = `commentary-grid-responses.${kind}`; link.click()
+      const link = document.createElement('a'); link.href = url; link.download = kind === 'tasks' ? 'commentary-grid-tasks.csv' : `commentary-grid-responses.${kind}`; link.click()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
     } catch (e) { setError((e as Error).message) }
   }
   return <SurveyLayout title="Comparison results">
     <section className={styles.progressCard}><span className={styles.eyebrow}>Researcher view · Keep this link private</span><h1>How do readers rate the comments?</h1>
-      <p>Mean 1–5 ratings per model, and by the participant’s reported rating. Every participant rates all ten games, whatever their level. These are readers’ judgements, not verified chess correctness or learning gains.</p>
-      <div className={styles.actions}><button className={styles.secondary} disabled={busy} onClick={() => setRevision(v => v+1)}>{busy ? 'Refreshing…' : 'Refresh'}</button><button className={styles.button} disabled={!data} onClick={() => void download('csv')}>Download comparison CSV</button><button className={styles.secondary} disabled={!data} onClick={() => void download('json')}>Download full JSON</button></div>
+      <p>Mean 1–5 ratings per {data?.versions ? 'version' : 'model'}, and by the participant’s reported rating. {data?.versions ? `Every participant rates a balanced subset of the ten games${data.tasks?.length ? ' and then checks single statements on the board' : ''}.` : 'Every participant rates all ten games, whatever their level.'} These are readers’ judgements, not verified chess correctness or learning gains.</p>
+      <div className={styles.actions}><button className={styles.secondary} disabled={busy} onClick={() => setRevision(v => v+1)}>{busy ? 'Refreshing…' : 'Refresh'}</button><button className={styles.button} disabled={!data} onClick={() => void download('csv')}>Download comparison CSV</button>{data?.tasks?.length ? <button className={styles.secondary} onClick={() => void download('tasks')}>Download tasks CSV</button> : null}<button className={styles.secondary} disabled={!data} onClick={() => void download('json')}>Download full JSON</button></div>
     </section>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {data && <>
@@ -69,7 +69,7 @@ export default function ComparisonResultsPage() {
         <label className={styles.field}>Game rating band<select value={game} onChange={e => setGame(e.target.value)}><option value="all">All ten bands</option>{data.games.map(g => <option key={g.id} value={g.id}>{g.bracket}</option>)}</select></label>
         <label className={styles.field}>Explanation level<select value={level} onChange={e => setLevel(e.target.value)}><option value="all">All levels</option>{data.levels.map(l => <option key={l}>{l}</option>)}</select></label>
       </div><p className={styles.small}>Only submitted responses contribute. Means use rated rounds; skipped rounds are counted separately. Sample sizes count ratings, not independent participants.{data.legacy_reviews ? ` ${data.legacy_reviews} answers from the earlier best/worst questionnaire are excluded.` : ''}</p></section>
-      <section className={styles.card}><h2>Mean ratings by model</h2>{!data.completed && <p>No responses yet. Charts will populate from real submissions.</p>}
+      <section className={styles.card}><h2>Mean ratings by {data.versions ? 'version' : 'model'}</h2>{!data.completed && <p>No responses yet. Charts will populate from real submissions.</p>}
         {data.models.map(m => <div key={m.id} className={styles.chartRow}><div><strong>{m.label}</strong><div className={styles.small}>{aggregate(cells.filter(c => c.model === m.id), data.criteria[0].id).rated} rated · {aggregate(cells.filter(c => c.model === m.id), data.criteria[0].id).skipped} skipped</div></div>
           <div className={styles.voteBars}>{data.criteria.map(q => { const v = aggregate(cells.filter(c => c.model === m.id), q.id); return <div key={q.id}>
             <span>{q.label}: <strong>{fmt(v.mean)}</strong> <small className={styles.muted}>n = {v.n} · distribution 1–5: {v.distribution.join(' / ')}</small></span>
@@ -85,13 +85,18 @@ export default function ComparisonResultsPage() {
           }
           const head = <thead><tr><th scope="col" />{groups.map(g => <th scope="col" key={g.id}>{g.id} participants<small>Elo {g.min_elo}{g.max_elo_exclusive < 10000 ? `–${g.max_elo_exclusive - 1}` : '+'} · {data.participants_by_group?.[g.id] ?? 0} submitted</small></th>)}</tr></thead>
           return <>
-            <h3>Model × participant level</h3>
+            <h3>{data.versions ? 'Version' : 'Model'} × participant level</h3>
             <div className={styles.matrixScroll}><table className={styles.matrix}>{head}<tbody>{data.models.map(m => <tr key={m.id}><th scope="row">{m.label}</th>{groups.map(g => cell('model', m.id, g.id))}</tr>)}</tbody></table></div>
             <h3>Comment level × participant level</h3>
             <div className={styles.matrixScroll}><table className={styles.matrix}>{head}<tbody>{data.levels.map(l => <tr key={l}><th scope="row">{l} comments</th>{groups.map(g => cell('level', l, g.id))}</tr>)}</tbody></table></div>
           </>
         })()}
         <p className={styles.small}>Participants are grouped by their reported rating (estimates included). Each game is written at one level, so a comment level row combines different games; read it as how each group rates comments aimed at that audience, not as a comparison of levels on the same move.</p></section>
+      {data.tasks?.length ? <section className={styles.card}><h2>Statement-checking tasks</h2>
+        <p className={styles.small}>Right answers are scored against the study’s key ({data.task_key === 'board_ply' ? 'the move after which the statement first holds on the board' : 'the move the rule cites as support'}). The tasks CSV keeps the chosen move and both keys. Not filtered by game or level.</p>
+        <div className={styles.matrixScroll}><table className={styles.matrix}><thead><tr><th scope="col">Statement</th><th scope="col">Answers</th><th scope="col">Right</th><th scope="col">Cannot tell</th><th scope="col">Could check<small>mean 1–5</small></th><th scope="col">Trust<small>much less … much more</small></th><th scope="col">Median time</th></tr></thead>
+          <tbody>{data.tasks.map(t => <tr key={t.id}><th scope="row">{t.statement}<small>{t.line} line · {t.line_plies} moves to choose from</small></th><td>{t.n}</td><td>{t.n ? `${t.correct} (${Math.round(100 * t.correct / t.n)}%)` : '—'}</td><td>{t.cannot_tell}</td><td>{fmt(t.could_check_mean)}</td><td>{t.trust_distribution.join(' / ')}</td><td>{t.median_seconds == null ? '—' : `${Math.round(t.median_seconds)} s`}</td></tr>)}</tbody></table></div>
+      </section> : null}
       <section className={styles.card}><h2>Round notes</h2>
         {notes.length ? notes.map((r, i) => <blockquote className={styles.quote} key={i}><strong>{r.level} · {data.games.find(g => g.id === r.game_id)?.bracket}</strong><p>{r.text}</p></blockquote>) : <p>No round notes in this selection yet.</p>}
       </section>
