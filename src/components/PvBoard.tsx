@@ -3,6 +3,7 @@ import { Chessboard } from 'react-chessboard'
 import { useGameState } from '@/contexts/GameStateContext'
 import type { PlayerLine } from '@/types/Line'
 import Icon from '@/components/ui/Icon'
+import { TitleWithMove } from '@/components/ui/San'
 import { evalDepthSuffix } from '@/helpers/chessNotation'
 import { evidenceSquareStyles, type ClaimHighlight } from '@/helpers/claimHighlight'
 
@@ -117,7 +118,8 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey, highlight = null 
     >
       <div className="pv-head" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
         <span className="eyebrow" style={{ color: toneColor }}>
-          {line.title || 'Variation'}
+          <TitleWithMove title={line.title || 'Variation'}
+            side={line.startFen?.split(' ')[1] === 'b' ? 'b' : 'w'} />
         </span>
         <span className="mono text-[11px] text-text-tertiary">
           {suffix ? `${suffix} ` : ''}

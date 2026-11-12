@@ -172,6 +172,8 @@ export interface CommentFactsJson {
     /** When true this is the clearly-worse runner-up shown to contrast a top
      * move that was played â€” not a better move that was missed. */
     is_inferior?: boolean
+    /** better | weaker | comparable, for the mover; absent in older material. */
+    comparison?: string | null
     /** Depth at which both lines were also compared, and a note when they settle differently. */
     matched_ply?: number | null
     horizon_note?: string | null

@@ -6,6 +6,7 @@ import type { ResolvedAnnotationToken } from '@/types/WebSocketMessages'
 import { parseAnnotatedText, type AnnotationSegment } from '@/helpers/annotationTokens'
 import { formatNumberedSteps, evalSymbol } from '@/helpers/chessNotation'
 import { useGameState } from '@/contexts/GameStateContext'
+import { MoveLabel, renderMoves } from '@/components/ui/San'
 
 type Props = {
   text: string
@@ -71,12 +72,11 @@ const TokenPv: React.FC<{ data: Record<string, unknown> | null; raw: string; ton
       </span>
     )
   }
-  const text = formatNumberedSteps(pv)
-    .map((n) => n.label)
-    .join(' ')
   return (
     <span className="mx-0.5 cursor-pointer font-semibold" style={{ color }} {...interactive}>
-      {text}
+      {formatNumberedSteps(pv).map((n, i) => (
+        <React.Fragment key={i}>{i ? ' ' : ''}<MoveLabel label={n.label} side="b" /></React.Fragment>
+      ))}
     </span>
   )
 }
@@ -166,7 +166,7 @@ const AnnotatedText: React.FC<Props> = ({ text, resolvedTokens, className = '' }
     if (seg.kind === 'text') {
       return (
         <span key={`t-${i}`} className="whitespace-pre-wrap">
-          {seg.text}
+          {renderMoves(seg.text)}
         </span>
       )
     }

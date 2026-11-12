@@ -9,6 +9,7 @@ import type {
   MoveDebugJson,
 } from '@/types/GameJson'
 import { claimHighlight, evidenceSummary, type ClaimHighlight } from '@/helpers/claimHighlight'
+import { MoveLabel, TitleWithMove, type Side } from '@/components/ui/San'
 
 export type CommentPart = 'main' | 'alt'
 
@@ -84,7 +85,8 @@ const LineTokens: React.FC<{
               onPly(i)
             }}
           >
-            {t.label}
+            {/* In a numbered line only Black's moves stand without a number. */}
+            <MoveLabel label={t.label} side="b" />
           </span>
         )
       })}
@@ -92,8 +94,15 @@ const LineTokens: React.FC<{
   )
 }
 
+function sideToMove(fen: string | null | undefined): Side | undefined {
+  const turn = fen?.split(' ')[1]
+  return turn === 'w' || turn === 'b' ? turn : undefined
+}
+
 const PartCard: React.FC<{
   title: string
+  /** Side that makes the move the title ends in, if it names one. */
+  side?: Side
   steps: LineStep[]
   suffix: string
   claims: CommentFactsClaim[]
@@ -108,6 +117,7 @@ const PartCard: React.FC<{
   hoverClaim?: ClaimHighlight | null
 }> = ({
   title,
+  side,
   steps,
   suffix,
   claims,
@@ -133,7 +143,7 @@ const PartCard: React.FC<{
       <div className="flex items-baseline justify-between gap-2">
         <span className="eyebrow" style={{ color: toneColor }}>
           {selected ? '● ' : '○ '}
-          {title}
+          <TitleWithMove title={title} side={side} />
         </span>
         <span className="shrink-0 mono text-[10px] text-text-secondary">{suffix}</span>
       </div>
@@ -211,6 +221,7 @@ const StructuredComment: React.FC<Props> = ({
       {alt ? (
         <PartCard
           title={alternativeTitle(facts)}
+          side={sideToMove(facts.display_line?.start_fen ?? alt.display_line?.start_fen)}
           steps={altLine?.steps ?? []}
           suffix={evalDepthSuffix(alt.eval_cp, alt.eval_mate, facts.depth)}
           claims={alt.claims ?? []}
