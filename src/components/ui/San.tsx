@@ -78,14 +78,13 @@ export function renderMoves(text: string): ReactNode[] {
 }
 
 /**
- * A comment as the reader sees it. The played move and the alternative are separate
- * blocks (one per line of the stored text) and are shown as a short list; moves are bold
- * with piece figurines.
+ * A comment as the reader sees it. Each line of the stored text is a paragraph; the
+ * paragraphs are separated by a gap only, without bullets. Moves are bold with piece figurines.
  */
 export const CommentText: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
   const blocks = text.split('\n').map(block => block.trim()).filter(Boolean)
   if (blocks.length < 2) return <p className={className}>{renderMoves(blocks[0] ?? '')}</p>
-  return <ul className={`comment-blocks ${className}`}>
-    {blocks.map((block, i) => <li key={i}>{renderMoves(block)}</li>)}
-  </ul>
+  return <div className={`comment-blocks ${className}`}>
+    {blocks.map((block, i) => <p key={i}>{renderMoves(block)}</p>)}
+  </div>
 }
