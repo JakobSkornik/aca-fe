@@ -94,6 +94,7 @@
   grid-template-rows:minmax(0,1fr); grid-template-areas:'comments centre'; }
 .roundGrid :global(.analysis-centre) { gap:10px; }
 .boardRegion { display:flex; flex-direction:column; gap:6px; border-radius:14px; }
+.ratedMove { align-self:center; }
 .variations { border-radius:14px; }
 .variations :global(.analysis-evidence) { overflow:visible; }
 .variations :global(.analysis-evidence-panel) { min-height:0 !important; }

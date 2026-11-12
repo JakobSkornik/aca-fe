@@ -94,15 +94,17 @@ function leadInStep(
   }
 }
 
-function useCommentaryView() {
+/** `pinnedMoveIndex` (the survey) keeps the panels on the rated move while the
+ * game board is stepped to other moves. */
+function useCommentaryView(pinnedMoveIndex?: number) {
   const { state, manager } = useGameState()
   const {
     commentsMainline,
-    currentMoveIndex,
     commentaryComplete,
     aiGeneration,
     selectedPart,
   } = state
+  const currentMoveIndex = pinnedMoveIndex ?? state.currentMoveIndex
   // The current ply along the shown line — shared by the board, the move cards
   // and the charts so they stay in sync. Open after the first move in the line.
   const [pvIdx, setPvIdx] = useState(1)
@@ -336,8 +338,8 @@ function useCommentaryView() {
 
 const CommentaryContext = createContext<ReturnType<typeof useCommentaryView> | null>(null)
 
-export function CommentaryProvider({ children }: { children: React.ReactNode }) {
-  const view = useCommentaryView()
+export function CommentaryProvider({ children, pinnedMoveIndex }: { children: React.ReactNode; pinnedMoveIndex?: number }) {
+  const view = useCommentaryView(pinnedMoveIndex)
   return <CommentaryContext.Provider value={view}>{children}</CommentaryContext.Provider>
 }
 
@@ -463,12 +465,15 @@ const Comments: React.FC = () => {
 export function EvidencePanel({ variationsOnly = false }: { variationsOnly?: boolean } = {}) {
   const { state, facts, gm, mainLine, altLine, selectedLine, lineKey, idx, setPvIdx,
     currentMoveIndex, selectedPart, setSelectedPart, onSelectPly, hoverClaim, setHoverClaim } = useCommentary()
+  const { manager } = useGameState()
   // A hovered statement of the other line previews that line on the variation board.
   const previewLine = hoverClaim && hoverClaim.part !== selectedPart
     ? (hoverClaim.part === 'alt' ? altLine : mainLine) ?? selectedLine
     : selectedLine
   return (
-    <aside className="analysis-evidence" aria-label={variationsOnly ? 'Variations' : 'Variations and supporting evidence'}>
+    <aside className="analysis-evidence" aria-label={variationsOnly ? 'Variations' : 'Variations and supporting evidence'}
+      // In the survey a click anywhere in the panel gives the arrow keys to the line.
+      onMouseDown={variationsOnly ? () => manager.setFocusedBoard('variation') : undefined}>
       <section className="panel analysis-evidence-panel">
         <div className="panel-head"><Icon name="list" size={15} /><h3>{variationsOnly ? 'Variations' : <>Variations &amp; evidence</>}</h3></div>
         <div className="analysis-facts-layout flex flex-wrap items-start gap-3 p-3">
