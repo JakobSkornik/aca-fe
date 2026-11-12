@@ -9,6 +9,7 @@ import type {
 import { useGameState } from '../contexts/GameStateContext'
 import { useSquareFit } from '@/hooks/useSquareFit'
 import Icon from '@/components/ui/Icon'
+import { San } from '@/components/ui/San'
 
 const MIN_BOARD_SIZE = 160
 const BOARD_PADDING = 6
@@ -419,7 +420,7 @@ const MainlineChessboard = ({ maxSize = MAX_BOARD_SIZE, compact = false }: { max
           <div className="board-status">
             {curMove?.move ? (
               <>
-                Last move <b className="mono">{curMove.move}</b> · {turnLine}
+                Last move <b className="mono"><San san={String(curMove.move)} side={turnLine.startsWith('White') ? 'b' : 'w'} /></b> · {turnLine}
               </>
             ) : (
               <>Starting position · {turnLine}</>

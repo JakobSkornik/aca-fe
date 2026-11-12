@@ -3,6 +3,7 @@ import { useGameState } from '@/contexts/GameStateContext'
 import { UIHelpers } from '@/helpers/uiHelpers'
 import { Move } from '@/types/chess/Move'
 import Icon from '@/components/ui/Icon'
+import { San, type Side } from '@/components/ui/San'
 import { useHideTemplateComments, isShownComment } from '@/hooks/useHideTemplateComments'
 
 const VALID_ANNOTATIONS = new Set(['??', '?', '?!', '!?', '!', '!!'])
@@ -32,6 +33,7 @@ function formatScore(move: Move | undefined): string | null {
 
 function MoveCell({
   move,
+  side,
   active,
   hasComment,
   unread,
@@ -39,6 +41,7 @@ function MoveCell({
   onClick,
 }: {
   move: Move | undefined
+  side: Side
   active: boolean
   hasComment: boolean
   unread: boolean
@@ -71,7 +74,7 @@ function MoveCell({
       }
     >
       <span className="san">
-        {move.move}
+        <San san={move.move} side={side} />
         {annot ? <span className={`q ${qClass(annot)}`}>{annot}</span> : null}
         {hasComment ? (
           <span className="absolute right-0.5 top-0.5 h-1 w-1 rounded-full bg-current" style={{ opacity: unread ? 1 : 0.55 }} aria-label={unread ? "New commentary" : "Commentary (read)"} />
@@ -193,6 +196,7 @@ const MoveList = () => {
               <div className="num">{pairIndex + 1}.</div>
               <div className={`move-item-${whiteIdx}`}>
                 <MoveCell
+                  side="w"
                   move={whiteMove}
                   active={currentMoveIndex === whiteIdx}
                   hasComment={
@@ -207,6 +211,7 @@ const MoveList = () => {
               </div>
               <div className={`move-item-${blackIdx}`}>
                 <MoveCell
+                  side="b"
                   move={blackMove}
                   active={currentMoveIndex === blackIdx}
                   hasComment={

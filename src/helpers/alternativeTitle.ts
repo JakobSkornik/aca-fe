@@ -5,6 +5,11 @@ export function alternativeTitle(facts: CommentFactsJson): string {
   const alt = facts.better_alternative
   if (!alt) return 'Alternative'
   const unknown = `Alternative: ${alt.san}`
+  const named = (comparison: string) =>
+    `${comparison === 'better' ? 'Better was' : comparison === 'weaker' ? 'Weaker was' : 'Comparable:'} ${alt.san}`
+  // Newer material records the comparison with the facts; older material is compared here.
+  if (alt.comparison === 'better' || alt.comparison === 'weaker' || alt.comparison === 'comparable')
+    return named(alt.comparison)
   const turn = facts.display_line?.start_fen?.split(' ')[1]
     ?? alt.display_line?.start_fen?.split(' ')[1]
   if (turn !== 'w' && turn !== 'b') return unknown
@@ -29,5 +34,5 @@ export function alternativeTitle(facts: CommentFactsJson): string {
     const gap = (alt.eval_cp - facts.eval_cp) * direction
     comparison = gap >= 50 ? 'better' : gap <= -50 ? 'weaker' : 'comparable'
   }
-  return `${comparison === 'better' ? 'Better was' : comparison === 'weaker' ? 'Weaker was' : 'Comparable:'} ${alt.san}`
+  return named(comparison)
 }

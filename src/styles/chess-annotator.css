@@ -564,6 +564,20 @@
 .pv-head .eyebrow {
   color: var(--accent);
 }
+/* A piece drawn in place of its letter, in the colour of the side that moves it. */
+.figurine {
+  display: inline-block;
+  height: 1.15em;
+  width: 1.15em;
+  margin: 0 -0.06em;
+  vertical-align: -0.24em;
+  user-select: none;
+}
+/* Black pieces need a light edge on a dark page, white pieces a dark one on a light page. */
+[data-theme='dark'] .figurine-b { filter: drop-shadow(0 0 0.7px #fff) drop-shadow(0 0 0.7px #fff); }
+.move-name { font-weight: 700; white-space: nowrap; }
+.comment-blocks { list-style: disc; padding-left: 1.25em; }
+.comment-blocks li + li { margin-top: 0.55em; }
 .pv-line {
   font-family: var(--font-mono);
   font-size: 13px;

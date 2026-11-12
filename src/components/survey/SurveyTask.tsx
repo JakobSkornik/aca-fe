@@ -3,6 +3,7 @@ import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import type { ComparisonScale, ComparisonTask, ComparisonTaskItem } from '@/types/ComparisonSurvey'
 import styles from './survey.module.css'
+import { MoveLabel } from '@/components/ui/San'
 
 /** What the participant has entered so far; `answer_ply` null means "I cannot tell". */
 export type TaskDraft = { answer_ply?: number | null; could_check?: number; trust?: number }
@@ -98,7 +99,7 @@ export default function SurveyTask({ task, draft, onDraft, items, scale, disable
       </div>
       <div className={styles.taskLine} style={{ maxWidth: size }} aria-label="Moves of the line">
         <button type="button" aria-pressed={idx === 0} className={idx === 0 ? styles.chosen : ''} onClick={() => go(0)}>start</button>
-        {steps.map((step, i) => <button key={i} type="button" aria-pressed={idx === i + 1} className={idx === i + 1 ? styles.chosen : ''} onClick={() => go(i + 1)}>{step.label}</button>)}
+        {steps.map((step, i) => <button key={i} type="button" aria-pressed={idx === i + 1} className={idx === i + 1 ? styles.chosen : ''} onClick={() => go(i + 1)}><MoveLabel label={step.label} /></button>)}
       </div>
       <div className={styles.taskTools} style={{ maxWidth: size }}>
         <button type="button" className={styles.secondary} disabled={idx === 0} onClick={() => go(idx - 1)}>← Back</button>
@@ -121,7 +122,7 @@ export default function SurveyTask({ task, draft, onDraft, items, scale, disable
         <legend>Step through the line. After which move is this statement first true?</legend>
         <div className={styles.taskOptions}>
           {steps.map((step, i) => <button key={i} type="button" disabled={disabled} aria-pressed={draft.answer_ply === i + 1}
-            className={draft.answer_ply === i + 1 ? styles.chosen : ''} onClick={() => onDraft({ answer_ply: i + 1 })}>{step.label}</button>)}
+            className={draft.answer_ply === i + 1 ? styles.chosen : ''} onClick={() => onDraft({ answer_ply: i + 1 })}><MoveLabel label={step.label} /></button>)}
           <button type="button" disabled={disabled} aria-pressed={draft.answer_ply === null}
             className={draft.answer_ply === null ? styles.chosen : ''} onClick={() => onDraft({ answer_ply: null })}>I cannot tell</button>
         </div>
