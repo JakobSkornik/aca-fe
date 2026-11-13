@@ -53,6 +53,9 @@ export interface GameMove {
   resolved_tokens?: ResolvedAnnotationToken[]
   /** Phrases of the comment tied to a position of a displayed line (statement links). */
   comment_links?: CommentLink[]
+  /** The template text of this key moment, also when a model wrote the comment. */
+  machine_comment?: string | null
+  machine_comment_links?: CommentLink[]
   /** Trimmed CommentFacts (verdict, display line, claims, better alternative). */
   comment_facts?: CommentFactsJson | null
   /** Academic reasoning trace (debug mode). */

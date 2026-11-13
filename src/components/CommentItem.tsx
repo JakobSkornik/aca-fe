@@ -28,6 +28,8 @@ type Props = {
   llmDebug?: AiCommentLlmDebug
   /** The comment already laid out (statement links); replaces the plain text. */
   body?: React.ReactNode
+  /** The template text of the move, shown in a closed row under the comment. */
+  machineComment?: React.ReactNode
 }
 
 const CommentItem: React.FC<Props> = ({
@@ -45,6 +47,7 @@ const CommentItem: React.FC<Props> = ({
   resolvedTokens,
   llmDebug,
   body,
+  machineComment,
 }) => {
   const hasInlineAnnotations =
     (resolvedTokens && resolvedTokens.length > 0) ||
@@ -137,6 +140,11 @@ const CommentItem: React.FC<Props> = ({
         )}
       </div>
       <div className="mt-2 space-y-0.5">
+        {machineComment ? (
+          <AccordionRow label="Machine comment">
+            <div className="comment-text text-xs leading-relaxed text-text-primary">{machineComment}</div>
+          </AccordionRow>
+        ) : null}
         {llmDebug ? (
           <AccordionRow label="LLM debug">
             <LlmDebugPanel debug={llmDebug} />

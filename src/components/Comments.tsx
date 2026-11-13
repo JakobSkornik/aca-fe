@@ -452,6 +452,8 @@ const Comments: React.FC = () => {
                   llmDebug={activeComment.llmDebug}
                   body={gm?.comment_links?.length && gm.comment === activeComment.text
                     ? <LinkedCommentText text={activeComment.text} links={gm.comment_links} /> : undefined}
+                  machineComment={gm?.machine_comment && gm.machine_comment !== activeComment.text
+                    ? <LinkedCommentText text={gm.machine_comment} links={gm.machine_comment_links} /> : undefined}
                 />
               </>
             ) : null}
