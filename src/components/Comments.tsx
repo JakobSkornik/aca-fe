@@ -5,7 +5,8 @@ import React, { createContext, useContext, useEffect, useMemo, useCallback, useS
 import { useGameState } from '@/contexts/GameStateContext'
 import type { MainlineComment } from '@/contexts/GameStateManager'
 import type { PlayerLine, LineStep } from '@/types/Line'
-import type { GameMove, CommentFactsLine, CommentFactsClaim } from '@/types/GameJson'
+import type { GameMove, CommentFactsLine, CommentFactsClaim, CommentLink } from '@/types/GameJson'
+import { CommentText } from '@/components/ui/San'
 import CommentItem from './CommentItem'
 import StructuredComment, { ReasoningDetails, type CommentPart } from './StructuredComment'
 import PvBoard from './PvBoard'
@@ -449,6 +450,8 @@ const Comments: React.FC = () => {
                   keyMomentType={activeKeyMomentType}
                   resolvedTokens={activeComment.resolvedTokens}
                   llmDebug={activeComment.llmDebug}
+                  body={gm?.comment_links?.length && gm.comment === activeComment.text
+                    ? <LinkedCommentText text={activeComment.text} links={gm.comment_links} /> : undefined}
                 />
               </>
             ) : null}
@@ -459,6 +462,21 @@ const Comments: React.FC = () => {
       </div>
     </div>
   )
+}
+
+/**
+ * A comment whose linked phrases drive the variation board: hovering a phrase plays its line
+ * to the position the phrase is about and marks its squares; a click leaves the board there.
+ */
+export function LinkedCommentText({ text, links, className }: { text: string; links?: CommentLink[]; className?: string }) {
+  const { setHoverClaim, onSelectPly } = useCommentary()
+  const highlight = (link: CommentLink): ClaimHighlight => ({
+    part: link.part, supportPly: link.ply, text: link.phrase,
+    evidence: { squares: [], pieces: [], baseline_squares: [], files: [], ...link.evidence } as ClaimHighlight['evidence'],
+  })
+  return <CommentText text={text} className={className} links={links}
+    onLinkHover={link => setHoverClaim(link ? highlight(link) : null)}
+    onLinkSelect={link => onSelectPly(link.part, link.ply)} />
 }
 
 /** `variationsOnly` (the survey) shows the variation board and line selector, without the rule evidence. */

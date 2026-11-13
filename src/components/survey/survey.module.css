@@ -95,6 +95,7 @@
 .roundGrid :global(.analysis-centre) { gap:10px; }
 .boardRegion { display:flex; flex-direction:column; gap:6px; border-radius:14px; }
 .ratedMove { align-self:center; }
+.linkHint { font-size:12px; color:var(--fg-2); margin:0 2px 10px; }
 .variations { border-radius:14px; }
 .variations :global(.analysis-evidence) { overflow:visible; }
 .variations :global(.analysis-evidence-panel) { min-height:0 !important; }

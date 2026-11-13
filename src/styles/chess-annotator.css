@@ -578,6 +578,10 @@
 .move-name { font-weight: 700; white-space: nowrap; }
 .comment-blocks p { margin: 0; }
 .comment-blocks p + p { margin-top: 0.55em; }
+/* A phrase tied to a position of a line: hover plays the line there, a click keeps it. */
+.comment-link { background: color-mix(in srgb, var(--accent) 11%, transparent); border-bottom: 1px dotted color-mix(in srgb, var(--accent) 70%, transparent);
+  border-radius: 3px; cursor: pointer; -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background 0.12s ease; }
+.comment-link:hover, .comment-link:focus-visible { background: color-mix(in srgb, var(--accent) 28%, transparent); outline: none; }
 .pv-line {
   font-family: var(--font-mono);
   font-size: 13px;

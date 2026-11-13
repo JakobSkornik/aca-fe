@@ -8,7 +8,8 @@ import SurveyTour, { TOUR_STEPS } from '@/components/survey/SurveyTour'
 import { taskDraftComplete, type TaskDraft } from '@/components/survey/SurveyTask'
 import styles from '@/components/survey/survey.module.css'
 import { surveyRequest } from '@/services/SurveyService'
-import { CommentText, MoveLabel } from '@/components/ui/San'
+import { MoveLabel } from '@/components/ui/San'
+import { LinkedCommentText } from '@/components/Comments'
 import type { ComparisonCriterion, ComparisonManifest, ComparisonReview, ComparisonRound, ComparisonSession, ComparisonTask, ComparisonTaskAnswer } from '@/types/ComparisonSurvey'
 
 const SurveyGame = dynamic(() => import('@/components/survey/SurveyGame'), { ssr: false })
@@ -269,9 +270,10 @@ export default function ComparisonSurvey() {
           <SurveyGame key={gameId} token={token} gameId={gameId!} sessionToken={sessionToken} apiPath={`grid/${token}/round/${gameId}/board`}
             initialMoveIndex={round.position.move_index} onReady={onReady} tourStep={boardReady ? tourStep : null} aside={<>
               <div className={styles.scaleLegend}><span>1 = {manifest.scale.low}</span><span>5 = {manifest.scale.high}</span></div>
+              {round.candidates.some(c => c.links?.length) && <p className={styles.linkHint}>Point at a marked phrase to see the position it is about on the variation board; click it to keep the board there.</p>}
               {round.candidates.map(c => <article className={styles.candidate} key={c.id}>
                 <h3>Comment {c.label}</h3>
-                <CommentText text={c.comment} className={styles.commentText} />
+                <LinkedCommentText text={c.comment} links={c.links} className={styles.commentText} />
                 {manifest.criteria.map(q => { const value = review.scores[c.id]?.[q.id]; return <fieldset key={q.id} className={`${styles.rating} ${value || review.decision === 'skipped' ? '' : styles.missing}`}>
                   <legend title={q.statement}>{q.label}<span className={styles.statement}>{q.statement}</span></legend>
                   <div className={styles.scoreButtons}>{[1, 2, 3, 4, 5].map(n => <button key={n} type="button" aria-pressed={value === n} className={value === n ? styles.chosen : ''} disabled={busy} onClick={() => rate(c.id, q.id, n)}>{n}</button>)}</div>

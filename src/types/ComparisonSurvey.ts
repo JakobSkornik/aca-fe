@@ -1,3 +1,5 @@
+import type { CommentLink } from '@/types/GameJson'
+
 export type ComparisonDecision = 'rated' | 'skipped'
 /** candidate id -> criterion id -> 1..5 */
 export type ComparisonScores = Record<string, Record<string, number>>
@@ -38,7 +40,7 @@ export type ComparisonManifest = {
 export type ComparisonRound = {
   game_id: string; level: string; bracket: string
   position: { move_index: number; ply: number; san: string; fen_before: string; fen_after: string }
-  candidates: { id: string; label: string; comment: string }[]
+  candidates: { id: string; label: string; comment: string; links?: CommentLink[] }[]
 }
 export type CriterionSummary = { n: number; mean: number | null; distribution: number[] }
 export type ComparisonCell = {

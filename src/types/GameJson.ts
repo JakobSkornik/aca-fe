@@ -51,6 +51,8 @@ export interface GameMove {
    * (a substantive key-moment comment, not a back-to-back stub). */
   final_comment?: boolean
   resolved_tokens?: ResolvedAnnotationToken[]
+  /** Phrases of the comment tied to a position of a displayed line (statement links). */
+  comment_links?: CommentLink[]
   /** Trimmed CommentFacts (verdict, display line, claims, better alternative). */
   comment_facts?: CommentFactsJson | null
   /** Academic reasoning trace (debug mode). */
@@ -107,6 +109,17 @@ export interface ClaimEvidencePiece {
   color: 'white' | 'black'
   /** subject (the piece the claim is about), target, attacker, king. */
   role: string
+}
+
+/** A phrase of a comment and what it is about: the line (`main` after the played move, `alt`
+ * after the other move), the ply along it (1 = after its first move) and the squares. */
+export interface CommentLink {
+  phrase: string
+  /** Offset of the phrase in the comment text, when the writer's text was not changed since. */
+  start?: number
+  part: 'main' | 'alt'
+  ply: number
+  evidence?: Partial<ClaimEvidence>
 }
 
 /** Board entities a claim is about, for hover highlighting. */

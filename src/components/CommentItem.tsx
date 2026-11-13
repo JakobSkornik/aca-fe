@@ -26,6 +26,8 @@ type Props = {
   keyMomentType?: string
   resolvedTokens?: ResolvedAnnotationToken[] | null
   llmDebug?: AiCommentLlmDebug
+  /** The comment already laid out (statement links); replaces the plain text. */
+  body?: React.ReactNode
 }
 
 const CommentItem: React.FC<Props> = ({
@@ -42,6 +44,7 @@ const CommentItem: React.FC<Props> = ({
   keyMomentType,
   resolvedTokens,
   llmDebug,
+  body,
 }) => {
   const hasInlineAnnotations =
     (resolvedTokens && resolvedTokens.length > 0) ||
@@ -121,7 +124,7 @@ const CommentItem: React.FC<Props> = ({
         </div>
       ) : null}
       <div className={`comment-text ${textClassName}`}>
-        {hasInlineAnnotations ? (
+        {body ? body : hasInlineAnnotations ? (
           <AnnotatedText text={text} resolvedTokens={resolvedTokens} />
         ) : paragraphs.length <= 1 ? (
           displayedText || text

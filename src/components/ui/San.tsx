@@ -1,4 +1,5 @@
 import React, { Fragment, type ReactNode } from 'react'
+import type { CommentLink } from '@/types/GameJson'
 
 /** Side that makes a move: decides the colour of its piece figurine. */
 export type Side = 'w' | 'b'
@@ -81,10 +82,50 @@ export function renderMoves(text: string): ReactNode[] {
  * A comment as the reader sees it. Each line of the stored text is a paragraph; the
  * paragraphs are separated by a gap only, without bullets. Moves are bold with piece figurines.
  */
-export const CommentText: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
-  const blocks = text.split('\n').map(block => block.trim()).filter(Boolean)
-  if (blocks.length < 2) return <p className={className}>{renderMoves(blocks[0] ?? '')}</p>
+export const CommentText: React.FC<{
+  text: string; className?: string
+  /** Phrases that can be hovered (statement links); a phrase that is not in the text is ignored. */
+  links?: CommentLink[]
+  onLinkHover?: (link: CommentLink | null) => void
+  onLinkSelect?: (link: CommentLink) => void
+}> = ({ text, className = '', links, onLinkHover, onLinkSelect }) => {
+  // Where each link stands in the text: its stored offset when the text still has the phrase
+  // there, else the first place the phrase occurs. Links never overlap.
+  const spans: { from: number; to: number; link: CommentLink }[] = []
+  for (const link of links ?? []) {
+    if (!link.phrase) continue
+    const from = link.start != null && text.startsWith(link.phrase, link.start) ? link.start : text.indexOf(link.phrase)
+    const to = from + link.phrase.length
+    if (from >= 0 && spans.every(s => to <= s.from || from >= s.to)) spans.push({ from, to, link })
+  }
+  spans.sort((a, b) => a.from - b.from)
+  const piece = (from: number, to: number) => {
+    const out: ReactNode[] = []
+    let at = from
+    for (const s of spans) {
+      if (s.from < from || s.to > to) continue
+      if (s.from > at) out.push(<Fragment key={`t${at}`}>{renderMoves(text.slice(at, s.from))}</Fragment>)
+      out.push(<span key={`l${s.from}`} className="comment-link" role="button" tabIndex={0}
+        onMouseEnter={() => onLinkHover?.(s.link)} onMouseLeave={() => onLinkHover?.(null)}
+        onFocus={() => onLinkHover?.(s.link)} onBlur={() => onLinkHover?.(null)}
+        onClick={() => onLinkSelect?.(s.link)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onLinkSelect?.(s.link) } }}>
+        {renderMoves(text.slice(s.from, s.to))}</span>)
+      at = s.to
+    }
+    if (at < to) out.push(<Fragment key={`t${at}`}>{renderMoves(text.slice(at, to))}</Fragment>)
+    return out
+  }
+  // Paragraphs with their place in the text, trimmed.
+  const blocks: [number, number][] = []
+  let offset = 0
+  for (const row of text.split('\n')) {
+    const lead = row.length - row.trimStart().length
+    if (row.trim()) blocks.push([offset + lead, offset + lead + row.trim().length])
+    offset += row.length + 1
+  }
+  if (blocks.length < 2) return <p className={className}>{blocks[0] ? piece(...blocks[0]) : null}</p>
   return <div className={`comment-blocks ${className}`}>
-    {blocks.map((block, i) => <p key={i}>{renderMoves(block)}</p>)}
+    {blocks.map(([from, to]) => <p key={from}>{piece(from, to)}</p>)}
   </div>
 }

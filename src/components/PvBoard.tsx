@@ -62,6 +62,28 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey, highlight = null 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manager, idx, lastIdx, steps.length])
 
+  // A hovered statement: the line is played from its start to the statement's position.
+  const target = useMemo(() => {
+    if (!line || !highlight || highlight.supportPly <= 0 || !steps.length) return null
+    const hasLead = !!line.startFen && steps[0]?.fen === line.startFen
+    return Math.max(0, Math.min(highlight.supportPly - (hasLead ? 0 : 1), lastIdx))
+  }, [line, steps, highlight, lastIdx])
+  const [played, setPlayed] = useState(0)
+  const hoverKey = highlight ? `${highlight.part}:${highlight.supportPly}:${highlight.text}` : ''
+  useEffect(() => {
+    if (target == null) return
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (still || target === 0) { setPlayed(target); return }
+    let at = 0
+    setPlayed(0)
+    const timer = window.setInterval(() => {
+      at += 1
+      setPlayed(at)
+      if (at >= target) window.clearInterval(timer)
+    }, Math.max(160, Math.min(450, 2400 / target)))
+    return () => window.clearInterval(timer)
+  }, [target, hoverKey])
+
   useEffect(() => {
     const onHi = (e: Event) => setExtHighlight(!!(e as CustomEvent).detail?.on)
     window.addEventListener('aca:variation-highlight', onHi)
@@ -82,9 +104,11 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey, highlight = null 
   const previewIdx = highlight && highlight.supportPly > 0
     ? Math.max(0, Math.min(highlight.supportPly - (hasLead ? 0 : 1), lastIdx))
     : null
-  const safeIdx = previewIdx ?? Math.max(0, Math.min(idx, lastIdx))
+  const arrived = previewIdx == null || played >= previewIdx
+  const safeIdx = previewIdx != null ? Math.min(played, previewIdx) : Math.max(0, Math.min(idx, lastIdx))
   const step = steps[safeIdx]
-  const highlightStyles = highlight ? evidenceSquareStyles(highlight.evidence) : null
+  // The squares are marked once the line has reached the statement's position.
+  const highlightStyles = highlight && arrived ? evidenceSquareStyles(highlight.evidence) : null
   const suffix = evalDepthSuffix(line.evalCp, line.evalMate, line.depth)
   const toneColor = line.tone === 'alt' ? 'var(--fg-3)' : 'var(--accent)'
   const focused = state.focusedBoard === 'variation'
