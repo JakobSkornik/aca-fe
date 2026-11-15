@@ -33,10 +33,16 @@ export const ClaimChip: React.FC<{
   part: CommentPart
   active: boolean
   onHover?: (next: ClaimHighlight | null) => void
-}> = ({ claim, part, active, onHover }) => {
+  /** The line the statement belongs to, to name the move it holds after. */
+  steps?: LineStep[]
+}> = ({ claim, part, active, onHover, steps }) => {
   const highlight = claimHighlight(claim, part)
-  const timing = claim.realization === 'envisioned'
-    ? (claim.caused_by_san ? `after ${claim.caused_by_san}` : 'in the line')
+  // The label names the move of the line after which the statement holds. A statement that
+  // holds only after a later move (a reply included) is never labelled "on this move".
+  const later = (claim.support_ply ?? 0) > 1
+  const laterSan = claim.caused_by_san ?? (later ? steps?.find(s => s.fen === claim.support_fen)?.san : null)
+  const timing = later || claim.realization === 'envisioned'
+    ? (laterSan ? `after ${laterSan}` : 'in the line')
     : 'on this move'
   const summary = claim.evidence ? evidenceSummary(claim.evidence) : ''
   return (
@@ -159,7 +165,7 @@ const PartCard: React.FC<{
           {claims.map((claim, i) => (
             <ClaimChip key={`${claim.rule_id}-${i}`} claim={claim} part={tone}
               active={!!hoverClaim && hoverClaim.part === tone && hoverClaim.text === claim.text}
-              onHover={onHoverClaim} />
+              onHover={onHoverClaim} steps={steps} />
           ))}
         </ul>
       ) : <div className="line-evidence-note mt-2 text-[11px] text-text-secondary">No retained statements for this line.</div>}

@@ -171,11 +171,11 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey, highlight = null 
             showBoardNotation={false}
           />
         </div>
-        {highlight ? (
-          <div className="claim-preview-note" style={{ width: BOARD_W }}>
-            Showing the position {previewIdx != null && previewIdx > 0 ? `after ${steps[previewIdx]?.san}` : 'before the move'} for the hovered statement
-          </div>
-        ) : null}
+        {/* Always in the layout: a note that appeared on hover would push the rows below it
+            out from under the pointer, and the hover would switch on and off. */}
+        <div className="claim-preview-note" style={{ width: BOARD_W, visibility: highlight ? 'visible' : 'hidden' }} aria-hidden={!highlight}>
+          Showing the position {previewIdx != null && previewIdx > 0 ? `after ${steps[previewIdx]?.san}` : 'before the move'} for the hovered statement
+        </div>
         <input
           type="range"
           min={0}

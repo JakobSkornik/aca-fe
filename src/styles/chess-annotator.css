@@ -799,7 +799,7 @@
 .claim-chip.concession { border-left: 3px solid var(--inacc); }
 .claim-chip-text { flex: 1 1 auto; min-width: 0; }
 .claim-chip-meta { flex: 0 0 auto; font-size: 10px; color: var(--fg-3); white-space: nowrap; }
-.claim-preview-note { margin-top: 6px; font-size: 10.5px; line-height: 1.4; color: var(--accent); }
+.claim-preview-note { margin-top: 6px; font-size: 10.5px; line-height: 1.4; min-height: 2.8em; color: var(--accent); }
 .evidence-statement.hoverable { cursor: crosshair; border-radius: 6px; padding: 2px 4px; margin-left: -4px; transition: background 0.12s ease; }
 .evidence-statement.hoverable:hover, .evidence-statement.hoverable:focus-visible { background: color-mix(in srgb, var(--accent) 12%, transparent); outline: none; }
 .evidence-squares { font-size: 11px; color: var(--fg-3); margin: -6px 0 10px; line-height: 1.5; }
