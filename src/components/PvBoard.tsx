@@ -135,7 +135,8 @@ const PvBoard: React.FC<Props> = ({ line, idx, onIdx, loadKey, highlight = null 
     <div
       className="pv-card shrink-0"
       style={{
-        opacity: focused || extHighlight ? 1 : 0.6,
+        // A hovered statement is shown on this board, so it is lit while the hover lasts.
+        opacity: focused || extHighlight || highlight ? 1 : 0.6,
         transition: 'opacity 0.15s ease',
       }}
       onMouseDown={() => manager.setFocusedBoard('variation')}
